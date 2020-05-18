@@ -25,7 +25,8 @@ typedef half2   Complex;
 #define reduction 2048
 const Real normalisation_half = __float2half_rn((float)sample_size/(float)reduction/(float)reduction);
 
-const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in
+const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
+//const char* address_seed_in = "tcp://127.0.0.1:46666"; //seed_in_bob
 const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
 constexpr int vertical_len = 96;
@@ -42,6 +43,9 @@ unsigned int* key_rest = (unsigned int*)malloc(desired_block * 100);
 std::atomic<int> continueGeneratingNextBlock = 0;
 std::atomic<int> blockReady = 0;
 std::mutex printlock;
+char syn[3];
+char ack[3];
+
 
 __device__ __constant__ half h0_dev;
 __device__ __constant__ half h1_reduced_dev;
@@ -321,7 +325,11 @@ void recive() {
 
 int main(int argc, char* argv[])
 {
-    std::cout << "Bob:" << std::endl;
+
+    void* amp_out_context = zmq_ctx_new();
+    void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
+    int rc = zmq_bind(amp_out_socket, address_amp_out);
+    assert(rc == 0);
 
 #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -477,6 +485,13 @@ int main(int argc, char* argv[])
         //printf("FFT time for %lld samples: %f ms\n", (sample_size * loops), et);
 
         printlock.lock();
+
+        zmq_recv(amp_out_socket, syn, 3, 0);
+        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
+        zmq_send(amp_out_socket, Output, sample_size / 8, 0);
+        zmq_recv(amp_out_socket, ack, 3, 0);
+        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
+        
         for (size_t i = 0; i < std::min((sample_size / 32), 16); ++i)
         {
             printf("0x%0004X: %s\n", Output[i], std::bitset<32>(Output[i]).to_string().c_str());
