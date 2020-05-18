@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30104.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PrivacyAmplification", "PrivacyAmplification.vcxproj", "{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Debug|x64.ActiveCfg = Debug|x64
+		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Debug|x64.Build.0 = Debug|x64
+		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Release|x64.ActiveCfg = Release|x64
+		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D121F0EA-7E42-4A1E-8FC9-D391AF1C0A4F}
+	EndGlobalSection
+EndGlobal
