@@ -23,6 +23,7 @@ typedef half2   Complex;
 #define factor 32
 #define sample_size 256 //1024 * 1024 * factor
 #define reduction 2048
+#define min_template(a,b) (((a) < (b)) ? (a) : (b))
 const Real normalisation_half = __float2half_rn((float)sample_size/(float)reduction/(float)reduction);
 
 const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
@@ -380,7 +381,7 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
 
     // Allocate host pinned memory on RAM
-    cudaMallocHost((void**)&Output, sizeof(unsigned int) * dist_sample);
+    cudaMallocHost((void**)&Output, vertical_block * sizeof(unsigned int));
     cudaMallocHost((void**)&OutputHalf, sizeof(half*) * dist_sample);
 
     // Allocate memory on GPU
@@ -473,9 +474,9 @@ int main(int argc, char* argv[])
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
-        ToBinaryArray <<<(int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev);
+        ToBinaryArray <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
-        cudaMemcpy(Output, binOut, sample_size / 32 * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -492,9 +493,9 @@ int main(int argc, char* argv[])
         zmq_recv(amp_out_socket, ack, 3, 0);
         printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
         
-        for (size_t i = 0; i < std::min((sample_size / 32), 16); ++i)
+        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 16); ++i)
         {
-            printf("0x%0004X: %s\n", Output[i], std::bitset<32>(Output[i]).to_string().c_str());
+            printf("0x%02X: %s\n", Output[i], std::bitset<8>(Output[i]).to_string().c_str());
         }
         fflush(stdout);
         printlock.unlock();
