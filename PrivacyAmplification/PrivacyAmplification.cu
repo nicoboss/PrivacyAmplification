@@ -180,6 +180,52 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_de
          (__half2int_rn(invOut[j + 31] / normalisation_half_dev) & 1)) ^ key_rest_dev[i];
 }
 
+__global__
+void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int key_rest_little = key_rest_dev[i];
+    int key_rest_big =
+        ((((key_rest_little) & 0xff000000) >> 24) |
+        (((key_rest_little) & 0x00ff0000) >> 8) |
+        (((key_rest_little) & 0x0000ff00) << 8) |
+        (((key_rest_little) & 0x000000ff) << 24));
+    int j = i * 32;
+    binOut[i] =
+        (((__half2int_rn(invOut[j    ] / normalisation_half_dev) & 1) << 7) |
+        ((__half2int_rn(invOut[j +  1] / normalisation_half_dev) & 1) << 6) |
+        ((__half2int_rn(invOut[j +  2] / normalisation_half_dev) & 1) << 5) |
+        ((__half2int_rn(invOut[j +  3] / normalisation_half_dev) & 1) << 4) |
+        ((__half2int_rn(invOut[j +  4] / normalisation_half_dev) & 1) << 3) |
+        ((__half2int_rn(invOut[j +  5] / normalisation_half_dev) & 1) << 2) |
+        ((__half2int_rn(invOut[j +  6] / normalisation_half_dev) & 1) << 1) |
+        ((__half2int_rn(invOut[j +  7] / normalisation_half_dev) & 1) << 0) |
+        ((__half2int_rn(invOut[j +  8] / normalisation_half_dev) & 1) << 15) |
+        ((__half2int_rn(invOut[j +  9] / normalisation_half_dev) & 1) << 14) |
+        ((__half2int_rn(invOut[j + 10] / normalisation_half_dev) & 1) << 13) |
+        ((__half2int_rn(invOut[j + 11] / normalisation_half_dev) & 1) << 12) |
+        ((__half2int_rn(invOut[j + 12] / normalisation_half_dev) & 1) << 11) |
+        ((__half2int_rn(invOut[j + 13] / normalisation_half_dev) & 1) << 10) |
+        ((__half2int_rn(invOut[j + 14] / normalisation_half_dev) & 1) << 9) |
+        ((__half2int_rn(invOut[j + 15] / normalisation_half_dev) & 1) << 8) |
+        ((__half2int_rn(invOut[j + 16] / normalisation_half_dev) & 1) << 23) |
+        ((__half2int_rn(invOut[j + 17] / normalisation_half_dev) & 1) << 22) |
+        ((__half2int_rn(invOut[j + 18] / normalisation_half_dev) & 1) << 21) |
+        ((__half2int_rn(invOut[j + 19] / normalisation_half_dev) & 1) << 20) |
+        ((__half2int_rn(invOut[j + 20] / normalisation_half_dev) & 1) << 19) |
+        ((__half2int_rn(invOut[j + 21] / normalisation_half_dev) & 1) << 18) |
+        ((__half2int_rn(invOut[j + 22] / normalisation_half_dev) & 1) << 17) |
+        ((__half2int_rn(invOut[j + 23] / normalisation_half_dev) & 1) << 16) |
+        ((__half2int_rn(invOut[j + 24] / normalisation_half_dev) & 1) << 31) |
+        ((__half2int_rn(invOut[j + 25] / normalisation_half_dev) & 1) << 30) |
+        ((__half2int_rn(invOut[j + 26] / normalisation_half_dev) & 1) << 29) |
+        ((__half2int_rn(invOut[j + 27] / normalisation_half_dev) & 1) << 28) |
+        ((__half2int_rn(invOut[j + 28] / normalisation_half_dev) & 1) << 27) |
+        ((__half2int_rn(invOut[j + 29] / normalisation_half_dev) & 1) << 26) |
+        ((__half2int_rn(invOut[j + 30] / normalisation_half_dev) & 1) << 25) |
+        ((__half2int_rn(invOut[j + 31] / normalisation_half_dev) & 1) << 24)) ^ key_rest_big;
+}
+
 __global__ void binInt2half(unsigned int* binIn, Real* realOut)
 {
     unsigned int i;
@@ -365,7 +411,7 @@ int main(int argc, char* argv[])
     Complex* do2;
     Complex* mul1;
     unsigned int* binOut;
-    unsigned int* Output;
+    unsigned char* Output;
     half* OutputHalf;
     cudaStream_t cpu2gpuStream1, cpu2gpuStream2, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
     cudaStreamCreate(&cpu2gpuStream1);
@@ -474,7 +520,7 @@ int main(int argc, char* argv[])
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
-        ToBinaryArray <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev);
+        ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         //}
