@@ -14,7 +14,7 @@ constexpr int horizontal_block = horizontal_len / 32;
 constexpr int key_blocks = vertical_block + horizontal_block + 1;
 constexpr int desired_block = vertical_block + horizontal_block;
 constexpr int desired_len = vertical_len + horizontal_len;
-unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * 100);
+unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block);
 std::atomic<int> aliceReady = 1;
 std::atomic<int> bobReady = 1;
 
@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
     threadReciveObjAlice.detach();
     std::thread threadReciveObjBob(send_bob);
     threadReciveObjBob.detach();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(50));
 
     while (true) {
 
@@ -88,8 +88,8 @@ int main(int argc, char* argv[])
 
         unsigned int* vertical_data_alice = new unsigned int[vertical_block] { 0b10101000111111011010010101110111, 0b11110011000000000110101010011000, 0b11110110110001111100111001101001 };
         unsigned int* horizontal_data_alice = new unsigned int[horizontal_block] { 0b10010011000111011111001011110011, 0b10111010011101010011011101000100, 0b11111100010001011111010011000100, 0b00110101010111010010000010010111, 0b01001110101110100111110001100101 };
-        memcpy(toeplitz_seed, vertical_data_alice, vertical_len * sizeof(unsigned int));
-        memcpy(toeplitz_seed + vertical_block, horizontal_data_alice, horizontal_len * sizeof(unsigned int));
+        memcpy(toeplitz_seed, vertical_data_alice, vertical_block * sizeof(unsigned int));
+        memcpy(toeplitz_seed + vertical_block, horizontal_data_alice, horizontal_block * sizeof(unsigned int));
 
         aliceReady = 0;
         bobReady = 0;
