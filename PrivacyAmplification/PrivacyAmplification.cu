@@ -27,6 +27,8 @@ typedef half2   Complex;
 #define reduction 2048
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define USE_MATRIX_SEED_SERVER FALSE
+#define USE_KEY_SERVER FALSE
+#define HOST_AMPOUT_SERVER FALSE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 const Real normalisation_half = __float2half_rn((float)sample_size/(float)reduction/(float)reduction);
 
@@ -35,7 +37,9 @@ const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
 //const char* address_seed_in = "tcp://127.0.0.1:46666"; //seed_in_bob
 #endif
 const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
+#if HOST_AMPOUT_SERVER == TRUE
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
+#endif
 constexpr int vertical_len = 96;
 constexpr int horizontal_len = 160;
 constexpr int key_len = 257;
@@ -411,12 +415,15 @@ void recive() {
 
 int main(int argc, char* argv[])
 {
+
+    #if HOST_AMPOUT_SERVER == TRUE
     void* amp_out_context = zmq_ctx_new();
     void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
     int rc = zmq_bind(amp_out_socket, address_amp_out);
     assert(rc == 0);
+    #endif
 
-#ifdef _WIN32
+    #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     DWORD dwConSize;
@@ -426,9 +433,7 @@ int main(int argc, char* argv[])
     dwConSize = csbi.dwSize.X * csbi.dwSize.Y;
     FillConsoleOutputAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE, dwConSize, coordScreen, &cCharsWritten);
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
-#endif
-
-
+    #endif
 
     std::thread threadReciveObj(recive);
     threadReciveObj.detach();
@@ -575,12 +580,14 @@ int main(int argc, char* argv[])
 
         printlock.lock();
 
+        #if HOST_AMPOUT_SERVER == TRUE
         zmq_recv(amp_out_socket, syn, 3, 0);
         printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
         zmq_send(amp_out_socket, Output, sample_size / 8, 0);
         zmq_recv(amp_out_socket, ack, 3, 0);
         printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
-        
+        #endif
+
         for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 16); ++i)
         {
             printf("0x%02X: %s\n", Output[i], std::bitset<8>(Output[i]).to_string().c_str());
