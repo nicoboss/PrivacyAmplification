@@ -96,7 +96,9 @@
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xcopy /y /d  "C:\Users\Administrator\Documents\GitHub\libzmq\build\bin\Release\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"</Command>
+xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
+</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -121,7 +123,9 @@ xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"</Command
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d  "C:\Users\Administrator\Documents\GitHub\libzmq\build\bin\Release\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"</Command>
+xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
+</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
