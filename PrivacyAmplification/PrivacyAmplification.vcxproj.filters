@@ -3,4 +3,7 @@
   <ItemGroup>
     <CudaCompile Include="PrivacyAmplification.cu" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
+  </ItemGroup>
 </Project>
