@@ -24,6 +24,7 @@ typedef half2   Complex;
 #define sample_size 256 //1024 * 1024 * factor
 #define reduction 2048
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
+#define AMPOUT_REVERSE_ENDIAN TRUE
 const Real normalisation_half = __float2half_rn((float)sample_size/(float)reduction/(float)reduction);
 
 const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
@@ -520,7 +521,11 @@ int main(int argc, char* argv[])
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
+        #if AMPOUT_REVERSE_ENDIAN == TRUE
         ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev);
+        #else
+        ToBinaryArray << <(int)(((int)(vertical_block)+1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >> > (invOut, binOut, key_rest_dev);
+        #endif
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         //}
