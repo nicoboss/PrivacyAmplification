@@ -186,10 +186,10 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int key_rest_little = key_rest_dev[i];
     int key_rest_big =
-        ((((key_rest_little) & 0xff000000) >> 24) |
-        (((key_rest_little) & 0x00ff0000) >> 8) |
-        (((key_rest_little) & 0x0000ff00) << 8) |
-        (((key_rest_little) & 0x000000ff) << 24));
+        (key_rest_little << 24) |
+        ((key_rest_little << 8) & 0x00ff0000) |
+        ((key_rest_little >> 8) & 0x0000ff00) |
+        (key_rest_little >> 24);
     int j = i * 32;
     binOut[i] =
         (((__half2int_rn(invOut[j    ] / normalisation_half_dev) & 1) << 7) |
