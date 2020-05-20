@@ -22,16 +22,16 @@
 typedef half    Real;
 typedef half2   Complex;
 
-#define factor 14
+#define factor 8
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction 2048
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER FALSE
-#define USE_KEY_SERVER FALSE
-#define HOST_AMPOUT_SERVER FALSE
+#define USE_MATRIX_SEED_SERVER TRUE
+#define USE_KEY_SERVER TRUE
+#define HOST_AMPOUT_SERVER TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
