@@ -118,6 +118,13 @@ void calculateCorrectionHalf(uint32_t* count_one_global_seed, uint32_t* count_on
 }
 
 __global__
+void setFirstElementToZero(Complex* do1, Complex* do2)
+{
+    do1[0] = c0_dev;
+    do2[0] = c0_dev;
+}
+
+__global__
 void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
 {
     //Requires at least sm_53 as sm_52 and below don't support half maths.
@@ -642,8 +649,8 @@ int main(int argc, char* argv[])
         cufftXtExec(plan_forward_R2C_1, di1, do1, CUFFT_FORWARD);
         //cudaStreamSynchronize(cpu2gpuStream2);
         cufftXtExec(plan_forward_R2C_2, di2, do2, CUFFT_FORWARD);
-        cudaMemcpy(do1, &c0_dev, sizeof(Complex), cudaMemcpyDeviceToDevice);
-        cudaMemcpy(do2, &c0_dev, sizeof(Complex), cudaMemcpyDeviceToDevice);
+        setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
+        cudaStreamSynchronize(ElementWiseProductStream);
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
@@ -655,7 +662,7 @@ int main(int argc, char* argv[])
         #endif
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        cudaMemcpy(OutputHalf, di1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputHalf, do1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
