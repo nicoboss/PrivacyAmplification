@@ -118,14 +118,6 @@ void calculateCorrectionHalf(uint32_t* count_one_global_seed, uint32_t* count_on
 }
 
 __global__
-void setFirstElementToZero(Complex* do1, Complex* do2)
-{
-    do1[0] = c0_dev;
-    do2[0] = c0_dev;
-}
-
-
-__global__
 void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
 {
     //Requires at least sm_53 as sm_52 and below don't support half maths.
@@ -181,48 +173,50 @@ void ToHalfArray(int n, unsigned int b, Real* halfOut, Real normalisation_half)
 }
 
 __global__
-void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real correction_half_dev)
+void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real* correction_half_dev)
 {
+    Real correction_half = *correction_half_dev;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = i * 32;
     binOut[i] = 
-        (((__half2int_rn(invOut[j    ] / normalisation_half_dev + correction_half_dev) & 1) << 31) |
-        ((__half2int_rn(invOut[j +  1] / normalisation_half_dev + correction_half_dev) & 1) << 30) |
-        ((__half2int_rn(invOut[j +  2] / normalisation_half_dev + correction_half_dev) & 1) << 29) |
-        ((__half2int_rn(invOut[j +  3] / normalisation_half_dev + correction_half_dev) & 1) << 28) |
-        ((__half2int_rn(invOut[j +  4] / normalisation_half_dev + correction_half_dev) & 1) << 27) |
-        ((__half2int_rn(invOut[j +  5] / normalisation_half_dev + correction_half_dev) & 1) << 26) |
-        ((__half2int_rn(invOut[j +  6] / normalisation_half_dev + correction_half_dev) & 1) << 25) |
-        ((__half2int_rn(invOut[j +  7] / normalisation_half_dev + correction_half_dev) & 1) << 24) |
-        ((__half2int_rn(invOut[j +  8] / normalisation_half_dev + correction_half_dev) & 1) << 23) |
-        ((__half2int_rn(invOut[j +  9] / normalisation_half_dev + correction_half_dev) & 1) << 22) |
-        ((__half2int_rn(invOut[j + 10] / normalisation_half_dev + correction_half_dev) & 1) << 21) |
-        ((__half2int_rn(invOut[j + 11] / normalisation_half_dev + correction_half_dev) & 1) << 20) |
-        ((__half2int_rn(invOut[j + 12] / normalisation_half_dev + correction_half_dev) & 1) << 19) |
-        ((__half2int_rn(invOut[j + 13] / normalisation_half_dev + correction_half_dev) & 1) << 18) |
-        ((__half2int_rn(invOut[j + 14] / normalisation_half_dev + correction_half_dev) & 1) << 17) |
-        ((__half2int_rn(invOut[j + 15] / normalisation_half_dev + correction_half_dev) & 1) << 16) |
-        ((__half2int_rn(invOut[j + 16] / normalisation_half_dev + correction_half_dev) & 1) << 15) |
-        ((__half2int_rn(invOut[j + 17] / normalisation_half_dev + correction_half_dev) & 1) << 14) |
-        ((__half2int_rn(invOut[j + 18] / normalisation_half_dev + correction_half_dev) & 1) << 13) |
-        ((__half2int_rn(invOut[j + 19] / normalisation_half_dev + correction_half_dev) & 1) << 12) |
-        ((__half2int_rn(invOut[j + 20] / normalisation_half_dev + correction_half_dev) & 1) << 11) |
-        ((__half2int_rn(invOut[j + 21] / normalisation_half_dev + correction_half_dev) & 1) << 10) |
-        ((__half2int_rn(invOut[j + 22] / normalisation_half_dev + correction_half_dev) & 1) << 9) |
-        ((__half2int_rn(invOut[j + 23] / normalisation_half_dev + correction_half_dev) & 1) << 8) |
-        ((__half2int_rn(invOut[j + 24] / normalisation_half_dev + correction_half_dev) & 1) << 7) |
-        ((__half2int_rn(invOut[j + 25] / normalisation_half_dev + correction_half_dev) & 1) << 6) |
-        ((__half2int_rn(invOut[j + 26] / normalisation_half_dev + correction_half_dev) & 1) << 5) |
-        ((__half2int_rn(invOut[j + 27] / normalisation_half_dev + correction_half_dev) & 1) << 4) |
-        ((__half2int_rn(invOut[j + 28] / normalisation_half_dev + correction_half_dev) & 1) << 3) |
-        ((__half2int_rn(invOut[j + 29] / normalisation_half_dev + correction_half_dev) & 1) << 2) |
-        ((__half2int_rn(invOut[j + 30] / normalisation_half_dev + correction_half_dev) & 1) << 1) |
-         (__half2int_rn(invOut[j + 31] / normalisation_half_dev + correction_half_dev) & 1));
+        (((__half2int_rn(invOut[j    ] / normalisation_half_dev + correction_half) & 1) << 31) |
+        ((__half2int_rn(invOut[j +  1] / normalisation_half_dev + correction_half) & 1) << 30) |
+        ((__half2int_rn(invOut[j +  2] / normalisation_half_dev + correction_half) & 1) << 29) |
+        ((__half2int_rn(invOut[j +  3] / normalisation_half_dev + correction_half) & 1) << 28) |
+        ((__half2int_rn(invOut[j +  4] / normalisation_half_dev + correction_half) & 1) << 27) |
+        ((__half2int_rn(invOut[j +  5] / normalisation_half_dev + correction_half) & 1) << 26) |
+        ((__half2int_rn(invOut[j +  6] / normalisation_half_dev + correction_half) & 1) << 25) |
+        ((__half2int_rn(invOut[j +  7] / normalisation_half_dev + correction_half) & 1) << 24) |
+        ((__half2int_rn(invOut[j +  8] / normalisation_half_dev + correction_half) & 1) << 23) |
+        ((__half2int_rn(invOut[j +  9] / normalisation_half_dev + correction_half) & 1) << 22) |
+        ((__half2int_rn(invOut[j + 10] / normalisation_half_dev + correction_half) & 1) << 21) |
+        ((__half2int_rn(invOut[j + 11] / normalisation_half_dev + correction_half) & 1) << 20) |
+        ((__half2int_rn(invOut[j + 12] / normalisation_half_dev + correction_half) & 1) << 19) |
+        ((__half2int_rn(invOut[j + 13] / normalisation_half_dev + correction_half) & 1) << 18) |
+        ((__half2int_rn(invOut[j + 14] / normalisation_half_dev + correction_half) & 1) << 17) |
+        ((__half2int_rn(invOut[j + 15] / normalisation_half_dev + correction_half) & 1) << 16) |
+        ((__half2int_rn(invOut[j + 16] / normalisation_half_dev + correction_half) & 1) << 15) |
+        ((__half2int_rn(invOut[j + 17] / normalisation_half_dev + correction_half) & 1) << 14) |
+        ((__half2int_rn(invOut[j + 18] / normalisation_half_dev + correction_half) & 1) << 13) |
+        ((__half2int_rn(invOut[j + 19] / normalisation_half_dev + correction_half) & 1) << 12) |
+        ((__half2int_rn(invOut[j + 20] / normalisation_half_dev + correction_half) & 1) << 11) |
+        ((__half2int_rn(invOut[j + 21] / normalisation_half_dev + correction_half) & 1) << 10) |
+        ((__half2int_rn(invOut[j + 22] / normalisation_half_dev + correction_half) & 1) << 9) |
+        ((__half2int_rn(invOut[j + 23] / normalisation_half_dev + correction_half) & 1) << 8) |
+        ((__half2int_rn(invOut[j + 24] / normalisation_half_dev + correction_half) & 1) << 7) |
+        ((__half2int_rn(invOut[j + 25] / normalisation_half_dev + correction_half) & 1) << 6) |
+        ((__half2int_rn(invOut[j + 26] / normalisation_half_dev + correction_half) & 1) << 5) |
+        ((__half2int_rn(invOut[j + 27] / normalisation_half_dev + correction_half) & 1) << 4) |
+        ((__half2int_rn(invOut[j + 28] / normalisation_half_dev + correction_half) & 1) << 3) |
+        ((__half2int_rn(invOut[j + 29] / normalisation_half_dev + correction_half) & 1) << 2) |
+        ((__half2int_rn(invOut[j + 30] / normalisation_half_dev + correction_half) & 1) << 1) |
+         (__half2int_rn(invOut[j + 31] / normalisation_half_dev + correction_half) & 1));
 }
 
 __global__
-void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real correction_half_dev)
+void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real* correction_half_dev)
 {
+    Real correction_half = *correction_half_dev;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int key_rest_little = key_rest_dev[i];
     int key_rest_big =
@@ -232,41 +226,41 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
         (((key_rest_little) & 0x000000ff) << 24));
     int j = i * 32;
     binOut[i] =
-        (((__half2int_rn(invOut[j    ] / normalisation_half_dev + correction_half_dev) & 1) << 7) |
-        ((__half2int_rn(invOut[j +  1] / normalisation_half_dev + correction_half_dev) & 1) << 6) |
-        ((__half2int_rn(invOut[j +  2] / normalisation_half_dev + correction_half_dev) & 1) << 5) |
-        ((__half2int_rn(invOut[j +  3] / normalisation_half_dev + correction_half_dev) & 1) << 4) |
-        ((__half2int_rn(invOut[j +  4] / normalisation_half_dev + correction_half_dev) & 1) << 3) |
-        ((__half2int_rn(invOut[j +  5] / normalisation_half_dev + correction_half_dev) & 1) << 2) |
-        ((__half2int_rn(invOut[j +  6] / normalisation_half_dev + correction_half_dev) & 1) << 1) |
-        ((__half2int_rn(invOut[j +  7] / normalisation_half_dev + correction_half_dev) & 1) << 0) |
-        ((__half2int_rn(invOut[j +  8] / normalisation_half_dev + correction_half_dev) & 1) << 15) |
-        ((__half2int_rn(invOut[j +  9] / normalisation_half_dev + correction_half_dev) & 1) << 14) |
-        ((__half2int_rn(invOut[j + 10] / normalisation_half_dev + correction_half_dev) & 1) << 13) |
-        ((__half2int_rn(invOut[j + 11] / normalisation_half_dev + correction_half_dev) & 1) << 12) |
-        ((__half2int_rn(invOut[j + 12] / normalisation_half_dev + correction_half_dev) & 1) << 11) |
-        ((__half2int_rn(invOut[j + 13] / normalisation_half_dev + correction_half_dev) & 1) << 10) |
-        ((__half2int_rn(invOut[j + 14] / normalisation_half_dev + correction_half_dev) & 1) << 9) |
-        ((__half2int_rn(invOut[j + 15] / normalisation_half_dev + correction_half_dev) & 1) << 8) |
-        ((__half2int_rn(invOut[j + 16] / normalisation_half_dev + correction_half_dev) & 1) << 23) |
-        ((__half2int_rn(invOut[j + 17] / normalisation_half_dev + correction_half_dev) & 1) << 22) |
-        ((__half2int_rn(invOut[j + 18] / normalisation_half_dev + correction_half_dev) & 1) << 21) |
-        ((__half2int_rn(invOut[j + 19] / normalisation_half_dev + correction_half_dev) & 1) << 20) |
-        ((__half2int_rn(invOut[j + 20] / normalisation_half_dev + correction_half_dev) & 1) << 19) |
-        ((__half2int_rn(invOut[j + 21] / normalisation_half_dev + correction_half_dev) & 1) << 18) |
-        ((__half2int_rn(invOut[j + 22] / normalisation_half_dev + correction_half_dev) & 1) << 17) |
-        ((__half2int_rn(invOut[j + 23] / normalisation_half_dev + correction_half_dev) & 1) << 16) |
-        ((__half2int_rn(invOut[j + 24] / normalisation_half_dev + correction_half_dev) & 1) << 31) |
-        ((__half2int_rn(invOut[j + 25] / normalisation_half_dev + correction_half_dev) & 1) << 30) |
-        ((__half2int_rn(invOut[j + 26] / normalisation_half_dev + correction_half_dev) & 1) << 29) |
-        ((__half2int_rn(invOut[j + 27] / normalisation_half_dev + correction_half_dev) & 1) << 28) |
-        ((__half2int_rn(invOut[j + 28] / normalisation_half_dev + correction_half_dev) & 1) << 27) |
-        ((__half2int_rn(invOut[j + 29] / normalisation_half_dev + correction_half_dev) & 1) << 26) |
-        ((__half2int_rn(invOut[j + 30] / normalisation_half_dev + correction_half_dev) & 1) << 25) |
-        ((__half2int_rn(invOut[j + 31] / normalisation_half_dev + correction_half_dev) & 1) << 24));
+        (((__half2int_rn(invOut[j    ] / normalisation_half_dev + correction_half) & 1) << 7) |
+        ((__half2int_rn(invOut[j +  1] / normalisation_half_dev + correction_half) & 1) << 6) |
+        ((__half2int_rn(invOut[j +  2] / normalisation_half_dev + correction_half) & 1) << 5) |
+        ((__half2int_rn(invOut[j +  3] / normalisation_half_dev + correction_half) & 1) << 4) |
+        ((__half2int_rn(invOut[j +  4] / normalisation_half_dev + correction_half) & 1) << 3) |
+        ((__half2int_rn(invOut[j +  5] / normalisation_half_dev + correction_half) & 1) << 2) |
+        ((__half2int_rn(invOut[j +  6] / normalisation_half_dev + correction_half) & 1) << 1) |
+        ((__half2int_rn(invOut[j +  7] / normalisation_half_dev + correction_half) & 1) << 0) |
+        ((__half2int_rn(invOut[j +  8] / normalisation_half_dev + correction_half) & 1) << 15) |
+        ((__half2int_rn(invOut[j +  9] / normalisation_half_dev + correction_half) & 1) << 14) |
+        ((__half2int_rn(invOut[j + 10] / normalisation_half_dev + correction_half) & 1) << 13) |
+        ((__half2int_rn(invOut[j + 11] / normalisation_half_dev + correction_half) & 1) << 12) |
+        ((__half2int_rn(invOut[j + 12] / normalisation_half_dev + correction_half) & 1) << 11) |
+        ((__half2int_rn(invOut[j + 13] / normalisation_half_dev + correction_half) & 1) << 10) |
+        ((__half2int_rn(invOut[j + 14] / normalisation_half_dev + correction_half) & 1) << 9) |
+        ((__half2int_rn(invOut[j + 15] / normalisation_half_dev + correction_half) & 1) << 8) |
+        ((__half2int_rn(invOut[j + 16] / normalisation_half_dev + correction_half) & 1) << 23) |
+        ((__half2int_rn(invOut[j + 17] / normalisation_half_dev + correction_half) & 1) << 22) |
+        ((__half2int_rn(invOut[j + 18] / normalisation_half_dev + correction_half) & 1) << 21) |
+        ((__half2int_rn(invOut[j + 19] / normalisation_half_dev + correction_half) & 1) << 20) |
+        ((__half2int_rn(invOut[j + 20] / normalisation_half_dev + correction_half) & 1) << 19) |
+        ((__half2int_rn(invOut[j + 21] / normalisation_half_dev + correction_half) & 1) << 18) |
+        ((__half2int_rn(invOut[j + 22] / normalisation_half_dev + correction_half) & 1) << 17) |
+        ((__half2int_rn(invOut[j + 23] / normalisation_half_dev + correction_half) & 1) << 16) |
+        ((__half2int_rn(invOut[j + 24] / normalisation_half_dev + correction_half) & 1) << 31) |
+        ((__half2int_rn(invOut[j + 25] / normalisation_half_dev + correction_half) & 1) << 30) |
+        ((__half2int_rn(invOut[j + 26] / normalisation_half_dev + correction_half) & 1) << 29) |
+        ((__half2int_rn(invOut[j + 27] / normalisation_half_dev + correction_half) & 1) << 28) |
+        ((__half2int_rn(invOut[j + 28] / normalisation_half_dev + correction_half) & 1) << 27) |
+        ((__half2int_rn(invOut[j + 29] / normalisation_half_dev + correction_half) & 1) << 26) |
+        ((__half2int_rn(invOut[j + 30] / normalisation_half_dev + correction_half) & 1) << 25) |
+        ((__half2int_rn(invOut[j + 31] / normalisation_half_dev + correction_half) & 1) << 24));
 }
 
-__global__ void binInt2half(unsigned int* binIn, Real* realOut, unsigned int count_one_global)
+__global__ void binInt2half(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
 {
     unsigned int i;
     int block = blockIdx.x;
@@ -291,7 +285,7 @@ __global__ void binInt2half(unsigned int* binIn, Real* realOut, unsigned int cou
         }
     }
 
-    atomicAdd(&count_one_global, count_one);
+    atomicAdd(count_one_global, count_one);
 }
 
 void intToBinCPU(int* intIn, unsigned int* binOut, int outSize) {
@@ -522,9 +516,9 @@ int main(int argc, char* argv[])
     const int loops = 10000;
 
     cufftHandle plan_forward_R2C_1, plan_forward_R2C_2, plan_inverse_C2R;
-    uint32_t count_one_global_seed;
-    uint32_t count_one_global_key;
-    half correction_half_dev;
+    uint32_t* count_one_global_seed;
+    uint32_t* count_one_global_key;
+    half* correction_half_dev;
     unsigned int* key_start_dev;
     unsigned int* key_rest_dev;
     unsigned int* toeplitz_seed_dev;
@@ -537,8 +531,10 @@ int main(int argc, char* argv[])
     unsigned int* binOut;
     unsigned char* Output;
     half* OutputHalf;
-    cudaStream_t BinInt2halfStream, cpu2gpuStream1, cpu2gpuStream2, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
+    cudaStream_t BinInt2halfStream, CalculateCorrectionHalfStream,
+        cpu2gpuStream1, cpu2gpuStream2, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
     cudaStreamCreate(&BinInt2halfStream);
+    cudaStreamCreate(&CalculateCorrectionHalfStream);
     cudaStreamCreate(&cpu2gpuStream1);
     cudaStreamCreate(&cpu2gpuStream2);
     cudaStreamCreate(&gpu2cpuStream);
@@ -556,9 +552,9 @@ int main(int argc, char* argv[])
     cudaMallocHost((void**)&OutputHalf, dist_sample * sizeof(half));
 
     // Allocate memory on GPU
-    cudaMalloc((void**)&count_one_global_seed, sizeof(uint32_t));
-    cudaMalloc((void**)&count_one_global_key, sizeof(uint32_t));
-    cudaMalloc((void**)&correction_half_dev, sizeof(half));
+    cudaMalloc(&count_one_global_seed, sizeof(uint32_t));
+    cudaMalloc(&count_one_global_key, sizeof(uint32_t));
+    cudaMalloc(&correction_half_dev, sizeof(half));
     cudaMalloc((void**)&key_start_dev, (sample_size/8));
     cudaMalloc((void**)&key_rest_dev, (sample_size/8));
     cudaMalloc((void**)&toeplitz_seed_dev, (sample_size/8));
@@ -635,8 +631,7 @@ int main(int argc, char* argv[])
         binInt2half <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
             BinInt2halfStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
         cudaStreamSynchronize(BinInt2halfStream);
-        calculateCorrectionHalf <<<1, 1, 0, BinInt2halfStream>>> (&count_one_global_seed, &count_one_global_key, &correction_half_dev);
-        cudaStreamSynchronize(BinInt2halfStream);
+        calculateCorrectionHalf <<<1, 1, 0, CalculateCorrectionHalfStream >>> (count_one_global_seed, count_one_global_key, correction_half_dev);
 
         cudaEventRecord(start);
         cudaEventSynchronize(start);
@@ -647,11 +642,12 @@ int main(int argc, char* argv[])
         cufftXtExec(plan_forward_R2C_1, di1, do1, CUFFT_FORWARD);
         //cudaStreamSynchronize(cpu2gpuStream2);
         cufftXtExec(plan_forward_R2C_2, di2, do2, CUFFT_FORWARD);
-        setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
-        cudaStreamSynchronize(ElementWiseProductStream);
+        cudaMemcpy(do1, &c0_dev, sizeof(Complex), cudaMemcpyDeviceToDevice);
+        cudaMemcpy(do2, &c0_dev, sizeof(Complex), cudaMemcpyDeviceToDevice);
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
+        cudaStreamSynchronize(CalculateCorrectionHalfStream);
         #if AMPOUT_REVERSE_ENDIAN == TRUE
         ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_half_dev);
         #else
@@ -659,7 +655,7 @@ int main(int argc, char* argv[])
         #endif
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        cudaMemcpy(OutputHalf, mul1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputHalf, di1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
