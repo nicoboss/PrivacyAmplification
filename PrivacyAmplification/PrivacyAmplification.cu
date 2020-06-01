@@ -135,8 +135,8 @@ void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
     Real do1y = do1[i].y;
     Real do2x = do2[i].x;
     Real do2y = do2[i].y;
-    mul1[i].x = do1x * do2x - do1y * do2x;
-    mul1[i].y = do1x * do2x + do1y * do2x;
+    mul1[i].x = do1x * do2x - do1y * do2y;
+    mul1[i].y = do1x * do2y + do1y * do2x;
 }
 
 __global__
@@ -662,7 +662,7 @@ int main(int argc, char* argv[])
         #endif
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        cudaMemcpy(OutputHalf, do1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputHalf, mul1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
