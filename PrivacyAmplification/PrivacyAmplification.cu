@@ -22,7 +22,7 @@
 typedef float    Real;
 typedef float2   Complex;
 
-#define factor 27
+#define factor 26
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -524,7 +524,6 @@ int main(int argc, char* argv[])
     long long int dist_sample = sample_size, dist_freq = sample_size / 2 + 1;
     const int loops = 10000;
 
-    cufftHandle plan_forward_R2C_1, plan_forward_R2C_2, plan_inverse_C2R;
     uint32_t* count_one_global_seed;
     uint32_t* count_one_global_key;
     float* correction_float_dev;
@@ -590,26 +589,28 @@ int main(int argc, char* argv[])
     long long embed_sample[] = { 0 };
     long long embedo1[] = { 0 };
     size_t workSize = 0;
-    cufftCreate(&plan_forward_R2C_1);
-    cufftXtMakePlanMany(plan_forward_R2C_1,
-        rank, &dist_sample,
-        embed_sample, stride_sample, dist_sample, CUDA_R_32F,
-        embedo1, stride_freq, dist_freq, CUDA_C_32F,
-        batch_size, &workSize, CUDA_C_32F);
-    //cufftXtMakePlanMany(plan_forward_R2C_1, 1, &dist_sample, NULL, 1, 1,
-    //    CUDA_C_16F, NULL, 1, 1, CUDA_C_16F, 1, &workSize, CUDA_C_16F);
-    cufftCreate(&plan_forward_R2C_2);
-    cufftXtMakePlanMany(plan_forward_R2C_2,
-        rank, &dist_sample,
-        embed_sample, stride_sample, dist_sample, CUDA_R_32F,
-        embedo1, stride_freq, dist_freq, CUDA_C_32F,
-        batch_size, &workSize, CUDA_C_32F);
-    cufftCreate(&plan_inverse_C2R);
-    cufftXtMakePlanMany(plan_inverse_C2R,
-        rank, &dist_sample,
-        embedo1, stride_freq, dist_freq, CUDA_C_32F,
-        embed_sample, stride_sample, dist_sample, CUDA_R_32F,
-        batch_size, &workSize, CUDA_R_32F);
+    cufftHandle plan_forward_R2C_1;
+    cufftResult r;
+    r = cufftPlan1d(&plan_forward_R2C_1, dist_sample, CUFFT_R2C, 1);
+    if (r != CUFFT_SUCCESS)
+    {
+        printf("Failed to plan FFT 1! Error Code: %i\n", r);
+        exit(0);
+    }
+    cufftHandle plan_forward_R2C_2;
+    r = cufftPlan1d(&plan_forward_R2C_2, dist_sample, CUFFT_R2C, 1);
+    if (r != CUFFT_SUCCESS)
+    {
+        printf("Failed to plan FFT 2! Error Code: %i\n", r);
+        exit(0);
+    }
+    cufftHandle plan_inverse_C2R;
+    r = cufftPlan1d(&plan_inverse_C2R, dist_sample, CUFFT_C2R, 1);
+    if (r != CUFFT_SUCCESS)
+    {
+        printf("Failed to plan IFFT 1! Error Code: %i\n", r);
+        exit(0);
+    }
 
     while (true) {
         
@@ -648,14 +649,14 @@ int main(int argc, char* argv[])
         //for (int i = 0; i < loops/factor; ++i) {
         //cudaMemcpyAsync(di2, hi2, dist_sample * sizeof(Real), cudaMemcpyHostToDevice, cpu2gpuStream2);
         //cudaStreamSynchronize(cpu2gpuStream1);
-        cufftXtExec(plan_forward_R2C_1, di1, do1, CUFFT_FORWARD);
+        cufftExecR2C(plan_forward_R2C_1, di1, do1);
         //cudaStreamSynchronize(cpu2gpuStream2);
-        cufftXtExec(plan_forward_R2C_2, di2, do2, CUFFT_FORWARD);
+        cufftExecR2C(plan_forward_R2C_2, di2, do2);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
         cudaStreamSynchronize(ElementWiseProductStream);
-        cufftXtExec(plan_inverse_C2R, mul1, invOut, CUFFT_INVERSE);
+        cufftExecC2R(plan_inverse_C2R, mul1, invOut);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         #if AMPOUT_REVERSE_ENDIAN == TRUE
         ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
