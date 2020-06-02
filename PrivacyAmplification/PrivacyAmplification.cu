@@ -22,7 +22,7 @@
 typedef float    Real;
 typedef float2   Complex;
 
-#define factor 26
+#define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -127,7 +127,7 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 }
 
 __global__
-void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
+void ElementWiseProduct(int n, Complex* do1, Complex* do2)
 {
     //Requires at least sm_53 as sm_52 and below don't support float maths.
     //Tegra/Jetson from Maxwell, Pascal, Volta, Turing and probably the upcomming Ampere
@@ -137,8 +137,8 @@ void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
     Real do1y = do1[i].y/r;
     Real do2x = do2[i].x/r;
     Real do2y = do2[i].y/r;
-    mul1[i].x = do1x * do2x - do1y * do2y;
-    mul1[i].y = do1x * do2y + do1y * do2x;
+    do1[i].x = do1x * do2x - do1y * do2y;
+    do1[i].y = do1x * do2y + do1y * do2x;
 }
 
 __global__
@@ -535,7 +535,6 @@ int main(int argc, char* argv[])
     Real* invOut;
     Complex* do1;
     Complex* do2;
-    Complex* mul1;
     unsigned int* binOut;
     unsigned char* Output;
     float* OutputFloat;
@@ -570,7 +569,6 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&di2, sizeof(Real) * sample_size);
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
-    cudaMalloc(&mul1, sizeof(Complex) * dist_sample);
     cudaMalloc(&invOut, sizeof(Real) * dist_sample);
     cudaMalloc(&binOut, sizeof(unsigned int) * sample_size/8);
 
@@ -589,19 +587,12 @@ int main(int argc, char* argv[])
     long long embed_sample[] = { 0 };
     long long embedo1[] = { 0 };
     size_t workSize = 0;
-    cufftHandle plan_forward_R2C_1;
+    cufftHandle plan_forward_R2C;
     cufftResult r;
-    r = cufftPlan1d(&plan_forward_R2C_1, dist_sample, CUFFT_R2C, 1);
+    r = cufftPlan1d(&plan_forward_R2C, dist_sample, CUFFT_R2C, 1);
     if (r != CUFFT_SUCCESS)
     {
         printf("Failed to plan FFT 1! Error Code: %i\n", r);
-        exit(0);
-    }
-    cufftHandle plan_forward_R2C_2;
-    r = cufftPlan1d(&plan_forward_R2C_2, dist_sample, CUFFT_R2C, 1);
-    if (r != CUFFT_SUCCESS)
-    {
-        printf("Failed to plan FFT 2! Error Code: %i\n", r);
         exit(0);
     }
     cufftHandle plan_inverse_C2R;
@@ -649,14 +640,14 @@ int main(int argc, char* argv[])
         //for (int i = 0; i < loops/factor; ++i) {
         //cudaMemcpyAsync(di2, hi2, dist_sample * sizeof(Real), cudaMemcpyHostToDevice, cpu2gpuStream2);
         //cudaStreamSynchronize(cpu2gpuStream1);
-        cufftExecR2C(plan_forward_R2C_1, di1, do1);
+        cufftExecR2C(plan_forward_R2C, di1, do1);
         //cudaStreamSynchronize(cpu2gpuStream2);
-        cufftExecR2C(plan_forward_R2C_2, di2, do2);
+        cufftExecR2C(plan_forward_R2C, di2, do2);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
-        ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2, mul1);
+        ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
-        cufftExecC2R(plan_inverse_C2R, mul1, invOut);
+        cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         #if AMPOUT_REVERSE_ENDIAN == TRUE
         ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
@@ -705,8 +696,7 @@ int main(int argc, char* argv[])
 
 
     // Delete CUFFT Plans
-    cufftDestroy(plan_forward_R2C_1);
-    cufftDestroy(plan_forward_R2C_2);
+    cufftDestroy(plan_forward_R2C);
     cufftDestroy(plan_inverse_C2R);
 
     // Deallocate memoriey on GPU and RAM
@@ -715,7 +705,6 @@ int main(int argc, char* argv[])
     cudaFree(invOut);
     cudaFree(do1);
     cudaFree(do2);
-    cudaFree(mul1);
     cudaFree(binOut);
     cudaFree(Output);
 
