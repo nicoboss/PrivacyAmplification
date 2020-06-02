@@ -57,7 +57,7 @@ constexpr int horizontal_block = horizontal_len / 32;
 constexpr int key_blocks = vertical_block + horizontal_block + 1;
 constexpr int desired_block = vertical_block + horizontal_block;
 constexpr int desired_len = vertical_len + horizontal_len;
-unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
+unsigned int* toeplitz_seed = (unsigned int*)malloc((desired_block - 1) * sizeof(unsigned int));
 unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int));
 unsigned int* key_start = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
 unsigned int* key_rest = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
@@ -220,7 +220,7 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_de
         ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 3) |
         ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 2) |
         ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 1) |
-         (__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1));
+         (__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1)) ^ key_rest_dev[i];
 }
 
 __global__
@@ -267,7 +267,7 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
         ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 27) |
         ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 26) |
         ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 25) |
-        ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24));
+        ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24)) ^ key_rest_big;
 }
 
 __global__
