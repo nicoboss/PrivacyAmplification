@@ -27,14 +27,14 @@ typedef float2   Complex;
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
 #define pre_mul_reduction pwrtwo(5)
-#define total_reduction reduction+pre_mul_reduction
+#define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define USE_MATRIX_SEED_SERVER FALSE
 #define USE_KEY_SERVER FALSE
 #define HOST_AMPOUT_SERVER FALSE
-#define AMPOUT_REVERSE_ENDIAN FALSE
+#define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
 const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/((float)total_reduction);
@@ -112,8 +112,9 @@ __device__ __constant__ unsigned int intTobinMask_dev[32] =
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_one_global_key, float* correction_float_dev)
 {
+    //*correction_float_dev = (float)((unsigned long)*count_one_global_key);
     uint64_t count_multiblicated = *count_one_global_seed * *count_one_global_key;
-    double count_multiblicated_normalized = count_multiblicated / sample_size;
+    double count_multiblicated_normalized = count_multiblicated / (double)sample_size;
     double two = 2.0;
     float count_multiblicated_normalized_modulo = (float)modf(count_multiblicated_normalized, &two);
     *correction_float_dev = count_multiblicated_normalized_modulo;
@@ -269,7 +270,8 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
         ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24));
 }
 
-__global__ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
+__global__
+void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
 {
     unsigned int i;
     int block = blockIdx.x;
@@ -281,6 +283,7 @@ __global__ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count
     pos = (1024 * block * 32) + (idx * 32);
     databyte = binIn[1024 * block + idx];
 
+    count_one = 0; //Required!
     #pragma unroll (32)
     for (i = 0; i < 32; ++i)
     {
@@ -496,6 +499,7 @@ void recive() {
 int main(int argc, char* argv[])
 {
     std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl;
+    std::cout << "normalisation_float: " << normalisation_float << std::endl;
 
     #if HOST_AMPOUT_SERVER == TRUE
     void* amp_out_context = zmq_ctx_new();
@@ -627,12 +631,14 @@ int main(int argc, char* argv[])
         
         blockReady = 0;
         continueGeneratingNextBlock = 1;
+        cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
+        cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
         binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
             BinInt2floatStream >>> (key_start_dev, di1, count_one_global_key);
         binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
             BinInt2floatStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
         cudaStreamSynchronize(BinInt2floatStream);
-        calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_seed, count_one_global_key, correction_float_dev);
+        calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_key, count_one_global_seed, correction_float_dev);
 
         cudaEventRecord(start);
         cudaEventSynchronize(start);
@@ -657,6 +663,7 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputFloat, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
