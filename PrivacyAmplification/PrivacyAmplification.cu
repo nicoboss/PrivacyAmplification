@@ -25,7 +25,9 @@ typedef half2   Complex;
 #define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
-#define reduction pwrtwo(12)
+#define reduction pwrtwo(11)
+#define pre_mul_reduction pwrtwo(5)
+#define total_reduction reduction+pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
@@ -35,7 +37,7 @@ typedef half2   Complex;
 #define AMPOUT_REVERSE_ENDIAN FALSE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
-const Real normalisation_half = __float2half_rn((float)sample_size/(float)reduction/(float)reduction);
+const Real normalisation_half = __float2half_rn((float)sample_size/(float)total_reduction/(float)total_reduction);
 
 #if USE_MATRIX_SEED_SERVER == TRUE
 const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
@@ -130,11 +132,11 @@ void ElementWiseProduct(int n, Complex* do1, Complex* do2, Complex* mul1)
     //Requires at least sm_53 as sm_52 and below don't support half maths.
     //Tegra/Jetson from Maxwell, Pascal, Volta, Turing and probably the upcomming Ampere
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    //half r = __float2half(128);
-    Real do1x = do1[i].x;
-    Real do1y = do1[i].y;
-    Real do2x = do2[i].x;
-    Real do2y = do2[i].y;
+    half r = __float2half(pre_mul_reduction);
+    Real do1x = do1[i].x/r;
+    Real do1y = do1[i].y/r;
+    Real do2x = do2[i].x/r;
+    Real do2y = do2[i].y/r;
     mul1[i].x = do1x * do2x - do1y * do2y;
     mul1[i].y = do1x * do2y + do1y * do2x;
 }
@@ -658,11 +660,11 @@ int main(int argc, char* argv[])
         #if AMPOUT_REVERSE_ENDIAN == TRUE
         ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_half_dev);
         #else
-        ToBinaryArray <<< (int)(((int)(vertical_block)+1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >> > (invOut, binOut, key_rest_dev, correction_half_dev);
+        ToBinaryArray <<< (int)(((int)(vertical_block)+1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_half_dev);
         #endif
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        cudaMemcpy(OutputHalf, mul1, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputHalf, invOut, dist_freq * sizeof(half), cudaMemcpyDeviceToHost);
         //}
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
