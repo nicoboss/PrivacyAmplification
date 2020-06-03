@@ -274,6 +274,7 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
 __global__
 void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
 {
+    unsigned int a;
     unsigned int i;
     int block = blockIdx.x;
     int idx = threadIdx.x;
@@ -282,21 +283,28 @@ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global
     unsigned int count_one;
     count_one = 0; //Required!
 
-    pos = (1024 * block * 32) + (idx * 32);
-    databyte = binIn[1024 * block + idx];
-    
-    #pragma unroll (32)
-    for (i = 0; i < 32; ++i)
-    {
-        if ((databyte & intTobinMask_dev[i]) == 0) {
-            realOut[pos++] = h0_dev;
-        }
-        else
+#pragma unroll (16)
+    for (a = 0; a < 16; ++a) {
+
+        //pos = (1024 * block * 32) + (idx * 32);
+        //databyte = binIn[1024 * block + idx];
+        pos = ((1024 * 16) * block * 32) + ((idx * 16 + a) * 32);
+        databyte = binIn[(1024 * 16) * block + (idx * 16 + a)];
+
+        #pragma unroll (32)
+        for (i = 0; i < 32; ++i)
         {
-            ++count_one;
-            realOut[pos++] = h1_reduced_dev;
+            if ((databyte & intTobinMask_dev[i]) == 0) {
+                realOut[pos++] = h0_dev;
+            }
+            else
+            {
+                ++count_one;
+                realOut[pos++] = h1_reduced_dev;
+            }
         }
     }
+
 
     atomicAdd(count_one_global, count_one);
 }
@@ -638,9 +646,9 @@ int main(int argc, char* argv[])
     cudaMemcpy(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice);
     cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
     cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-    binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+    binInt2float <<< (int)(((int)(sample_size / (16 * 32)) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
         BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
-    binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+    binInt2float <<< (int)(((int)(sample_size / (16 * 32)) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
         BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
 
     while (true) {
@@ -670,9 +678,9 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-        binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+        binInt2float <<< (int)(((int)(sample_size / (16 * 32)) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
             BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
-        binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+        binInt2float <<< (int)(((int)(sample_size / (16 * 32)) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
             BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
@@ -723,7 +731,7 @@ int main(int argc, char* argv[])
 
         #if SHOW_AMPOUT TRUE
         printlock.lock();
-        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 64); ++i)
+        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 4); ++i)
         {
             printf("0x%02X: %s\n", Output[i], std::bitset<8>(Output[i]).to_string().c_str());
         }
