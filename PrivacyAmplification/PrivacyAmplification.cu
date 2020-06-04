@@ -29,6 +29,7 @@ typedef float2   Complex;
 #define pre_mul_reduction pwrtwo(5)
 #define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
+#define XOR_WITH_KEY_REST TRUE
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
@@ -221,7 +222,12 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_de
         ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 3) |
         ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 2) |
         ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 1) |
-         (__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1)) ^ key_rest_dev[i];
+         (__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1)
+        #if XOR_WITH_KEY_REST TRUE 
+            ^ key_rest_dev[i]);
+        #else
+            );
+        #endif
 }
 
 __global__
@@ -268,37 +274,48 @@ void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsign
         ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 27) |
         ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 26) |
         ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 25) |
-        ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24)) ^ key_rest_big;
+        ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24)
+        #if XOR_WITH_KEY_REST TRUE 
+            ^ key_rest_big);
+        #else
+            );
+        #endif
 }
 
 __global__
 void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
 {
-    unsigned int i;
+    //Multicast
+    float h0_local = h0_dev;
+    float h1_reduced_local = h1_reduced_dev;
+    __shared__ unsigned int binInShared[32];
+
     int block = blockIdx.x;
     int idx = threadIdx.x;
-    unsigned int pos;
-    unsigned int databyte;
+    unsigned int maskToUse;
+    unsigned int inPos;
+    unsigned int outPos;
     unsigned int count_one;
+    maskToUse = idx % 32;
+    inPos = idx / 32;
+    outPos = 1024 * block + idx;
     count_one = 0; //Required!
 
-    pos = (1024 * block * 32) + (idx * 32);
-    databyte = binIn[1024 * block + idx];
-    
-    #pragma unroll (32)
-    for (i = 0; i < 32; ++i)
-    {
-        if ((databyte & intTobinMask_dev[i]) == 0) {
-            realOut[pos++] = h0_dev;
-        }
-        else
-        {
-            ++count_one;
-            realOut[pos++] = h1_reduced_dev;
-        }
+    if (threadIdx.x < 32) {
+        binInShared[idx] = binIn[32 * block + idx];
     }
+    __syncthreads();
 
-    atomicAdd(count_one_global, count_one);
+    if ((binInShared[inPos] & intTobinMask_dev[maskToUse]) == 0) {
+        realOut[outPos] = h0_local;
+    }
+    else
+    {
+        atomicAdd(count_one_global, 1);
+        realOut[outPos] = h1_reduced_local;
+    }
+    __syncthreads();
+    
 }
 
 void intToBinCPU(int* intIn, unsigned int* binOut, int outSize) {
@@ -638,9 +655,9 @@ int main(int argc, char* argv[])
     cudaMemcpy(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice);
     cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
     cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-    binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+    binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
         BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
-    binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+    binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
         BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
 
     while (true) {
@@ -670,9 +687,9 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-        binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+        binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
             BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
-        binInt2float <<< (int)(((int)(sample_size / 32) + 1023) / 1024), std::min(sample_size / 32, 1024), 0,
+        binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
             BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
@@ -723,7 +740,7 @@ int main(int argc, char* argv[])
 
         #if SHOW_AMPOUT TRUE
         printlock.lock();
-        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 64); ++i)
+        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 4); ++i)
         {
             printf("0x%02X: %s\n", Output[i], std::bitset<8>(Output[i]).to_string().c_str());
         }
