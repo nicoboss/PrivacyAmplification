@@ -293,11 +293,9 @@ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global
     unsigned int maskToUse;
     unsigned int inPos;
     unsigned int outPos;
-    unsigned int count_one;
     maskToUse = idx % 32;
     inPos = idx / 32;
     outPos = 1024 * block + idx;
-    count_one = 0; //Required!
 
     if (threadIdx.x < 32) {
         binInShared[idx] = binIn[32 * block + idx];
@@ -312,8 +310,6 @@ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global
         atomicAdd(count_one_global, 1);
         realOut[outPos] = h1_reduced_local;
     }
-    __syncthreads();
-    
 }
 
 void intToBinCPU(int* intIn, unsigned int* binOut, int outSize) {
