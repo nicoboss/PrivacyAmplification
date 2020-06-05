@@ -12,7 +12,6 @@
 #include <windows.h>
 #endif
 #include <thread>
-#include <chrono>
 #include <atomic>
 #include <bitset>
 #include <future>
@@ -59,10 +58,10 @@ constexpr int horizontal_block = horizontal_len / 32;
 constexpr int key_blocks = vertical_block + horizontal_block + 1;
 constexpr int desired_block = vertical_block + horizontal_block;
 constexpr int desired_len = vertical_len + horizontal_len;
-unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
 unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int));
-unsigned int* key_start = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
-unsigned int* key_rest = (unsigned int*)malloc(desired_block * sizeof(unsigned int));
+unsigned int* toeplitz_seed;
+unsigned int* key_start;
+unsigned int* key_rest;
 std::atomic<int> continueGeneratingNextBlock = 0;
 std::atomic<int> blockReady = 0;
 std::mutex printlock;
@@ -451,7 +450,7 @@ void recive() {
 
         blockReady = 1;
         while (continueGeneratingNextBlock == 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
         continueGeneratingNextBlock = 0;
     }
@@ -476,7 +475,7 @@ void waitForData()
     fflush(stdout);
     printlock.unlock();
     while (blockReady == 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::yield();
     }
     printlock.lock();
     printf("Ready!!!\n");
@@ -507,10 +506,6 @@ int main(int argc, char* argv[])
     FillConsoleOutputAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE, dwConSize, coordScreen, &cCharsWritten);
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
     #endif
-
-    std::thread threadReciveObj(recive);
-    threadReciveObj.detach();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
     
     const int batch_size = 1; ; //Storage would also have to be increased for this to work
     long long int dist_sample = sample_size, dist_freq = sample_size / 2 + 1;
@@ -549,6 +544,9 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
 
     // Allocate host pinned memory on RAM
+    cudaMallocHost((void**)&toeplitz_seed, desired_block * sizeof(unsigned int));
+    cudaMallocHost((void**)&key_start, desired_block * sizeof(unsigned int));
+    cudaMallocHost((void**)&key_rest, desired_block * sizeof(unsigned int));
     cudaMallocHost((void**)&Output, vertical_block * sizeof(unsigned int));
     #if SHOW_DEBUG_OUTPUT TRUE
     float* OutputFloat;
@@ -578,6 +576,8 @@ int main(int argc, char* argv[])
     cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
     cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 
+    std::thread threadReciveObj(recive);
+    threadReciveObj.detach();
 
     int rank = 1;
     int stride_sample = 1, stride_freq = 1;
@@ -619,21 +619,16 @@ int main(int argc, char* argv[])
 
         cudaEventRecord(start);
         cudaEventSynchronize(start);
-
-        //waitForData();
-        //cudaMemcpy(key_start_dev, key_start, dist_sample / 8, cudaMemcpyHostToDevice);
-        //cudaMemcpy(key_rest_dev, key_rest, dist_sample / 8, cudaMemcpyHostToDevice);
-        //cudaMemset(key_rest_dev + horizontal_block + 1, 0, (sample_size / 8) - horizontal_block + 1);
-        //cudaMemcpy(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice);
-        //
-        //blockReady = 0;
-        //continueGeneratingNextBlock = 1;
-
         
         cudaStreamSynchronize(BinInt2floatKeyStream);
         cudaStreamSynchronize(BinInt2floatSeedStream);
         blockReady = 0;
         continueGeneratingNextBlock = 1;
+        waitForData();
+        cudaMemcpyAsync(key_start_dev, key_start, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuKeyStartStream);
+        cudaMemcpyAsync(key_rest_dev, key_rest, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuKeyRestStream);
+        cudaMemcpyAsync(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuSeedStream);
+
         calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_key, count_one_global_seed, correction_float_dev);
 
         cufftExecR2C(plan_forward_R2C, di1, do1);
@@ -642,10 +637,6 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-        binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
-        binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2);
@@ -659,7 +650,15 @@ int main(int argc, char* argv[])
         cudaMemcpy(OutputFloat, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
-        //}
+        cudaStreamSynchronize(cpu2gpuKeyStartStream);
+        cudaStreamSynchronize(cpu2gpuKeyRestStream);
+        cudaStreamSynchronize(cpu2gpuSeedStream);
+        binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatKeyStream >> > (key_start_dev, di1, count_one_global_key);
+        binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatSeedStream >> > (toeplitz_seed_dev, di2, count_one_global_seed);
+
+
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
 
