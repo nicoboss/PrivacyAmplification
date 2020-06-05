@@ -28,6 +28,7 @@ typedef float2   Complex;
 #define pre_mul_reduction pwrtwo(5)
 #define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
+#define BLOCKS_TO_CACHE 10
 #define XOR_WITH_KEY_REST TRUE
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
@@ -50,18 +51,24 @@ const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
 #if HOST_AMPOUT_SERVER == TRUE
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
 #endif
-constexpr int vertical_len = sample_size/4 + sample_size/8;
-constexpr int horizontal_len = sample_size/2 + sample_size/8;
-constexpr int key_len = sample_size+1;
-constexpr int vertical_block = vertical_len / 32;
-constexpr int horizontal_block = horizontal_len / 32;
-constexpr int key_blocks = vertical_block + horizontal_block + 1;
-constexpr int desired_block = vertical_block + horizontal_block;
-constexpr int desired_len = vertical_len + horizontal_len;
+constexpr unsigned int vertical_len = sample_size/4 + sample_size/8;
+constexpr unsigned int horizontal_len = sample_size/2 + sample_size/8;
+constexpr unsigned int key_len = sample_size+1;
+constexpr unsigned int vertical_block = vertical_len / 32;
+constexpr unsigned int horizontal_block = horizontal_len / 32;
+constexpr unsigned int key_blocks = vertical_block + horizontal_block + 1;
+constexpr unsigned int desired_block = vertical_block + horizontal_block;
+constexpr unsigned int desired_len = vertical_len + horizontal_len;
+constexpr unsigned int input_cache_block_size = desired_block;
+constexpr unsigned int output_cache_block_size = vertical_block;
 unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int));
 unsigned int* toeplitz_seed;
 unsigned int* key_start;
 unsigned int* key_rest;
+std::atomic<int> input_cache_read_pos = 0;
+std::atomic<int> input_cache_write_pos = 0;
+std::atomic<int> output_cache_read_pos = 0;
+std::atomic<int> output_cache_write_pos = 0;
 std::atomic<int> continueGeneratingNextBlock = 0;
 std::atomic<int> blockReady = 0;
 std::mutex printlock;
@@ -193,7 +200,7 @@ void ToFloatArray(int n, unsigned int b, Real* floatOut, Real normalisation_floa
 }
 
 __global__
-void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest, Real* correction_float_dev)
+void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_local, Real* correction_float_dev)
 {
     const float normalisation_float_local = normalisation_float_dev;
     const unsigned int block = blockIdx.x;
@@ -209,14 +216,14 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest, R
     {
 
         #if AMPOUT_REVERSE_ENDIAN == TRUE
-        unsigned int key_rest_little = key_rest[block * 31 + idx - 992];
+        unsigned int key_rest_little = key_rest_local[block * 31 + idx - 992];
         key_rest_xor[idx - 992] =
             ((((key_rest_little) & 0xff000000) >> 24) |
                 (((key_rest_little) & 0x00ff0000) >> 8) |
                 (((key_rest_little) & 0x0000ff00) << 8) |
                 (((key_rest_little) & 0x000000ff) << 24));
         #else
-                key_rest_xor[idx - 992] = key_rest[i];
+                key_rest_xor[idx - 992] = key_rest_local[i];
         #endif 
     }
     __syncthreads();
@@ -332,17 +339,19 @@ void printBin(const unsigned int* position, const unsigned int* end) {
 
 
 inline void key2StartRest() {
-    memcpy(key_start, recv_key, key_blocks * sizeof(unsigned int));
-    *(key_start + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
-    memset(key_start + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(unsigned int));
+    unsigned int* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
+    unsigned int* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
+    memcpy(key_start_block, recv_key, key_blocks * sizeof(unsigned int));
+    *(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
+    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(unsigned int));
 
     int j = horizontal_block;
     for (int i = 0; i < vertical_block + 1; ++i)
     {
-        key_rest[i] = ((recv_key[j] << 1) | (recv_key[j + 1] >> 31));
+        key_rest_block[i] = ((recv_key[j] << 1) | (recv_key[j + 1] >> 31));
         ++j;
     }
-    memset(key_rest + desired_block - horizontal_block, 0b00000000, vertical_block - (vertical_block - horizontal_block));
+    memset(key_rest_block + desired_block - horizontal_block, 0b00000000, vertical_block - (vertical_block - horizontal_block));
 }
 
 
@@ -378,7 +387,7 @@ void recive() {
         abort();
     }
 
-    char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed);
+    char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
     seedfile.read(toeplitz_seed_char, desired_block * sizeof(unsigned int));
     #endif
 
@@ -417,11 +426,12 @@ void recive() {
     #endif
 
     while (true) {
+        unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
         #if USE_MATRIX_SEED_SERVER == TRUE
         printf("socket_seed_in\n");
         zmq_send(socket_seed_in, "SYN", 3, 0);
         printf("SYN SENT\n");
-        zmq_recv(socket_seed_in, toeplitz_seed, desired_block * sizeof(unsigned int), 0);
+        zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(unsigned int), 0);
         printf("ACK SENT\n");
         zmq_send(socket_seed_in, "ACK", 3, 0);
         #endif
@@ -435,18 +445,29 @@ void recive() {
         #endif
 
         #if SHOW_KEY_DEBUG_OUTPUT TRUE
+        unsigned int* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
+        unsigned int* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
         printlock.lock();
         std::cout << "Toeplitz Seed: ";
-        printBin(toeplitz_seed, toeplitz_seed + desired_block);
+        printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
         std::cout << "Key: ";
         printBin(recv_key, recv_key + key_blocks);
         std::cout << "Key Start: ";
-        printBin(key_start, key_start + desired_block + 1);
+        printBin(key_start_block, key_start_block + desired_block + 1);
         std::cout << "Key Rest: ";
-        printBin(key_rest, key_rest + vertical_block + 1);
+        printBin(key_rest_block, key_rest_block + vertical_block + 1);
         fflush(stdout);
         printlock.unlock();
         #endif
+        
+        for (int i = 0; i < 9; ++i) {
+            unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+            unsigned int* key_start_block = key_start + input_cache_block_size * i;
+            unsigned int* key_rest_block = key_rest + input_cache_block_size * i;
+            memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(unsigned int));
+            memcpy(key_start_block, key_start, input_cache_block_size * sizeof(unsigned int));
+            memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(unsigned int));
+        }
 
         blockReady = 1;
         while (continueGeneratingNextBlock == 0) {
@@ -541,10 +562,10 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
 
     // Allocate host pinned memory on RAM
-    cudaMallocHost((void**)&toeplitz_seed, desired_block * sizeof(unsigned int));
-    cudaMallocHost((void**)&key_start, desired_block * sizeof(unsigned int));
-    cudaMallocHost((void**)&key_rest, desired_block * sizeof(unsigned int));
-    cudaMallocHost((void**)&Output, vertical_block * sizeof(unsigned int));
+    cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&Output, output_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
     #if SHOW_DEBUG_OUTPUT TRUE
     float* OutputFloat;
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float));
@@ -598,50 +619,45 @@ int main(int argc, char* argv[])
     cufftSetStream(plan_forward_R2C, FFTStream);
 
     waitForData();
-    cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
-    cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-    binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-        BinInt2floatKeyStream >>> (key_start, di1, count_one_global_key);
-    binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-        BinInt2floatSeedStream >>> (toeplitz_seed, di2, count_one_global_seed);
 
     while (true) {
 
         cudaEventRecord(start);
         cudaEventSynchronize(start);
-        
+
+        //blockReady = 0;
+        //continueGeneratingNextBlock = 1;
+        //waitForData();
+        input_cache_read_pos = (input_cache_read_pos + 1) % BLOCKS_TO_CACHE;
+        std::cout << input_cache_read_pos << std::endl;
+
+        cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
+        cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
+        binInt2float << < (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatKeyStream >> > (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
+        binInt2float << < (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatSeedStream >> > (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
         cudaStreamSynchronize(BinInt2floatKeyStream);
         cudaStreamSynchronize(BinInt2floatSeedStream);
-        blockReady = 0;
-        continueGeneratingNextBlock = 1;
-        waitForData();
-
         calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_key, count_one_global_seed, correction_float_dev);
-
         cufftExecR2C(plan_forward_R2C, di1, do1);
         cufftExecR2C(plan_forward_R2C, di2, do2);
         cudaStreamSynchronize(FFTStream);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
-        cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
-        cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
-        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest, correction_float_dev);
+        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>>
+            (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         #if SHOW_DEBUG_OUTPUT TRUE
         cudaMemcpy(OutputFloat, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
-        binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatKeyStream >> > (key_start, di1, count_one_global_key);
-        binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatSeedStream >> > (toeplitz_seed, di2, count_one_global_seed);
-
 
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
