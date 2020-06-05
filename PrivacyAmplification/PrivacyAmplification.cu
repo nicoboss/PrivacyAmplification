@@ -28,7 +28,7 @@ typedef float2   Complex;
 #define pre_mul_reduction pwrtwo(5)
 #define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
-#define BLOCKS_TO_CACHE 10
+#define BLOCKS_TO_CACHE 10 //Has to be larger then 1
 #define XOR_WITH_KEY_REST TRUE
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
@@ -65,12 +65,10 @@ unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int)
 unsigned int* toeplitz_seed;
 unsigned int* key_start;
 unsigned int* key_rest;
-std::atomic<int> input_cache_read_pos = 0;
+std::atomic<int> input_cache_read_pos = BLOCKS_TO_CACHE - 1;
 std::atomic<int> input_cache_write_pos = 0;
-std::atomic<int> output_cache_read_pos = 0;
+std::atomic<int> output_cache_read_pos = BLOCKS_TO_CACHE - 1;
 std::atomic<int> output_cache_write_pos = 0;
-std::atomic<int> continueGeneratingNextBlock = 0;
-std::atomic<int> blockReady = 0;
 std::mutex printlock;
 char syn[3];
 char ack[3];
@@ -425,7 +423,21 @@ void recive() {
     key2StartRest();
     #endif
 
+    for (int i = 0; i < BLOCKS_TO_CACHE; ++i) {
+        unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+        unsigned int* key_start_block = key_start + input_cache_block_size * i;
+        unsigned int* key_rest_block = key_rest + input_cache_block_size * i;
+        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(unsigned int));
+        memcpy(key_start_block, key_start, input_cache_block_size * sizeof(unsigned int));
+        memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(unsigned int));
+    }
+
     while (true) {
+
+        while (input_cache_write_pos % BLOCKS_TO_CACHE == input_cache_read_pos) {
+            std::this_thread::yield();
+        }
+
         unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
         #if USE_MATRIX_SEED_SERVER == TRUE
         printf("socket_seed_in\n");
@@ -459,21 +471,9 @@ void recive() {
         fflush(stdout);
         printlock.unlock();
         #endif
-        
-        for (int i = 0; i < 9; ++i) {
-            unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-            unsigned int* key_start_block = key_start + input_cache_block_size * i;
-            unsigned int* key_rest_block = key_rest + input_cache_block_size * i;
-            memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(unsigned int));
-            memcpy(key_start_block, key_start, input_cache_block_size * sizeof(unsigned int));
-            memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(unsigned int));
-        }
 
-        blockReady = 1;
-        while (continueGeneratingNextBlock == 0) {
-            std::this_thread::yield();
-        }
-        continueGeneratingNextBlock = 0;
+        input_cache_write_pos = (input_cache_write_pos + 1) % BLOCKS_TO_CACHE;
+
     }
 
     #if USE_MATRIX_SEED_SERVER == TRUE
@@ -488,21 +488,6 @@ void recive() {
     #endif
 }
 
-__inline__
-void waitForData()
-{
-    printlock.lock();
-    printf("Bob!!!\n");
-    fflush(stdout);
-    printlock.unlock();
-    while (blockReady == 0) {
-        std::this_thread::yield();
-    }
-    printlock.lock();
-    printf("Ready!!!\n");
-    fflush(stdout);
-    printlock.unlock();
-}
 
 int main(int argc, char* argv[])
 {
@@ -618,18 +603,16 @@ int main(int argc, char* argv[])
     }
     cufftSetStream(plan_forward_R2C, FFTStream);
 
-    waitForData();
-
     while (true) {
+
+        while ((input_cache_read_pos + 1) % BLOCKS_TO_CACHE == input_cache_write_pos) {
+            std::this_thread::yield();
+        }
+        input_cache_read_pos = (input_cache_read_pos + 1) % BLOCKS_TO_CACHE;
+        std::cout << input_cache_read_pos << " != " << input_cache_write_pos << std::endl;
 
         cudaEventRecord(start);
         cudaEventSynchronize(start);
-
-        //blockReady = 0;
-        //continueGeneratingNextBlock = 1;
-        //waitForData();
-        input_cache_read_pos = (input_cache_read_pos + 1) % BLOCKS_TO_CACHE;
-        std::cout << input_cache_read_pos << std::endl;
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
@@ -697,6 +680,7 @@ int main(int argc, char* argv[])
         fflush(stdout);
         printlock.unlock();
         #endif
+
         //break;
     }
 
