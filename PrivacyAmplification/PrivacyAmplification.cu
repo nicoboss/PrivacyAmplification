@@ -111,6 +111,15 @@ __device__ __constant__ unsigned int intTobinMask_dev[32] =
     0b00000000000000000000000000000001
 };
 
+__device__ __constant__ unsigned int ToBinaryBitShiftArray_dev[32] =
+{
+    #if AMPOUT_REVERSE_ENDIAN == TRUE
+    7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24
+    #else
+    31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+    #endif
+};
+
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_one_global_key, float* correction_float_dev)
 {
@@ -187,97 +196,49 @@ void ToFloatArray(int n, unsigned int b, Real* floatOut, Real normalisation_floa
 __global__
 void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real* correction_float_dev)
 {
-    Real correction_float = *correction_float_dev;
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = i * 32;
-    binOut[i] = 
-        (((__float2int_rn(invOut[j    ] / normalisation_float_dev + correction_float) & 1) << 31) |
-        ((__float2int_rn(invOut[j +  1] / normalisation_float_dev + correction_float) & 1) << 30) |
-        ((__float2int_rn(invOut[j +  2] / normalisation_float_dev + correction_float) & 1) << 29) |
-        ((__float2int_rn(invOut[j +  3] / normalisation_float_dev + correction_float) & 1) << 28) |
-        ((__float2int_rn(invOut[j +  4] / normalisation_float_dev + correction_float) & 1) << 27) |
-        ((__float2int_rn(invOut[j +  5] / normalisation_float_dev + correction_float) & 1) << 26) |
-        ((__float2int_rn(invOut[j +  6] / normalisation_float_dev + correction_float) & 1) << 25) |
-        ((__float2int_rn(invOut[j +  7] / normalisation_float_dev + correction_float) & 1) << 24) |
-        ((__float2int_rn(invOut[j +  8] / normalisation_float_dev + correction_float) & 1) << 23) |
-        ((__float2int_rn(invOut[j +  9] / normalisation_float_dev + correction_float) & 1) << 22) |
-        ((__float2int_rn(invOut[j + 10] / normalisation_float_dev + correction_float) & 1) << 21) |
-        ((__float2int_rn(invOut[j + 11] / normalisation_float_dev + correction_float) & 1) << 20) |
-        ((__float2int_rn(invOut[j + 12] / normalisation_float_dev + correction_float) & 1) << 19) |
-        ((__float2int_rn(invOut[j + 13] / normalisation_float_dev + correction_float) & 1) << 18) |
-        ((__float2int_rn(invOut[j + 14] / normalisation_float_dev + correction_float) & 1) << 17) |
-        ((__float2int_rn(invOut[j + 15] / normalisation_float_dev + correction_float) & 1) << 16) |
-        ((__float2int_rn(invOut[j + 16] / normalisation_float_dev + correction_float) & 1) << 15) |
-        ((__float2int_rn(invOut[j + 17] / normalisation_float_dev + correction_float) & 1) << 14) |
-        ((__float2int_rn(invOut[j + 18] / normalisation_float_dev + correction_float) & 1) << 13) |
-        ((__float2int_rn(invOut[j + 19] / normalisation_float_dev + correction_float) & 1) << 12) |
-        ((__float2int_rn(invOut[j + 20] / normalisation_float_dev + correction_float) & 1) << 11) |
-        ((__float2int_rn(invOut[j + 21] / normalisation_float_dev + correction_float) & 1) << 10) |
-        ((__float2int_rn(invOut[j + 22] / normalisation_float_dev + correction_float) & 1) << 9) |
-        ((__float2int_rn(invOut[j + 23] / normalisation_float_dev + correction_float) & 1) << 8) |
-        ((__float2int_rn(invOut[j + 24] / normalisation_float_dev + correction_float) & 1) << 7) |
-        ((__float2int_rn(invOut[j + 25] / normalisation_float_dev + correction_float) & 1) << 6) |
-        ((__float2int_rn(invOut[j + 26] / normalisation_float_dev + correction_float) & 1) << 5) |
-        ((__float2int_rn(invOut[j + 27] / normalisation_float_dev + correction_float) & 1) << 4) |
-        ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 3) |
-        ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 2) |
-        ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 1) |
-         (__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1))
-        #if XOR_WITH_KEY_REST TRUE 
-            ^ key_rest_dev[i]
-        #endif
-        ;
-}
+    const float normalisation_float_local = normalisation_float_dev;
+    const unsigned int block = blockIdx.x;
+    const unsigned int idx = threadIdx.x;
+    const Real correction_float = *correction_float_dev;
+    
+    __shared__ unsigned int key_rest_xor[31];
+    __shared__ unsigned int binOutRawBit[992];
+    if (idx < 992) {
+        binOutRawBit[idx] = ((__float2int_rn(invOut[block * 992 + idx] / normalisation_float_local + correction_float) & 1) << ToBinaryBitShiftArray_dev[idx % 32]);
+    }
+    else if (idx < 1023)
+    {
 
-__global__
-void ToBinaryArray_reverse_endianness(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real* correction_float_dev)
-{
-    Real correction_float = *correction_float_dev;
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int key_rest_little = key_rest_dev[i];
-    int key_rest_big =
-        ((((key_rest_little) & 0xff000000) >> 24) |
-        (((key_rest_little) & 0x00ff0000) >> 8) |
-        (((key_rest_little) & 0x0000ff00) << 8) |
-        (((key_rest_little) & 0x000000ff) << 24));
-    int j = i * 32;
-    binOut[i] =
-        (((__float2int_rn(invOut[j    ] / normalisation_float_dev + correction_float) & 1) << 7) |
-        ((__float2int_rn(invOut[j +  1] / normalisation_float_dev + correction_float) & 1) << 6) |
-        ((__float2int_rn(invOut[j +  2] / normalisation_float_dev + correction_float) & 1) << 5) |
-        ((__float2int_rn(invOut[j +  3] / normalisation_float_dev + correction_float) & 1) << 4) |
-        ((__float2int_rn(invOut[j +  4] / normalisation_float_dev + correction_float) & 1) << 3) |
-        ((__float2int_rn(invOut[j +  5] / normalisation_float_dev + correction_float) & 1) << 2) |
-        ((__float2int_rn(invOut[j +  6] / normalisation_float_dev + correction_float) & 1) << 1) |
-        ((__float2int_rn(invOut[j +  7] / normalisation_float_dev + correction_float) & 1) << 0) |
-        ((__float2int_rn(invOut[j +  8] / normalisation_float_dev + correction_float) & 1) << 15) |
-        ((__float2int_rn(invOut[j +  9] / normalisation_float_dev + correction_float) & 1) << 14) |
-        ((__float2int_rn(invOut[j + 10] / normalisation_float_dev + correction_float) & 1) << 13) |
-        ((__float2int_rn(invOut[j + 11] / normalisation_float_dev + correction_float) & 1) << 12) |
-        ((__float2int_rn(invOut[j + 12] / normalisation_float_dev + correction_float) & 1) << 11) |
-        ((__float2int_rn(invOut[j + 13] / normalisation_float_dev + correction_float) & 1) << 10) |
-        ((__float2int_rn(invOut[j + 14] / normalisation_float_dev + correction_float) & 1) << 9) |
-        ((__float2int_rn(invOut[j + 15] / normalisation_float_dev + correction_float) & 1) << 8) |
-        ((__float2int_rn(invOut[j + 16] / normalisation_float_dev + correction_float) & 1) << 23) |
-        ((__float2int_rn(invOut[j + 17] / normalisation_float_dev + correction_float) & 1) << 22) |
-        ((__float2int_rn(invOut[j + 18] / normalisation_float_dev + correction_float) & 1) << 21) |
-        ((__float2int_rn(invOut[j + 19] / normalisation_float_dev + correction_float) & 1) << 20) |
-        ((__float2int_rn(invOut[j + 20] / normalisation_float_dev + correction_float) & 1) << 19) |
-        ((__float2int_rn(invOut[j + 21] / normalisation_float_dev + correction_float) & 1) << 18) |
-        ((__float2int_rn(invOut[j + 22] / normalisation_float_dev + correction_float) & 1) << 17) |
-        ((__float2int_rn(invOut[j + 23] / normalisation_float_dev + correction_float) & 1) << 16) |
-        ((__float2int_rn(invOut[j + 24] / normalisation_float_dev + correction_float) & 1) << 31) |
-        ((__float2int_rn(invOut[j + 25] / normalisation_float_dev + correction_float) & 1) << 30) |
-        ((__float2int_rn(invOut[j + 26] / normalisation_float_dev + correction_float) & 1) << 29) |
-        ((__float2int_rn(invOut[j + 27] / normalisation_float_dev + correction_float) & 1) << 28) |
-        ((__float2int_rn(invOut[j + 28] / normalisation_float_dev + correction_float) & 1) << 27) |
-        ((__float2int_rn(invOut[j + 29] / normalisation_float_dev + correction_float) & 1) << 26) |
-        ((__float2int_rn(invOut[j + 30] / normalisation_float_dev + correction_float) & 1) << 25) |
-        ((__float2int_rn(invOut[j + 31] / normalisation_float_dev + correction_float) & 1) << 24))
-        #if XOR_WITH_KEY_REST TRUE 
-            ^ key_rest_big
-        #endif
-        ;
+        #if AMPOUT_REVERSE_ENDIAN == TRUE
+        unsigned int key_rest_little = key_rest_dev[block * 31 + idx - 992];
+        key_rest_xor[idx - 992] =
+            ((((key_rest_little) & 0xff000000) >> 24) |
+                (((key_rest_little) & 0x00ff0000) >> 8) |
+                (((key_rest_little) & 0x0000ff00) << 8) |
+                (((key_rest_little) & 0x000000ff) << 24));
+        #else
+                key_rest_xor[idx - 992] = key_rest_dev[i];
+        #endif 
+    }
+    __syncthreads();
+
+    if (idx < 31) {
+        const unsigned int pos = idx * 32;
+        unsigned int binOutLocal =
+            (binOutRawBit[pos] | binOutRawBit[pos + 1] | binOutRawBit[pos + 2] | binOutRawBit[pos + 3] |
+            binOutRawBit[pos + 4] | binOutRawBit[pos + 5] | binOutRawBit[pos + 6] | binOutRawBit[pos + 7] |
+            binOutRawBit[pos + 8] | binOutRawBit[pos + 9] | binOutRawBit[pos + 10] | binOutRawBit[pos + 11] |
+            binOutRawBit[pos + 12] | binOutRawBit[pos + 13] | binOutRawBit[pos + 14] | binOutRawBit[pos + 15] |
+            binOutRawBit[pos + 16] | binOutRawBit[pos + 17] | binOutRawBit[pos + 18] | binOutRawBit[pos + 19] |
+            binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
+            binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
+            binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
+            #if XOR_WITH_KEY_REST TRUE 
+            ^ key_rest_xor[idx]
+            #endif
+            ;
+        binOut[block * 31 + idx] = binOutLocal;
+    }
 }
 
 __global__
@@ -691,11 +652,7 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
-        #if AMPOUT_REVERSE_ENDIAN == TRUE
-        ToBinaryArray_reverse_endianness <<<(int)(((int)(vertical_block) + 1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
-        #else
-        ToBinaryArray <<< (int)(((int)(vertical_block)+1023) / 1024), std::min(vertical_block, 1024), 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
-        #endif
+        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         #if SHOW_DEBUG_OUTPUT TRUE
