@@ -193,7 +193,7 @@ void ToFloatArray(int n, unsigned int b, Real* floatOut, Real normalisation_floa
 }
 
 __global__
-void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_dev, Real* correction_float_dev)
+void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest, Real* correction_float_dev)
 {
     const float normalisation_float_local = normalisation_float_dev;
     const unsigned int block = blockIdx.x;
@@ -209,14 +209,14 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_de
     {
 
         #if AMPOUT_REVERSE_ENDIAN == TRUE
-        unsigned int key_rest_little = key_rest_dev[block * 31 + idx - 992];
+        unsigned int key_rest_little = key_rest[block * 31 + idx - 992];
         key_rest_xor[idx - 992] =
             ((((key_rest_little) & 0xff000000) >> 24) |
                 (((key_rest_little) & 0x00ff0000) >> 8) |
                 (((key_rest_little) & 0x0000ff00) << 8) |
                 (((key_rest_little) & 0x000000ff) << 24));
         #else
-                key_rest_xor[idx - 992] = key_rest_dev[i];
+                key_rest_xor[idx - 992] = key_rest[i];
         #endif 
     }
     __syncthreads();
@@ -514,9 +514,6 @@ int main(int argc, char* argv[])
     uint32_t* count_one_global_seed;
     uint32_t* count_one_global_key;
     float* correction_float_dev;
-    unsigned int* key_start_dev;
-    unsigned int* key_rest_dev;
-    unsigned int* toeplitz_seed_dev;
     Real* di1;
     Real* di2;
     Real* invOut;
@@ -557,9 +554,6 @@ int main(int argc, char* argv[])
     cudaMalloc(&count_one_global_seed, sizeof(uint32_t));
     cudaMalloc(&count_one_global_key, sizeof(uint32_t));
     cudaMalloc(&correction_float_dev, sizeof(float));
-    cudaMalloc((void**)&key_start_dev, (sample_size/8));
-    cudaMalloc((void**)&key_rest_dev, (sample_size/8));
-    cudaMalloc((void**)&toeplitz_seed_dev, (sample_size/8));
     cudaMalloc((void**)&di1, sizeof(Real) * sample_size);
     cudaMalloc((void**)&di2, sizeof(Real) * sample_size);
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
@@ -604,16 +598,12 @@ int main(int argc, char* argv[])
     cufftSetStream(plan_forward_R2C, FFTStream);
 
     waitForData();
-    cudaMemcpy(key_start_dev, key_start, dist_sample / 8, cudaMemcpyHostToDevice);
-    cudaMemcpy(key_rest_dev, key_rest, dist_sample / 8, cudaMemcpyHostToDevice);
-    cudaMemset(key_rest_dev + horizontal_block + 1, 0, (sample_size / 8) - horizontal_block + 1);
-    cudaMemcpy(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice);
     cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
     cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
     binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-        BinInt2floatKeyStream >>> (key_start_dev, di1, count_one_global_key);
+        BinInt2floatKeyStream >>> (key_start, di1, count_one_global_key);
     binInt2float <<< (int)(((int)(sample_size) + 1023) / 1024), std::min(sample_size, 1024), 0,
-        BinInt2floatSeedStream >>> (toeplitz_seed_dev, di2, count_one_global_seed);
+        BinInt2floatSeedStream >>> (toeplitz_seed, di2, count_one_global_seed);
 
     while (true) {
 
@@ -625,9 +615,6 @@ int main(int argc, char* argv[])
         blockReady = 0;
         continueGeneratingNextBlock = 1;
         waitForData();
-        cudaMemcpyAsync(key_start_dev, key_start, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuKeyStartStream);
-        cudaMemcpyAsync(key_rest_dev, key_rest, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuKeyRestStream);
-        cudaMemcpyAsync(toeplitz_seed_dev, toeplitz_seed, dist_sample / 8, cudaMemcpyHostToDevice, cpu2gpuSeedStream);
 
         calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_key, count_one_global_seed, correction_float_dev);
 
@@ -643,20 +630,17 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
-        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest_dev, correction_float_dev);
+        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>> (invOut, binOut, key_rest, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
         cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
         #if SHOW_DEBUG_OUTPUT TRUE
         cudaMemcpy(OutputFloat, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
-        cudaStreamSynchronize(cpu2gpuKeyStartStream);
-        cudaStreamSynchronize(cpu2gpuKeyRestStream);
-        cudaStreamSynchronize(cpu2gpuSeedStream);
         binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatKeyStream >> > (key_start_dev, di1, count_one_global_key);
+            BinInt2floatKeyStream >> > (key_start, di1, count_one_global_key);
         binInt2float <<< (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatSeedStream >> > (toeplitz_seed_dev, di2, count_one_global_seed);
+            BinInt2floatSeedStream >> > (toeplitz_seed, di2, count_one_global_seed);
 
 
         cudaEventRecord(stop);
