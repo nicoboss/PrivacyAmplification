@@ -53,39 +53,39 @@ const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
 #if HOST_AMPOUT_SERVER == TRUE
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
 #endif
-constexpr unsigned int vertical_len = sample_size/4 + sample_size/8;
-constexpr unsigned int horizontal_len = sample_size/2 + sample_size/8;
-constexpr unsigned int key_len = sample_size+1;
-constexpr unsigned int vertical_block = vertical_len / 32;
-constexpr unsigned int horizontal_block = horizontal_len / 32;
-constexpr unsigned int key_blocks = vertical_block + horizontal_block + 1;
-constexpr unsigned int desired_block = vertical_block + horizontal_block;
-constexpr unsigned int desired_len = vertical_len + horizontal_len;
-constexpr unsigned int input_cache_block_size = desired_block;
-constexpr unsigned int output_cache_block_size = vertical_block * sizeof(unsigned int);
-unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int));
-unsigned int* toeplitz_seed;
-unsigned int* key_start;
-unsigned int* key_rest;
-unsigned char* Output;
+constexpr uint32_t vertical_len = sample_size/4 + sample_size/8;
+constexpr uint32_t horizontal_len = sample_size/2 + sample_size/8;
+constexpr uint32_t key_len = sample_size+1;
+constexpr uint32_t vertical_block = vertical_len / 32;
+constexpr uint32_t horizontal_block = horizontal_len / 32;
+constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
+constexpr uint32_t desired_block = vertical_block + horizontal_block;
+constexpr uint32_t desired_len = vertical_len + horizontal_len;
+constexpr uint32_t input_cache_block_size = desired_block;
+constexpr uint32_t output_cache_block_size = vertical_block * sizeof(uint32_t);
+uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
+uint32_t* toeplitz_seed;
+uint32_t* key_start;
+uint32_t* key_rest;
+uint8_t * Output;
 #if SHOW_DEBUG_OUTPUT TRUE
-float* OutputFloat;
+Real* OutputFloat;
 #endif
-std::atomic<int> input_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
-std::atomic<int> input_cache_write_pos = 0;
-std::atomic<int> output_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
-std::atomic<int> output_cache_write_pos = 0;
+std::atomic<uint32_t> input_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
+std::atomic<uint32_t> input_cache_write_pos = 0;
+std::atomic<uint32_t> output_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
+std::atomic<uint32_t> output_cache_write_pos = 0;
 std::mutex printlock;
 char syn[3];
 char ack[3];
 
 
 __device__ __constant__ Complex c0_dev;
-__device__ __constant__ float h0_dev;
-__device__ __constant__ float h1_reduced_dev;
-__device__ __constant__ float normalisation_float_dev;
+__device__ __constant__ Real h0_dev;
+__device__ __constant__ Real h1_reduced_dev;
+__device__ __constant__ Real normalisation_float_dev;
 
-__device__ __constant__ unsigned int intTobinMask_dev[32] =
+__device__ __constant__ uint32_t intTobinMask_dev[32] =
 {
     0b10000000000000000000000000000000,
     0b01000000000000000000000000000000,
@@ -121,7 +121,7 @@ __device__ __constant__ unsigned int intTobinMask_dev[32] =
     0b00000000000000000000000000000001
 };
 
-__device__ __constant__ unsigned int ToBinaryBitShiftArray_dev[32] =
+__device__ __constant__ uint32_t ToBinaryBitShiftArray_dev[32] =
 {
     #if AMPOUT_REVERSE_ENDIAN == TRUE
     7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24
@@ -137,7 +137,7 @@ void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_o
     uint64_t count_multiblicated = *count_one_global_seed * *count_one_global_key;
     double count_multiblicated_normalized = count_multiblicated / (double)sample_size;
     double two = 2.0;
-    float count_multiblicated_normalized_modulo = (float)modf(count_multiblicated_normalized, &two);
+    Real count_multiblicated_normalized_modulo = (float)modf(count_multiblicated_normalized, &two);
     *correction_float_dev = count_multiblicated_normalized_modulo;
 }
 
@@ -149,11 +149,11 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 }
 
 __global__
-void ElementWiseProduct(int n, Complex* do1, Complex* do2)
+void ElementWiseProduct(Complex* do1, Complex* do2)
 {
     //Requires at least sm_53 as sm_52 and below don't support float maths.
     //Tegra/Jetson from Maxwell, Pascal, Volta, Turing and probably the upcomming Ampere
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     float r = pre_mul_reduction;
     Real do1x = do1[i].x/r;
     Real do1y = do1[i].y/r;
@@ -164,10 +164,10 @@ void ElementWiseProduct(int n, Complex* do1, Complex* do2)
 }
 
 __global__
-void ToFloatArray(int n, unsigned int b, Real* floatOut, Real normalisation_float)
+void ToFloatArray(uint32_t n, uint32_t b, Real* floatOut, Real normalisation_float)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = i * 32;
+    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t j = i * 32;
 
     floatOut[j]    = (b & 0b10000000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
     floatOut[j+1]  = (b & 0b01000000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
@@ -204,15 +204,15 @@ void ToFloatArray(int n, unsigned int b, Real* floatOut, Real normalisation_floa
 }
 
 __global__
-void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_local, Real* correction_float_dev)
+void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
 {
-    const float normalisation_float_local = normalisation_float_dev;
-    const unsigned int block = blockIdx.x;
-    const unsigned int idx = threadIdx.x;
+    const Real normalisation_float_local = normalisation_float_dev;
+    const uint32_t block = blockIdx.x;
+    const uint32_t idx = threadIdx.x;
     const Real correction_float = *correction_float_dev;
     
-    __shared__ unsigned int key_rest_xor[31];
-    __shared__ unsigned int binOutRawBit[992];
+    __shared__ uint32_t key_rest_xor[31];
+    __shared__ uint32_t binOutRawBit[992];
     if (idx < 992) {
         binOutRawBit[idx] = ((__float2int_rn(invOut[block * 992 + idx] / normalisation_float_local + correction_float) & 1) << ToBinaryBitShiftArray_dev[idx % 32]);
     }
@@ -220,7 +220,7 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_lo
     {
 
         #if AMPOUT_REVERSE_ENDIAN == TRUE
-        unsigned int key_rest_little = key_rest_local[block * 31 + idx - 992];
+        uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
         key_rest_xor[idx - 992] =
             ((((key_rest_little) & 0xff000000) >> 24) |
                 (((key_rest_little) & 0x00ff0000) >> 8) |
@@ -233,8 +233,8 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_lo
     __syncthreads();
 
     if (idx < 31) {
-        const unsigned int pos = idx * 32;
-        unsigned int binOutLocal =
+        const uint32_t pos = idx * 32;
+        uint32_t binOutLocal =
             (binOutRawBit[pos] | binOutRawBit[pos + 1] | binOutRawBit[pos + 2] | binOutRawBit[pos + 3] |
             binOutRawBit[pos + 4] | binOutRawBit[pos + 5] | binOutRawBit[pos + 6] | binOutRawBit[pos + 7] |
             binOutRawBit[pos + 8] | binOutRawBit[pos + 9] | binOutRawBit[pos + 10] | binOutRawBit[pos + 11] |
@@ -252,18 +252,18 @@ void ToBinaryArray(Real* invOut, unsigned int* binOut, unsigned int* key_rest_lo
 }
 
 __global__
-void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global)
+void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 {
     //Multicast
-    float h0_local = h0_dev;
-    float h1_reduced_local = h1_reduced_dev;
-    __shared__ unsigned int binInShared[32];
+    Real h0_local = h0_dev;
+    Real h1_reduced_local = h1_reduced_dev;
+    __shared__ uint32_t binInShared[32];
 
-    int block = blockIdx.x;
-    int idx = threadIdx.x;
-    unsigned int maskToUse;
-    unsigned int inPos;
-    unsigned int outPos;
+    uint32_t block = blockIdx.x;
+    uint32_t idx = threadIdx.x;
+    uint32_t maskToUse;
+    uint32_t inPos;
+    uint32_t outPos;
     maskToUse = idx % 32;
     inPos = idx / 32;
     outPos = 1024 * block + idx;
@@ -283,9 +283,9 @@ void binInt2float(unsigned int* binIn, Real* realOut, uint32_t* count_one_global
     }
 }
 
-void intToBinCPU(int* intIn, unsigned int* binOut, int outSize) {
-    int j = 0;
-    for (int i = 0; i < outSize; ++i) {
+void intToBinCPU(int* intIn, uint32_t* binOut, uint32_t outSize) {
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < outSize; ++i) {
         binOut[i] =
             (intIn[j] & 1 << 31) |
             (intIn[j + 1] & 1 << 30) |
@@ -324,7 +324,7 @@ void intToBinCPU(int* intIn, unsigned int* binOut, int outSize) {
 }
 
 
-void printBin(const unsigned char* position, const unsigned char* end) {
+void printBin(const uint8_t * position, const uint8_t * end) {
     while (position < end) {
         printf("%s", std::bitset<8>(*position).to_string().c_str());
         ++position;
@@ -332,7 +332,7 @@ void printBin(const unsigned char* position, const unsigned char* end) {
     std::cout << std::endl;
 }
 
-void printBin(const unsigned int* position, const unsigned int* end) {
+void printBin(const uint32_t* position, const uint32_t* end) {
     while (position < end) {
         printf("%s", std::bitset<32>(*position).to_string().c_str());
         ++position;
@@ -343,14 +343,14 @@ void printBin(const unsigned int* position, const unsigned int* end) {
 
 
 inline void key2StartRest() {
-    unsigned int* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
-    unsigned int* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
-    memcpy(key_start_block, recv_key, key_blocks * sizeof(unsigned int));
+    uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
+    uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
+    memcpy(key_start_block, recv_key, key_blocks * sizeof(uint32_t));
     *(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
-    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(unsigned int));
+    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
 
-    int j = horizontal_block;
-    for (int i = 0; i < vertical_block + 1; ++i)
+    uint32_t j = horizontal_block;
+    for (uint32_t i = 0; i < vertical_block + 1; ++i)
     {
         key_rest_block[i] = ((recv_key[j] << 1) | (recv_key[j + 1] >> 31));
         ++j;
@@ -383,16 +383,16 @@ void reciveData() {
     size_t seedfile_length = seedfile.tellg();
     seedfile.seekg(0, std::ios::beg);
 
-    if (seedfile_length < desired_block * sizeof(unsigned int))
+    if (seedfile_length < desired_block * sizeof(uint32_t))
     {
         std::cout << "File \"" << TOEPLITZ_SEED_PATH << "\" is with " << seedfile_length << " bytes too short!" << std::endl;
-        std::cout << "it is required to be at least " << desired_block * sizeof(unsigned int) << " bytes => terminating!" << std::endl;
+        std::cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
         exit(1);
         abort();
     }
 
     char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
-    seedfile.read(toeplitz_seed_char, desired_block * sizeof(unsigned int));
+    seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
     #endif
 
     #if USE_KEY_SERVER == TRUE
@@ -416,26 +416,26 @@ void reciveData() {
     size_t keyfile_length = keyfile.tellg();
     keyfile.seekg(0, std::ios::beg);
 
-    if (keyfile_length < key_blocks * sizeof(unsigned int))
+    if (keyfile_length < key_blocks * sizeof(uint32_t))
     {
         std::cout << "File \"" << KEYFILE_PATH << "\" is with " << keyfile_length << " bytes too short!" << std::endl;
-        std::cout << "it is required to be at least " << key_blocks * sizeof(unsigned int) << " bytes => terminating!" << std::endl;
+        std::cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
         exit(1);
         abort();
     }
 
     char* recv_key_char = reinterpret_cast<char*>(recv_key);
-    keyfile.read(recv_key_char, key_blocks * sizeof(unsigned int));
+    keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
     key2StartRest();
     #endif
 
-    for (int i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
-        unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-        unsigned int* key_start_block = key_start + input_cache_block_size * i;
-        unsigned int* key_rest_block = key_rest + input_cache_block_size * i;
-        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(unsigned int));
-        memcpy(key_start_block, key_start, input_cache_block_size * sizeof(unsigned int));
-        memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(unsigned int));
+    for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
+        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+        uint32_t* key_start_block = key_start + input_cache_block_size * i;
+        uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
+        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+        memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
+        memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
     }
 
     while (true) {
@@ -444,12 +444,12 @@ void reciveData() {
             std::this_thread::yield();
         }
 
-        unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
+        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
         #if USE_MATRIX_SEED_SERVER == TRUE
         printf("socket_seed_in\n");
         zmq_send(socket_seed_in, "SYN", 3, 0);
         printf("SYN SENT\n");
-        zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(unsigned int), 0);
+        zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0);
         printf("ACK SENT\n");
         zmq_send(socket_seed_in, "ACK", 3, 0);
         #endif
@@ -457,14 +457,14 @@ void reciveData() {
         #if USE_KEY_SERVER == TRUE
         printf("USE_TOEPLITZ_SEED_SERVER\n");
         zmq_send(USE_TOEPLITZ_SEED_SERVER, "SYN", 3, 0);
-        zmq_recv(USE_TOEPLITZ_SEED_SERVER, recv_key, key_blocks * sizeof(unsigned int), 0);
+        zmq_recv(USE_TOEPLITZ_SEED_SERVER, recv_key, key_blocks * sizeof(uint32_t), 0);
         zmq_send(USE_TOEPLITZ_SEED_SERVER, "ACK", 3, 0);
         key2StartRest();
         #endif
 
         #if SHOW_KEY_DEBUG_OUTPUT TRUE
-        unsigned int* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
-        unsigned int* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
+        uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
+        uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
         printlock.lock();
         std::cout << "Toeplitz Seed: ";
         printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
@@ -500,7 +500,7 @@ void sendData() {
     #if HOST_AMPOUT_SERVER == TRUE
     void* amp_out_context = zmq_ctx_new();
     void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
-    int rc = zmq_bind(amp_out_socket, address_amp_out);
+    uint32_t rc = zmq_bind(amp_out_socket, address_amp_out);
     assert(rc == 0);
     #endif
     std::chrono::steady_clock::time_point start;
@@ -514,9 +514,9 @@ void sendData() {
         }
         output_cache_read_pos = (output_cache_read_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
 
-        unsigned char* output_block = Output + output_cache_block_size * output_cache_read_pos;
+        uint8_t * output_block = Output + output_cache_block_size * output_cache_read_pos;
         #if SHOW_DEBUG_OUTPUT TRUE
-        unsigned char* outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
+        uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
         #if HOST_AMPOUT_SERVER == TRUE
@@ -546,7 +546,7 @@ void sendData() {
         #if SHOW_AMPOUT TRUE
         printlock.lock();
         std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s => " << std::endl;
-        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 4); ++i)
+        for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
         {
             printf("0x%02X: %s\n", output_block[i], std::bitset<8>(output_block[i]).to_string().c_str());
         }
@@ -574,9 +574,10 @@ int main(int argc, char* argv[])
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
     #endif
     
-    const int batch_size = 1; ; //Storage would also have to be increased for this to work
-    long long int dist_sample = sample_size, dist_freq = sample_size / 2 + 1;
-    const int loops = 10000;
+    const uint32_t batch_size = 1; ; //Storage would also have to be increased for this to work
+    uint64_t dist_sample = sample_size;
+    uint64_t dist_freq = sample_size / 2 + 1;
+    const uint32_t loops = 10000;
 
     uint32_t* count_one_global_seed;
     uint32_t* count_one_global_key;
@@ -586,7 +587,7 @@ int main(int argc, char* argv[])
     Real* invOut;
     Complex* do1;
     Complex* do2;
-    unsigned int* binOut;
+    uint32_t* binOut;
     cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
         cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
     cudaStreamCreate(&FFTStream);
@@ -607,9 +608,9 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
 
     // Allocate host pinned memory on RAM
-    cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
     cudaMallocHost((void**)&Output, output_cache_block_size * OUTPUT_BLOCKS_TO_CACHE);
     #if SHOW_DEBUG_OUTPUT TRUE
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * OUTPUT_BLOCKS_TO_CACHE);
@@ -624,11 +625,11 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
     cudaMalloc(&invOut, sizeof(Real) * dist_sample);
-    cudaMalloc(&binOut, sizeof(unsigned int) * sample_size/8);
+    cudaMalloc(&binOut, sizeof(uint32_t) * sample_size/8);
 
     register const Complex complex0 = make_float2(0.0f, 0.0f);
-    register const float float0 = 0.0f;
-    register const float float1_reduced = 1.0f/reduction;
+    register const Real float0 = 0.0f;
+    register const Real float1_reduced = 1.0f/reduction;
 
     cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
     cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
@@ -640,8 +641,8 @@ int main(int argc, char* argv[])
     std::thread threadSendObj(sendData);
     threadSendObj.detach();
 
-    int rank = 1;
-    int stride_sample = 1, stride_freq = 1;
+    uint32_t rank = 1;
+    uint32_t stride_sample = 1, stride_freq = 1;
     long long embed_sample[] = { 0 };
     long long embedo1[] = { 0 };
     size_t workSize = 0;
@@ -686,7 +687,7 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
-        ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (dist_freq, do1, do2);
+        ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
@@ -698,7 +699,7 @@ int main(int argc, char* argv[])
             std::this_thread::yield();
         }
 
-        cudaMemcpy(Output + output_cache_block_size * output_cache_write_pos, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(Output + output_cache_block_size * output_cache_write_pos, binOut, vertical_block * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         #if SHOW_DEBUG_OUTPUT TRUE
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
