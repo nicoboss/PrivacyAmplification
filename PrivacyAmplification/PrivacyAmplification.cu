@@ -32,6 +32,7 @@ typedef float2   Complex;
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
+#define DYNAMIC_TOEPLITZ_MATRIX_SEED TRUE
 #define XOR_WITH_KEY_REST TRUE
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
@@ -411,6 +412,10 @@ void reciveData() {
 
     char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
     seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
+    for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
+        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+    }
     #endif
 
     #if USE_KEY_SERVER == TRUE
@@ -445,17 +450,16 @@ void reciveData() {
     char* recv_key_char = reinterpret_cast<char*>(recv_key);
     keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
     key2StartRest();
-    #endif
-
     for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
-        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
         uint32_t* key_start_block = key_start + input_cache_block_size * i;
         uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
-        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
         memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
         memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
     }
+    #endif
 
+
+    bool recive_toeplitz_matrix_seed = true;
     while (true) {
 
         while (input_cache_write_pos % INPUT_BLOCKS_TO_CACHE == input_cache_read_pos) {
@@ -464,12 +468,24 @@ void reciveData() {
 
         uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
         #if USE_MATRIX_SEED_SERVER == TRUE
-        printf("socket_seed_in\n");
-        zmq_send(socket_seed_in, "SYN", 3, 0);
-        printf("SYN SENT\n");
-        zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0);
-        printf("ACK SENT\n");
-        zmq_send(socket_seed_in, "ACK", 3, 0);
+        if (recive_toeplitz_matrix_seed) {
+            printf("socket_seed_in\n");
+            zmq_send(socket_seed_in, "SYN", 3, 0);
+            printf("SYN SENT\n");
+            zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0);
+            printf("ACK SENT\n");
+            zmq_send(socket_seed_in, "ACK", 3, 0);
+            #if DYNAMIC_TOEPLITZ_MATRIX_SEED == FALSE
+            recive_toeplitz_matrix_seed = false;
+            zmq_disconnect(socket_seed_in, address_seed_in);
+            zmq_close(socket_seed_in);
+            zmq_ctx_destroy(socket_seed_in);
+            for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
+                uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+                memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+            }
+            #endif
+        }
         #endif
 
         #if USE_KEY_SERVER == TRUE
@@ -501,10 +517,13 @@ void reciveData() {
     }
 
     #if USE_MATRIX_SEED_SERVER == TRUE
-    zmq_disconnect(socket_seed_in, address_seed_in);
-    zmq_close(socket_seed_in);
-    zmq_ctx_destroy(socket_seed_in);
+    if (recive_toeplitz_matrix_seed) {
+        zmq_disconnect(socket_seed_in, address_seed_in);
+        zmq_close(socket_seed_in);
+        zmq_ctx_destroy(socket_seed_in);
+    }
     #endif
+
     #if USE_KEY_SERVER == TRUE
     zmq_disconnect(USE_TOEPLITZ_SEED_SERVER, address_key_in);
     zmq_close(USE_TOEPLITZ_SEED_SERVER);
@@ -563,7 +582,7 @@ void sendData() {
 
         #if SHOW_AMPOUT == TRUE
         printlock.lock();
-        std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s => " << std::endl;
+        std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s" << std::endl;
         for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
         {
             printf("0x%02X: %s\n", output_block[i], std::bitset<8>(output_block[i]).to_string().c_str());
@@ -680,6 +699,8 @@ int main(int argc, char* argv[])
     }
     cufftSetStream(plan_forward_R2C, FFTStream);
 
+    bool recalculate_toeplitz_matrix_seed = true;
+
     while (true) {
 
         while ((input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE == input_cache_write_pos) {
@@ -688,16 +709,20 @@ int main(int argc, char* argv[])
         input_cache_read_pos = (input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE;
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
-        cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
         binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
             BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
-        binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
+        if (recalculate_toeplitz_matrix_seed) {
+            cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
+            binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+                BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
+            cudaStreamSynchronize(BinInt2floatSeedStream);
+        }
         cudaStreamSynchronize(BinInt2floatKeyStream);
-        cudaStreamSynchronize(BinInt2floatSeedStream);
         calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream) (count_one_global_key, count_one_global_seed, correction_float_dev);
         cufftExecR2C(plan_forward_R2C, di1, do1);
-        cufftExecR2C(plan_forward_R2C, di2, do2);
+        if (recalculate_toeplitz_matrix_seed) {
+            cufftExecR2C(plan_forward_R2C, di2, do2);
+        }
         cudaStreamSynchronize(FFTStream);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
         setFirstElementToZero KERNEL_ARG4(1, 1, 0, ElementWiseProductStream) (do1, do2);
@@ -709,6 +734,10 @@ int main(int argc, char* argv[])
         ToBinaryArray KERNEL_ARG4((int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream)
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
+
+        #if DYNAMIC_TOEPLITZ_MATRIX_SEED == FALSE
+        recalculate_toeplitz_matrix_seed = false;
+        #endif
 
         while (output_cache_write_pos % OUTPUT_BLOCKS_TO_CACHE == output_cache_read_pos) {
             std::this_thread::yield();
