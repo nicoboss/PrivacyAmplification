@@ -1,8 +1,9 @@
-#include <iostream>
-#include <iomanip>
 #include <cuda_runtime.h>
+#include <device_launch_parameters.h>
 #include <cufftXt.h>
 #include <cuda_fp16.h>
+#include <iostream>
+#include <iomanip>
 #include <assert.h>
 #include <algorithm>
 #include <iterator>
@@ -43,6 +44,24 @@ typedef float2   Complex;
 #define KEYFILE_PATH "keyfile.bin"
 const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/((float)total_reduction);
 
+#ifdef __CUDACC__
+#define KERNEL_ARG2(grid, block) <<< grid, block >>>
+#define KERNEL_ARG3(grid, block, sh_mem) <<< grid, block, sh_mem >>>
+#define KERNEL_ARG4(grid, block, sh_mem, stream) <<< grid, block, sh_mem, stream >>>
+#else
+#define KERNEL_ARG2(grid, block)
+#define KERNEL_ARG3(grid, block, sh_mem)
+#define KERNEL_ARG4(grid, block, sh_mem, stream)
+#endif
+
+#ifdef __INTELLISENSE__
+cudaError_t cudaMemcpyToSymbol(Complex symbol, const void* src, size_t count);
+cudaError_t cudaMemcpyToSymbol(Real symbol, const void* src, size_t count);
+int __float2int_rn(float in);
+unsigned int atomicAdd(unsigned int* address, unsigned int val);
+#define __syncthreads()
+#endif
+
 #if USE_MATRIX_SEED_SERVER == TRUE
 const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
 //const char* address_seed_in = "tcp://127.0.0.1:46666"; //seed_in_bob
@@ -55,12 +74,12 @@ const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
 #endif
 constexpr uint32_t vertical_len = sample_size/4 + sample_size/8;
 constexpr uint32_t horizontal_len = sample_size/2 + sample_size/8;
-constexpr uint32_t key_len = sample_size+1;
+//constexpr uint32_t key_len = sample_size+1;
 constexpr uint32_t vertical_block = vertical_len / 32;
 constexpr uint32_t horizontal_block = horizontal_len / 32;
 constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
-constexpr uint32_t desired_len = vertical_len + horizontal_len;
+//constexpr uint32_t desired_len = vertical_len + horizontal_len;
 constexpr uint32_t input_cache_block_size = desired_block;
 constexpr uint32_t output_cache_block_size = vertical_block * sizeof(uint32_t);
 uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
@@ -68,13 +87,13 @@ uint32_t* toeplitz_seed;
 uint32_t* key_start;
 uint32_t* key_rest;
 uint8_t * Output;
-#if SHOW_DEBUG_OUTPUT TRUE
+#if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
 #endif
-std::atomic<uint32_t> input_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
-std::atomic<uint32_t> input_cache_write_pos = 0;
-std::atomic<uint32_t> output_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
-std::atomic<uint32_t> output_cache_write_pos = 0;
+std::atomic<uint32_t> input_cache_read_pos;
+std::atomic<uint32_t> input_cache_write_pos;
+std::atomic<uint32_t> output_cache_read_pos;
+std::atomic<uint32_t> output_cache_write_pos;
 std::mutex printlock;
 char syn[3];
 char ack[3];
@@ -243,7 +262,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
             binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
             binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
             binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
-            #if XOR_WITH_KEY_REST TRUE 
+            #if XOR_WITH_KEY_REST == TRUE 
             ^ key_rest_xor[idx]
             #endif
             ;
@@ -370,7 +389,6 @@ void reciveData() {
     //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_7
     //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
     std::ifstream seedfile(TOEPLITZ_SEED_PATH, std::ios::binary);
-    size_t length_seedfile;
 
     if (seedfile.fail())
     {
@@ -462,7 +480,7 @@ void reciveData() {
         key2StartRest();
         #endif
 
-        #if SHOW_KEY_DEBUG_OUTPUT TRUE
+        #if SHOW_KEY_DEBUG_OUTPUT == TRUE
         uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
         uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
         printlock.lock();
@@ -515,7 +533,7 @@ void sendData() {
         output_cache_read_pos = (output_cache_read_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
 
         uint8_t * output_block = Output + output_cache_block_size * output_cache_read_pos;
-        #if SHOW_DEBUG_OUTPUT TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
@@ -530,7 +548,7 @@ void sendData() {
         printlock.unlock();
         #endif
 
-        #if SHOW_DEBUG_OUTPUT TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         printlock.lock();
         for (size_t i = 0; i < min_template(dist_freq, 64); ++i)
         {
@@ -543,7 +561,7 @@ void sendData() {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
         start = std::chrono::high_resolution_clock::now();
 
-        #if SHOW_AMPOUT TRUE
+        #if SHOW_AMPOUT == TRUE
         printlock.lock();
         std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s => " << std::endl;
         for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
@@ -559,8 +577,7 @@ void sendData() {
 
 int main(int argc, char* argv[])
 {
-    std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl;
-    std::cout << "normalisation_float: " << normalisation_float << std::endl;
+    std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl << std::endl;
 
     #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -573,11 +590,14 @@ int main(int argc, char* argv[])
     FillConsoleOutputAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE, dwConSize, coordScreen, &cCharsWritten);
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
     #endif
-    
-    const uint32_t batch_size = 1; ; //Storage would also have to be increased for this to work
-    uint64_t dist_sample = sample_size;
-    uint64_t dist_freq = sample_size / 2 + 1;
-    const uint32_t loops = 10000;
+
+    uint32_t dist_sample = sample_size;
+    uint32_t dist_freq = sample_size / 2 + 1;
+
+    input_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
+    input_cache_write_pos = 0;
+    output_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
+    output_cache_write_pos = 0;
 
     uint32_t* count_one_global_seed;
     uint32_t* count_one_global_key;
@@ -612,7 +632,7 @@ int main(int argc, char* argv[])
     cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
     cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
     cudaMallocHost((void**)&Output, output_cache_block_size * OUTPUT_BLOCKS_TO_CACHE);
-    #if SHOW_DEBUG_OUTPUT TRUE
+    #if SHOW_DEBUG_OUTPUT == TRUE
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * OUTPUT_BLOCKS_TO_CACHE);
     #endif
 
@@ -641,11 +661,6 @@ int main(int argc, char* argv[])
     std::thread threadSendObj(sendData);
     threadSendObj.detach();
 
-    uint32_t rank = 1;
-    uint32_t stride_sample = 1, stride_freq = 1;
-    long long embed_sample[] = { 0 };
-    long long embedo1[] = { 0 };
-    size_t workSize = 0;
     cufftHandle plan_forward_R2C;
     cufftResult r;
     r = cufftPlan1d(&plan_forward_R2C, dist_sample, CUFFT_R2C, 1);
@@ -674,24 +689,24 @@ int main(int argc, char* argv[])
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-        binInt2float << < (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatKeyStream >> > (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
-        binInt2float << < (int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
-            BinInt2floatSeedStream >> > (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
+        binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
+        binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
         cudaStreamSynchronize(BinInt2floatKeyStream);
         cudaStreamSynchronize(BinInt2floatSeedStream);
-        calculateCorrectionFloat <<<1, 1, 0, CalculateCorrectionFloatStream >>> (count_one_global_key, count_one_global_seed, correction_float_dev);
+        calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream) (count_one_global_key, count_one_global_seed, correction_float_dev);
         cufftExecR2C(plan_forward_R2C, di1, do1);
         cufftExecR2C(plan_forward_R2C, di2, do2);
         cudaStreamSynchronize(FFTStream);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
-        setFirstElementToZero <<<1, 1, 0, ElementWiseProductStream>>> (do1, do2);
+        setFirstElementToZero KERNEL_ARG4(1, 1, 0, ElementWiseProductStream) (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
-        ElementWiseProduct <<<(int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream >>> (do1, do2);
+        ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
-        ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>>
+        ToBinaryArray KERNEL_ARG4((int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream)
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
 
@@ -700,7 +715,7 @@ int main(int argc, char* argv[])
         }
 
         cudaMemcpy(Output + output_cache_block_size * output_cache_write_pos, binOut, vertical_block * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        #if SHOW_DEBUG_OUTPUT TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
