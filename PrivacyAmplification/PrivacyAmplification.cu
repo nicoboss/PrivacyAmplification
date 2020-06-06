@@ -17,6 +17,7 @@
 #include <future>
 #include <iostream>
 #include <fstream>
+#include <chrono>
 
 typedef float    Real;
 typedef float2   Complex;
@@ -28,7 +29,8 @@ typedef float2   Complex;
 #define pre_mul_reduction pwrtwo(5)
 #define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
-#define BLOCKS_TO_CACHE 10 //Has to be larger then 1
+#define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
+#define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define XOR_WITH_KEY_REST TRUE
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
@@ -60,14 +62,18 @@ constexpr unsigned int key_blocks = vertical_block + horizontal_block + 1;
 constexpr unsigned int desired_block = vertical_block + horizontal_block;
 constexpr unsigned int desired_len = vertical_len + horizontal_len;
 constexpr unsigned int input_cache_block_size = desired_block;
-constexpr unsigned int output_cache_block_size = vertical_block;
+constexpr unsigned int output_cache_block_size = vertical_block * sizeof(unsigned int);
 unsigned int* recv_key = (unsigned int*)malloc(key_blocks * sizeof(unsigned int));
 unsigned int* toeplitz_seed;
 unsigned int* key_start;
 unsigned int* key_rest;
-std::atomic<int> input_cache_read_pos = BLOCKS_TO_CACHE - 1;
+unsigned char* Output;
+#if SHOW_DEBUG_OUTPUT TRUE
+float* OutputFloat;
+#endif
+std::atomic<int> input_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
 std::atomic<int> input_cache_write_pos = 0;
-std::atomic<int> output_cache_read_pos = BLOCKS_TO_CACHE - 1;
+std::atomic<int> output_cache_read_pos = INPUT_BLOCKS_TO_CACHE - 1;
 std::atomic<int> output_cache_write_pos = 0;
 std::mutex printlock;
 char syn[3];
@@ -353,7 +359,7 @@ inline void key2StartRest() {
 }
 
 
-void recive() {
+void reciveData() {
 
     #if USE_MATRIX_SEED_SERVER == TRUE
     void* context_seed_in = zmq_ctx_new();
@@ -423,7 +429,7 @@ void recive() {
     key2StartRest();
     #endif
 
-    for (int i = 0; i < BLOCKS_TO_CACHE; ++i) {
+    for (int i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
         unsigned int* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
         unsigned int* key_start_block = key_start + input_cache_block_size * i;
         unsigned int* key_rest_block = key_rest + input_cache_block_size * i;
@@ -434,7 +440,7 @@ void recive() {
 
     while (true) {
 
-        while (input_cache_write_pos % BLOCKS_TO_CACHE == input_cache_read_pos) {
+        while (input_cache_write_pos % INPUT_BLOCKS_TO_CACHE == input_cache_read_pos) {
             std::this_thread::yield();
         }
 
@@ -472,7 +478,7 @@ void recive() {
         printlock.unlock();
         #endif
 
-        input_cache_write_pos = (input_cache_write_pos + 1) % BLOCKS_TO_CACHE;
+        input_cache_write_pos = (input_cache_write_pos + 1) % INPUT_BLOCKS_TO_CACHE;
 
     }
 
@@ -489,10 +495,7 @@ void recive() {
 }
 
 
-int main(int argc, char* argv[])
-{
-    std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl;
-    std::cout << "normalisation_float: " << normalisation_float << std::endl;
+void sendData() {
 
     #if HOST_AMPOUT_SERVER == TRUE
     void* amp_out_context = zmq_ctx_new();
@@ -500,6 +503,64 @@ int main(int argc, char* argv[])
     int rc = zmq_bind(amp_out_socket, address_amp_out);
     assert(rc == 0);
     #endif
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point stop;
+    start = std::chrono::high_resolution_clock::now();
+
+    while (true) {
+
+        while ((output_cache_read_pos + 1) % OUTPUT_BLOCKS_TO_CACHE == output_cache_write_pos) {
+            std::this_thread::yield();
+        }
+        output_cache_read_pos = (output_cache_read_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
+
+        unsigned char* output_block = Output + output_cache_block_size * output_cache_read_pos;
+        #if SHOW_DEBUG_OUTPUT TRUE
+        unsigned char* outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
+        #endif
+
+        #if HOST_AMPOUT_SERVER == TRUE
+        printlock.lock();
+        zmq_recv(amp_out_socket, syn, 3, 0);
+        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
+        zmq_send(amp_out_socket, output_block, sample_size / 8, 0);
+        zmq_recv(amp_out_socket, ack, 3, 0);
+        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
+        fflush(stdout);
+        printlock.unlock();
+        #endif
+
+        #if SHOW_DEBUG_OUTPUT TRUE
+        printlock.lock();
+        for (size_t i = 0; i < min_template(dist_freq, 64); ++i)
+        {
+            printf("%f\n", outputFloat_block[i]);
+        }
+        printlock.unlock();
+        #endif
+
+        stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+        start = std::chrono::high_resolution_clock::now();
+
+        #if SHOW_AMPOUT TRUE
+        printlock.lock();
+        std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s => " << std::endl;
+        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 4); ++i)
+        {
+            printf("0x%02X: %s\n", output_block[i], std::bitset<8>(output_block[i]).to_string().c_str());
+        }
+        fflush(stdout);
+        printlock.unlock();
+        #endif
+    }
+}
+
+
+int main(int argc, char* argv[])
+{
+    std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl;
+    std::cout << "normalisation_float: " << normalisation_float << std::endl;
 
     #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -526,7 +587,6 @@ int main(int argc, char* argv[])
     Complex* do1;
     Complex* do2;
     unsigned int* binOut;
-    unsigned char* Output;
     cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
         cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
     cudaStreamCreate(&FFTStream);
@@ -547,13 +607,12 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
 
     // Allocate host pinned memory on RAM
-    cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&Output, output_cache_block_size * sizeof(unsigned int) * BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(unsigned int) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&Output, output_cache_block_size * OUTPUT_BLOCKS_TO_CACHE);
     #if SHOW_DEBUG_OUTPUT TRUE
-    float* OutputFloat;
-    cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float));
+    cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * OUTPUT_BLOCKS_TO_CACHE);
     #endif
 
     // Allocate memory on GPU
@@ -576,8 +635,10 @@ int main(int argc, char* argv[])
     cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
     cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 
-    std::thread threadReciveObj(recive);
+    std::thread threadReciveObj(reciveData);
     threadReciveObj.detach();
+    std::thread threadSendObj(sendData);
+    threadSendObj.detach();
 
     int rank = 1;
     int stride_sample = 1, stride_freq = 1;
@@ -605,14 +666,10 @@ int main(int argc, char* argv[])
 
     while (true) {
 
-        while ((input_cache_read_pos + 1) % BLOCKS_TO_CACHE == input_cache_write_pos) {
+        while ((input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE == input_cache_write_pos) {
             std::this_thread::yield();
         }
-        input_cache_read_pos = (input_cache_read_pos + 1) % BLOCKS_TO_CACHE;
-        std::cout << input_cache_read_pos << " != " << input_cache_write_pos << std::endl;
-
-        cudaEventRecord(start);
-        cudaEventSynchronize(start);
+        input_cache_read_pos = (input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE;
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
@@ -636,52 +693,19 @@ int main(int argc, char* argv[])
         ToBinaryArray <<<(int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream >>>
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
-        cudaMemcpy(Output, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        #if SHOW_DEBUG_OUTPUT TRUE
-        cudaMemcpy(OutputFloat, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(OutputFloat, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
-        #endif
 
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
-
-        float et;
-        cudaEventElapsedTime(&et, start, stop);
-        printf("FFT time for %lld samples: %f ms\n", (sample_size), et);
-
-        
-
-        #if HOST_AMPOUT_SERVER == TRUE
-        printlock.lock();
-        zmq_recv(amp_out_socket, syn, 3, 0);
-        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
-        zmq_send(amp_out_socket, Output, sample_size / 8, 0);
-        zmq_recv(amp_out_socket, ack, 3, 0);
-        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
-        fflush(stdout);
-        printlock.unlock();
-        #endif
-
-        #if SHOW_DEBUG_OUTPUT TRUE
-        printlock.lock();
-        for (size_t i = 0; i < min_template(dist_freq, 64); ++i)
-        {
-            printf("%f\n", OutputFloat[i]);
+        while (output_cache_write_pos % OUTPUT_BLOCKS_TO_CACHE == output_cache_read_pos) {
+            std::this_thread::yield();
         }
-        printlock.unlock();
+
+        cudaMemcpy(Output + output_cache_block_size * output_cache_write_pos, binOut, vertical_block * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        #if SHOW_DEBUG_OUTPUT TRUE
+        cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
 
-        #if SHOW_AMPOUT TRUE
-        printlock.lock();
-        for (size_t i = 0; i < min_template(vertical_block * sizeof(unsigned int), 4); ++i)
-        {
-            printf("0x%02X: %s\n", Output[i], std::bitset<8>(Output[i]).to_string().c_str());
-        }
-        fflush(stdout);
-        printlock.unlock();
-        #endif
+        output_cache_write_pos = (output_cache_write_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
 
-        //break;
     }
 
 
