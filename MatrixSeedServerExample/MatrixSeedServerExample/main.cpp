@@ -1,9 +1,13 @@
 #include <iostream>
 #include <zmq.h>
-#include <cassert>
 #include <mutex>
 #include <atomic>
+#include <sstream>
 
+#define TRUE 1
+#define FALSE 0
+#define TWO_CLIENTS FALSE
+#define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
 const char* address_alice = "tcp://127.0.0.1:45555";
 const char* address_bob = "tcp://127.0.0.1:46666";
 constexpr int vertical_len = 96;
@@ -17,26 +21,40 @@ constexpr int desired_len = vertical_len + horizontal_len;
 unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block);
 std::atomic<int> aliceReady = 1;
 std::atomic<int> bobReady = 1;
+std::mutex printlock;
+
+void printlnStream(std::ostream& os) {
+    std::ostringstream& ss = dynamic_cast<std::ostringstream&>(os);
+    printlock.lock();
+    std::cout << ss.str() << std::endl;
+    printlock.unlock();
+}
 
 void send_alice() {
     void* context_alice = zmq_ctx_new();
     void* MatrixSeedServer_socket_alice = zmq_socket(context_alice, ZMQ_REP);
-    int rc = zmq_bind(MatrixSeedServer_socket_alice, address_alice);
-    assert(rc == 0);
+    while (zmq_bind(MatrixSeedServer_socket_alice, address_alice) != 0) {
+        println("Binding to \"" << address_alice << "\" failed! Retrying...");
+    }
     char syn[3];
-    char ack[3];
+    int32_t rc;
 
-    std::cout << "Waiting for alice..." << std::endl;
-    while (true) {
-        zmq_recv(MatrixSeedServer_socket_alice, syn, 3, 0);
-        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
-        zmq_send(MatrixSeedServer_socket_alice, toeplitz_seed, desired_block * sizeof(unsigned int), 0);
-        zmq_recv(MatrixSeedServer_socket_alice, ack, 3, 0);
-        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
+    println("Waiting for Alice...");
+    while (true){
+        rc = zmq_recv(MatrixSeedServer_socket_alice, syn, 3, 0);
+        if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
+            println("Error receiving SYN! Retrying...");
+            continue;
+        }
+        if (zmq_send(MatrixSeedServer_socket_alice, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
+            println("Error sending data to Alice! Retrying...");
+            continue;
+        }
+        println("Sent seed to Alice");
 
         aliceReady = 1;
         while (aliceReady != 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
     }
 
@@ -48,22 +66,28 @@ void send_alice() {
 void send_bob() {
     void* context_bob = zmq_ctx_new();
     void* MatrixSeedServer_socket_bob = zmq_socket(context_bob, ZMQ_REP);
-    int rc = zmq_bind(MatrixSeedServer_socket_bob, address_bob);
-    assert(rc == 0);
+    while (zmq_bind(MatrixSeedServer_socket_bob, address_bob) != 0) {
+        println("Binding to \"" << address_bob << "\" failed! Retrying...");
+    }
     char syn[3];
-    char ack[3];
+    int32_t rc;
 
-    std::cout << "Waiting for bob..." << std::endl;
+    println("Waiting for Bob...");
     while (true) {
-        zmq_recv(MatrixSeedServer_socket_bob, syn, 3, 0);
-        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
-        zmq_send(MatrixSeedServer_socket_bob, toeplitz_seed, desired_block * sizeof(unsigned int), 0);
-        zmq_recv(MatrixSeedServer_socket_bob, ack, 3, 0);
-        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
+        rc = zmq_recv(MatrixSeedServer_socket_bob, syn, 3, 0);
+        if (rc != 3 || syn != "SYN") {
+            println("Error receiving SYN! Retrying...");
+            continue;
+        }
+        if (zmq_send(MatrixSeedServer_socket_bob, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
+            println("Error sending data to Bob! Retrying...");
+            continue;
+        }
+        println("Sent seed to Bob");
 
         bobReady = 1;
         while (bobReady != 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
     }
 
@@ -72,18 +96,24 @@ void send_bob() {
     zmq_ctx_destroy(MatrixSeedServer_socket_bob);
 }
 
+
 int main(int argc, char* argv[])
 {
     std::thread threadReciveObjAlice(send_alice);
     threadReciveObjAlice.detach();
+    #if TWO_CLIENTS == TRUE
     std::thread threadReciveObjBob(send_bob);
     threadReciveObjBob.detach();
-    std::this_thread::sleep_for(std::chrono::microseconds(50));
+    #endif
 
     while (true) {
 
-        while (aliceReady == 0 || aliceReady == 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        #if TWO_CLIENTS == TRUE
+        while (aliceReady == 0 || bobReady == 0) {
+        #else
+        while (aliceReady == 0) {
+        #endif
+            std::this_thread::yield();
         }
 
         unsigned int* vertical_data_alice = new unsigned int[vertical_block] { 0b10101000111111011010010101110111, 0b11110011000000000110101010011000, 0b11110110110001111100111001101001 };

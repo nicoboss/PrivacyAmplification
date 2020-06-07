@@ -1,6 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <iomanip>
 #include <iostream>
 #include <zmq.h>
-#include <cassert>
 #include <mutex>
 
 const char* address = "tcp://127.0.0.1:47777";
@@ -18,8 +19,9 @@ int main(int argc, char* argv[])
 {
     void* context = zmq_ctx_new();
     void* SendKeys_socket = zmq_socket(context, ZMQ_REP);
-    int rc = zmq_bind(SendKeys_socket, address);
-    assert(rc == 0);
+    while (zmq_bind(SendKeys_socket, address) != 0) {
+        std::cout << "Binding to \"" << address << "\" failed! Retrying..." << std::endl;
+    }
 
     //4 0x00 bytes at the end for conversion to unsigned int array
     //Key data alice in liddle endians
@@ -30,15 +32,21 @@ int main(int argc, char* argv[])
     unsigned int* codeword_bin = new unsigned int[key_blocks];
 
     char syn[3];
-    char ack[3];
+    int32_t rc;
     std::cout << "Waiting for clients..." << std::endl;
 
     while (true) {
-        zmq_recv(SendKeys_socket, syn, 3, 0);
-        printf("Recived: %c%c%c\n", syn[0], syn[1], syn[2]);
-        zmq_send(SendKeys_socket, key_data_alice, key_blocks * sizeof(unsigned int), 0);
-        zmq_recv(SendKeys_socket, ack, 3, 0);
-        printf("Recived: %c%c%c\n", ack[0], ack[1], ack[2]);
+        rc = zmq_recv(SendKeys_socket, syn, 3, 0);
+        if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
+            std::cout << "Error receiving SYN! Retrying..." << std::endl;
+            continue;
+        }
+        if (zmq_send(SendKeys_socket, key_data_alice, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {
+            std::cout << "Error sending Key! Retrying..." << std::endl;
+            continue;
+        }
+        auto time = std::time(nullptr);
+        std::cout << std::put_time(std::localtime(&time), "%F %T") << " Sent Key" << std::endl;
     }
 
     zmq_unbind(SendKeys_socket, address);
