@@ -26,7 +26,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define factor 8
+#define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -36,13 +36,14 @@ typedef float2   Complex;
 #define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define DYNAMIC_TOEPLITZ_MATRIX_SEED TRUE
-#define XOR_WITH_KEY_REST TRUE
+#define XOR_WITH_KEY_REST TRUE //Must be enabled for security
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER TRUE
-#define USE_KEY_SERVER TRUE
-#define HOST_AMPOUT_SERVER TRUE
+#define USE_MATRIX_SEED_SERVER FALSE
+#define USE_KEY_SERVER FALSE
+#define HOST_AMPOUT_SERVER FALSE
+#define STORE_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
@@ -255,7 +256,6 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
     }
     else if (idx < 1023)
     {
-
         #if AMPOUT_REVERSE_ENDIAN == TRUE
         uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
         key_rest_xor[idx - 992] =
@@ -387,12 +387,13 @@ inline void key2StartRest() {
     memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
 
     uint32_t j = horizontal_block;
-    for (uint32_t i = 0; i < vertical_block + 1; ++i)
+    for (uint32_t i = 0; i < vertical_block - 1; ++i)
     {
         key_rest_block[i] = ((recv_key[j] << 1) | (recv_key[j + 1] >> 31));
         ++j;
     }
-    memset(key_rest_block + desired_block - horizontal_block, 0b00000000, vertical_block - (vertical_block - horizontal_block));
+    key_rest_block[vertical_block - 1] = ((recv_key[j] << 1));
+    memset(key_rest_block + desired_block - horizontal_block, 0b10101010, horizontal_block * sizeof(uint32_t));
 }
 
 
@@ -595,6 +596,13 @@ void sendData() {
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
+        #if STORE_AMPOUT_IN_FILE == TRUE
+        auto ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
+        ampout_file.write((char*)&output_block[0], vertical_len / 8);
+        ampout_file.close();
+        exit(0);
+        #endif
+
         #if HOST_AMPOUT_SERVER == TRUE
         retry_sending_amp_out:
         rc = zmq_recv(amp_out_socket, syn, 3, 0);
@@ -691,7 +699,7 @@ int main(int argc, char* argv[])
     // Allocate host pinned memory on RAM
     cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
     cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
-    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE);
+    cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * INPUT_BLOCKS_TO_CACHE + 31 * sizeof(uint32_t));
     cudaMallocHost((void**)&Output, output_cache_block_size * OUTPUT_BLOCKS_TO_CACHE);
     #if SHOW_DEBUG_OUTPUT == TRUE
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * OUTPUT_BLOCKS_TO_CACHE);
@@ -705,8 +713,8 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&di2, sizeof(Real) * sample_size);
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
-    cudaMalloc(&invOut, sizeof(Real) * dist_sample);
-    cudaMalloc(&binOut, sizeof(uint32_t) * sample_size/8);
+    cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
+    cudaMalloc(&binOut, (sample_size/8 + 31) * sizeof(uint32_t));
 
     register const Complex complex0 = make_float2(0.0f, 0.0f);
     register const Real float0 = 0.0f;
@@ -773,7 +781,7 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
-        ToBinaryArray KERNEL_ARG4((int)(((int)(vertical_block * 33) + 1023) / 1024), 1024, 0, ToBinaryArrayStream)
+        ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1024, 0, ToBinaryArrayStream)
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
 
