@@ -90,7 +90,7 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 //constexpr uint32_t desired_len = vertical_len + horizontal_len;
 constexpr uint32_t input_cache_block_size = desired_block;
-constexpr uint32_t output_cache_block_size = vertical_block * sizeof(uint32_t);
+constexpr uint32_t output_cache_block_size = (vertical_block + 31) * sizeof(uint32_t);
 uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
 uint32_t* toeplitz_seed;
 uint32_t* key_start;
@@ -689,7 +689,6 @@ int main(int argc, char* argv[])
     Real* invOut;
     Complex* do1;
     Complex* do2;
-    uint32_t* binOut;
     cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
         cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream, ElementWiseProductStream, ToBinaryArrayStream;
     cudaStreamCreate(&FFTStream);
@@ -727,7 +726,6 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
     cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
-    cudaMalloc(&binOut, (sample_size/8 + 31) * sizeof(uint32_t));
 
     register const Complex complex0 = make_float2(0.0f, 0.0f);
     register const Real float0 = 0.0f;
@@ -795,6 +793,12 @@ int main(int argc, char* argv[])
         cudaStreamSynchronize(ElementWiseProductStream);
         cufftExecC2R(plan_inverse_C2R, do1, invOut);
         cudaStreamSynchronize(FFTStream);
+
+        while (output_cache_write_pos % OUTPUT_BLOCKS_TO_CACHE == output_cache_read_pos) {
+            std::this_thread::yield();
+        }
+
+        uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
         ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1024, 0, ToBinaryArrayStream)
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
@@ -803,11 +807,6 @@ int main(int argc, char* argv[])
         recalculate_toeplitz_matrix_seed = false;
         #endif
 
-        while (output_cache_write_pos % OUTPUT_BLOCKS_TO_CACHE == output_cache_read_pos) {
-            std::this_thread::yield();
-        }
-
-        cudaMemcpy(Output + output_cache_block_size * output_cache_write_pos, binOut, vertical_block * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         #if SHOW_DEBUG_OUTPUT == TRUE
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
@@ -828,7 +827,6 @@ int main(int argc, char* argv[])
     cudaFree(invOut);
     cudaFree(do1);
     cudaFree(do2);
-    cudaFree(binOut);
     cudaFree(Output);
 
     // Delete cuda events
