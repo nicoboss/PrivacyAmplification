@@ -43,12 +43,14 @@ typedef float2   Complex;
 #define USE_MATRIX_SEED_SERVER FALSE
 #define USE_KEY_SERVER FALSE
 #define HOST_AMPOUT_SERVER FALSE
-#define STORE_AMPOUT_IN_FILE TRUE
+#define STORE_FIRST_AMPOUT_IN_FILE FALSE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
 #define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
+#define minValue(a,b) (((a) < (b)) ? (a) : (b))
+#define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
 const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/((float)total_reduction);
 
 #ifdef __CUDACC__
@@ -264,7 +266,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
                 (((key_rest_little) & 0x0000ff00) << 8) |
                 (((key_rest_little) & 0x000000ff) << 24));
         #else
-                key_rest_xor[idx - 992] = key_rest_local[i];
+                key_rest_xor[idx - 992] = key_rest_local[block * 31 + idx - 992];
         #endif 
     }
     __syncthreads();
@@ -377,14 +379,20 @@ void printBin(const uint32_t* position, const uint32_t* end) {
     std::cout << std::endl;
 }
 
-
+inline void keySetZeroPadding() {
+    for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
+        uint32_t* key_start_block = key_start + input_cache_block_size * i;
+        uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
+        memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
+        memset(key_rest_block + desired_block - horizontal_block, 0b00000000, horizontal_block * sizeof(uint32_t));
+    }
+}
 
 inline void key2StartRest() {
     uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
     uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
     memcpy(key_start_block, recv_key, key_blocks * sizeof(uint32_t));
     *(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
-    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
 
     uint32_t j = horizontal_block;
     for (uint32_t i = 0; i < vertical_block - 1; ++i)
@@ -393,7 +401,6 @@ inline void key2StartRest() {
         ++j;
     }
     key_rest_block[vertical_block - 1] = ((recv_key[j] << 1));
-    memset(key_rest_block + desired_block - horizontal_block, 0b10101010, horizontal_block * sizeof(uint32_t));
 }
 
 
@@ -484,6 +491,7 @@ void reciveData() {
     #endif
 
 
+    keySetZeroPadding();
     bool recive_toeplitz_matrix_seed = true;
     while (true)
     {
@@ -580,6 +588,9 @@ void sendData() {
         println("Binding to \"" << address_amp_out << "\" failed! Retrying...");
     }
     #endif
+    #if STORE_FIRST_AMPOUT_IN_FILE == TRUE
+    bool firstAmpOutToStore = true;
+    #endif
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point stop;
     start = std::chrono::high_resolution_clock::now();
@@ -596,11 +607,13 @@ void sendData() {
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
-        #if STORE_AMPOUT_IN_FILE == TRUE
-        auto ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
-        ampout_file.write((char*)&output_block[0], vertical_len / 8);
-        ampout_file.close();
-        exit(0);
+        #if STORE_FIRST_AMPOUT_IN_FILE == TRUE
+        if (firstAmpOutToStore) {
+            firstAmpOutToStore = false;
+            auto ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
+            ampout_file.write((char*)&output_block[0], vertical_len / 8);
+            ampout_file.close();
+        }
         #endif
 
         #if HOST_AMPOUT_SERVER == TRUE
@@ -709,8 +722,8 @@ int main(int argc, char* argv[])
     cudaMalloc(&count_one_global_seed, sizeof(uint32_t));
     cudaMalloc(&count_one_global_key, sizeof(uint32_t));
     cudaMalloc(&correction_float_dev, sizeof(float));
-    cudaMalloc((void**)&di1, sizeof(Real) * sample_size);
-    cudaMalloc((void**)&di2, sizeof(Real) * sample_size);
+    cudaCalloc((void**)&di1, sample_size * sizeof(Real));
+    cudaMalloc((void**)&di2, sample_size * sizeof(Real));
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
     cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
@@ -749,6 +762,7 @@ int main(int argc, char* argv[])
     }
     cufftSetStream(plan_forward_R2C, FFTStream);
 
+    uint32_t relevant_keyBlocks = horizontal_block + 1;
     bool recalculate_toeplitz_matrix_seed = true;
 
     while (true) {
@@ -759,7 +773,7 @@ int main(int argc, char* argv[])
         input_cache_read_pos = (input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE;
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
-        binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+        binInt2float KERNEL_ARG4((int)((relevant_keyBlocks*32+1023) / 1024), minValue(relevant_keyBlocks * 32, 1024), 0,
             BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
         if (recalculate_toeplitz_matrix_seed) {
             cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
