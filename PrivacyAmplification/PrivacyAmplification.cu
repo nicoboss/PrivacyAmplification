@@ -184,8 +184,13 @@ void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_o
 __global__
 void setFirstElementToZero(Complex* do1, Complex* do2)
 {
-    do1[0] = c0_dev;
-    do2[0] = c0_dev;
+    if (threadIdx.x == 0) {
+        do1[0] = c0_dev;
+    }
+    else
+    {
+        do2[0] = c0_dev;
+    }
 }
 
 __global__
@@ -787,7 +792,7 @@ int main(int argc, char* argv[])
         }
         cudaStreamSynchronize(FFTStream);
         cudaStreamSynchronize(CalculateCorrectionFloatStream);
-        setFirstElementToZero KERNEL_ARG4(1, 1, 0, ElementWiseProductStream) (do1, do2);
+        setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
         ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), std::min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
         cudaStreamSynchronize(ElementWiseProductStream);
@@ -799,7 +804,7 @@ int main(int argc, char* argv[])
         }
 
         uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
-        ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1024, 0, ToBinaryArrayStream)
+        ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
 
