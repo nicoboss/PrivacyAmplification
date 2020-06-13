@@ -35,7 +35,7 @@ typedef float2   Complex;
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
-#define DYNAMIC_TOEPLITZ_MATRIX_SEED TRUE
+#define DYNAMIC_TOEPLITZ_MATRIX_SEED FALSE
 #define XOR_WITH_KEY_REST TRUE //Must be enabled for security
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
