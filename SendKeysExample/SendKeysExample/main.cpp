@@ -5,14 +5,14 @@
 #include <mutex>
 
 const char* address = "tcp://127.0.0.1:47777";
-constexpr int vertical_len = 96;
-constexpr int horizontal_len = 160;
-constexpr int key_len = 257;
-constexpr int vertical_block = vertical_len / 32;
-constexpr int horizontal_block = horizontal_len / 32;
-constexpr int key_blocks = vertical_block + horizontal_block + 1;
-constexpr int desired_block = vertical_block + horizontal_block;
-constexpr int desired_len = vertical_len + horizontal_len;
+constexpr uint32_t vertical_len = 96;
+constexpr uint32_t horizontal_len = 160;
+constexpr uint32_t key_len = 257;
+constexpr uint32_t vertical_block = vertical_len / 32;
+constexpr uint32_t horizontal_block = horizontal_len / 32;
+constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
+constexpr uint32_t desired_block = vertical_block + horizontal_block;
+constexpr uint32_t desired_len = vertical_len + horizontal_len;
 
 
 int main(int argc, char* argv[])
@@ -39,6 +39,10 @@ int main(int argc, char* argv[])
         rc = zmq_recv(SendKeys_socket, syn, 3, 0);
         if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
             std::cout << "Error receiving SYN! Retrying..." << std::endl;
+            continue;
+        }
+        if (zmq_send(SendKeys_socket, reinterpret_cast<char*>(vertical_block), key_blocks * sizeof(unsigned int), ZMQ_SNDMORE) != key_blocks * sizeof(unsigned int)) {
+            std::cout << "Error sending vertical_blocks! Retrying..." << std::endl;
             continue;
         }
         if (zmq_send(SendKeys_socket, key_data_alice, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {

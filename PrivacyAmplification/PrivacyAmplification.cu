@@ -26,7 +26,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define factor 27
+#define factor 8
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -35,14 +35,14 @@ typedef float2   Complex;
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 #define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
-#define DYNAMIC_TOEPLITZ_MATRIX_SEED FALSE
+#define DYNAMIC_TOEPLITZ_MATRIX_SEED TRUE
 #define XOR_WITH_KEY_REST TRUE //Must be enabled for security
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER FALSE
-#define USE_KEY_SERVER FALSE
-#define HOST_AMPOUT_SERVER FALSE
+#define USE_MATRIX_SEED_SERVER TRUE
+#define USE_KEY_SERVER TRUE
+#define HOST_AMPOUT_SERVER TRUE
 #define STORE_FIRST_AMPOUT_IN_FILE FALSE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
@@ -81,17 +81,15 @@ const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
 #if HOST_AMPOUT_SERVER == TRUE
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
 #endif
-constexpr uint32_t vertical_len = sample_size/4 + sample_size/8;
-constexpr uint32_t horizontal_len = sample_size/2 + sample_size/8;
-//constexpr uint32_t key_len = sample_size+1;
-constexpr uint32_t vertical_block = vertical_len / 32;
-constexpr uint32_t horizontal_block = horizontal_len / 32;
-constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
-constexpr uint32_t desired_block = vertical_block + horizontal_block;
-//constexpr uint32_t desired_len = vertical_len + horizontal_len;
+uint32_t vertical_len = sample_size/4 + sample_size/8;
+uint32_t horizontal_len = sample_size/2 + sample_size/8;
+uint32_t vertical_block = vertical_len / 32;
+uint32_t horizontal_block = horizontal_len / 32;
+constexpr uint32_t desired_block = sample_size / 32;
+constexpr uint32_t key_blocks = desired_block + 1;
 constexpr uint32_t input_cache_block_size = desired_block;
-constexpr uint32_t output_cache_block_size = (vertical_block + 31) * sizeof(uint32_t);
-uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
+constexpr uint32_t output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
+uint32_t* recv_key = (uint32_t*)malloc(desired_block * sizeof(uint32_t));
 uint32_t* toeplitz_seed;
 uint32_t* key_start;
 uint32_t* key_rest;
@@ -539,6 +537,13 @@ void reciveData() {
             println("Error sending SYN to Keyserver! Retrying...");
             goto retry_receiving_key;
         }
+        if (zmq_recv(reinterpret_cast<char*>(vertical_block), recv_key, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
+            println("Error receiving vertical_blocks from Keyserver! Retrying...");
+            goto retry_receiving_key;
+        }
+        vertical_len = vertical_block * 32;
+        horizontal_len = sample_size - vertical_len;
+        horizontal_block = horizontal_len * 32;
         if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
             println("Error receiving data from Keyserver! Retrying...");
             goto retry_receiving_key;
@@ -765,7 +770,9 @@ int main(int argc, char* argv[])
     }
     cufftSetStream(plan_forward_R2C, FFTStream);
 
+
     uint32_t relevant_keyBlocks = horizontal_block + 1;
+    uint32_t relevant_keyBlocks_old = 0;
     bool recalculate_toeplitz_matrix_seed = true;
 
     while (true) {
@@ -774,6 +781,12 @@ int main(int argc, char* argv[])
             std::this_thread::yield();
         }
         input_cache_read_pos = (input_cache_read_pos + 1) % INPUT_BLOCKS_TO_CACHE;
+
+        relevant_keyBlocks_old = relevant_keyBlocks;
+        relevant_keyBlocks = horizontal_block + 1;
+        if (relevant_keyBlocks_old > relevant_keyBlocks) {
+            cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
+        }
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
         binInt2float KERNEL_ARG4((int)((relevant_keyBlocks*32+1023) / 1024), minValue(relevant_keyBlocks * 32, 1024), 0,
