@@ -26,7 +26,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define factor 8
+#define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -40,9 +40,9 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER TRUE
+#define USE_MATRIX_SEED_SERVER FALSE
 #define USE_KEY_SERVER TRUE
-#define HOST_AMPOUT_SERVER TRUE
+#define HOST_AMPOUT_SERVER FALSE
 #define STORE_FIRST_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
@@ -537,13 +537,13 @@ void reciveData() {
             println("Error sending SYN to Keyserver! Retrying...");
             goto retry_receiving_key;
         }
-        if (zmq_recv(socket_key_in, recv_key, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
+        if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
             println("Error receiving vertical_blocks from Keyserver! Retrying...");
             goto retry_receiving_key;
         }
         vertical_len = vertical_block * 32;
         horizontal_len = sample_size - vertical_len;
-        horizontal_block = horizontal_len * 32;
+        horizontal_block = horizontal_len / 32;
         if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
             println("Error receiving data from Keyserver! Retrying...");
             goto retry_receiving_key;
