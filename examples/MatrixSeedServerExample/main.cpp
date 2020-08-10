@@ -1,8 +1,10 @@
 #include <iostream>
-#include <zmq.h>
+#include <cstring>
+#include <thread>
 #include <mutex>
 #include <atomic>
 #include <sstream>
+#include <zmq.h>
 
 #define TRUE 1
 #define FALSE 0

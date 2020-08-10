@@ -362,3 +362,6 @@ FodyWeavers.xsd
 # Custom ignores
 PrivacyAmplification/ampout.bin
 PrivacyAmplificationSetup.exe
+examples/MatrixSeedServerExample/MatrixSeedServerExample
+examples/ReceiveAmpOutExample/ReceiveAmpOutExample
+examples/SendKeysExample/SendKeysExample
