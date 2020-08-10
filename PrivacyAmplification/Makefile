@@ -302,6 +302,8 @@ all: build
 
 build: PrivacyAmplification
 
+LIBRARIES += -lzmq
+
 check.deps:
 ifeq ($(SAMPLE_ENABLED),0)
 	@echo "Sample will be waived due to the above missing dependencies"

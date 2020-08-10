@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <iterator>
 #include <math.h>
-//#include <zmq.h>
+#include <zmq.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -40,10 +40,10 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER FALSE
-#define USE_KEY_SERVER FALSE
-#define HOST_AMPOUT_SERVER FALSE
-#define STORE_FIRST_AMPOUT_IN_FILE FALSE
+#define USE_MATRIX_SEED_SERVER TRUE
+#define USE_KEY_SERVER TRUE
+#define HOST_AMPOUT_SERVER TRUE
+#define STORE_FIRST_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
