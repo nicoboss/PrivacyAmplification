@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
             std::cout << "Error receiving SYN! Retrying..." << std::endl;
             continue;
         }
-        if (zmq_send(SendKeys_socket, reinterpret_cast<char*>(vertical_block), key_blocks * sizeof(unsigned int), ZMQ_SNDMORE) != key_blocks * sizeof(unsigned int)) {
+        if (zmq_send(SendKeys_socket, reinterpret_cast<const char*>(&vertical_block), sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
             std::cout << "Error sending vertical_blocks! Retrying..." << std::endl;
             continue;
         }

@@ -26,7 +26,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define factor 27
+#define factor 8
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -537,7 +537,7 @@ void reciveData() {
             println("Error sending SYN to Keyserver! Retrying...");
             goto retry_receiving_key;
         }
-        if (zmq_recv(reinterpret_cast<char*>(vertical_block), recv_key, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
+        if (zmq_recv(socket_key_in, recv_key, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
             println("Error receiving vertical_blocks from Keyserver! Retrying...");
             goto retry_receiving_key;
         }
