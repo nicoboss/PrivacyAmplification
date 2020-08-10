@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <iterator>
 #include <math.h>
-#include <zmq.h>
+//#include <zmq.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -26,7 +26,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define factor 8
+#define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define reduction pwrtwo(11)
@@ -40,9 +40,9 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER TRUE
-#define USE_KEY_SERVER TRUE
-#define HOST_AMPOUT_SERVER TRUE
+#define USE_MATRIX_SEED_SERVER FALSE
+#define USE_KEY_SERVER FALSE
+#define HOST_AMPOUT_SERVER FALSE
 #define STORE_FIRST_AMPOUT_IN_FILE FALSE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
@@ -601,9 +601,8 @@ void sendData() {
     #if STORE_FIRST_AMPOUT_IN_FILE == TRUE
     bool firstAmpOutToStore = true;
     #endif
-    std::chrono::steady_clock::time_point start;
-    std::chrono::steady_clock::time_point stop;
-    start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
+    auto stop = std::chrono::high_resolution_clock::now();
 
     while (true) {
 
