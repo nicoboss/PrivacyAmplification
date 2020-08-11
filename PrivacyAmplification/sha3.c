@@ -1,328 +1,191 @@
-/* -------------------------------------------------------------------------
- * Works when compiled for either 32-bit or 64-bit targets, optimized for 
- * 64 bit.
- *
- * Canonical implementation of Init/Update/Finalize for SHA-3 byte input. 
- *
- * SHA3-256, SHA3-384, SHA-512 are implemented. SHA-224 can easily be added.
- *
- * Based on code from http://keccak.noekeon.org/ .
- *
- * I place the code that I wrote into public domain, free to use. 
- *
- * I would appreciate if you give credits to this work if you used it to 
- * write or test * your code.
- *
- * Aug 2015. Andrey Jivsov. crypto@brainhub.org
- * ---------------------------------------------------------------------- */
+// sha3.c
+// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
 
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+// Revised 07-Aug-15 to match with official release of FIPS PUB 202 "SHA3"
+// Revised 03-Sep-15 for portability + OpenSSL - style API
 
 #include "sha3.h"
 
-#define SHA3_ASSERT( x )
-#if defined(_MSC_VER)
-#define SHA3_TRACE( format, ...)
-#define SHA3_TRACE_BUF( format, buf, l, ...)
-#else
-#define SHA3_TRACE(format, args...)
-#define SHA3_TRACE_BUF(format, buf, l, args...)
-#endif
+// update the state with given number of rounds
 
-/* 
- * This flag is used to configure "pure" Keccak, as opposed to NIST SHA3.
- */
-#define SHA3_USE_KECCAK_FLAG 0x80000000
-#define SHA3_CW(x) ((x) & (~SHA3_USE_KECCAK_FLAG))
-
-
-#if defined(_MSC_VER)
-#define SHA3_CONST(x) x
-#else
-#define SHA3_CONST(x) x##L
-#endif
-
-#ifndef SHA3_ROTL64
-#define SHA3_ROTL64(x, y) \
-	(((x) << (y)) | ((x) >> ((sizeof(uint64_t)*8) - (y))))
-#endif
-
-static const uint64_t keccakf_rndc[24] = {
-    SHA3_CONST(0x0000000000000001UL), SHA3_CONST(0x0000000000008082UL),
-    SHA3_CONST(0x800000000000808aUL), SHA3_CONST(0x8000000080008000UL),
-    SHA3_CONST(0x000000000000808bUL), SHA3_CONST(0x0000000080000001UL),
-    SHA3_CONST(0x8000000080008081UL), SHA3_CONST(0x8000000000008009UL),
-    SHA3_CONST(0x000000000000008aUL), SHA3_CONST(0x0000000000000088UL),
-    SHA3_CONST(0x0000000080008009UL), SHA3_CONST(0x000000008000000aUL),
-    SHA3_CONST(0x000000008000808bUL), SHA3_CONST(0x800000000000008bUL),
-    SHA3_CONST(0x8000000000008089UL), SHA3_CONST(0x8000000000008003UL),
-    SHA3_CONST(0x8000000000008002UL), SHA3_CONST(0x8000000000000080UL),
-    SHA3_CONST(0x000000000000800aUL), SHA3_CONST(0x800000008000000aUL),
-    SHA3_CONST(0x8000000080008081UL), SHA3_CONST(0x8000000000008080UL),
-    SHA3_CONST(0x0000000080000001UL), SHA3_CONST(0x8000000080008008UL)
-};
-
-static const unsigned keccakf_rotc[24] = {
-    1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62,
-    18, 39, 61, 20, 44
-};
-
-static const unsigned keccakf_piln[24] = {
-    10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19, 13, 12, 2, 20,
-    14, 22, 9, 6, 1
-};
-
-/* generally called after SHA3_KECCAK_SPONGE_WORDS-ctx->capacityWords words 
- * are XORed into the state s 
- */
-static void
-keccakf(uint64_t s[25])
+void sha3_keccakf(uint64_t st[25])
 {
-    int i, j, round;
+    // constants
+    const uint64_t keccakf_rndc[24] = {
+        0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
+        0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
+        0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
+        0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
+        0x000000008000808b, 0x800000000000008b, 0x8000000000008089,
+        0x8000000000008003, 0x8000000000008002, 0x8000000000000080,
+        0x000000000000800a, 0x800000008000000a, 0x8000000080008081,
+        0x8000000000008080, 0x0000000080000001, 0x8000000080008008
+    };
+    const int keccakf_rotc[24] = {
+        1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14,
+        27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
+    };
+    const int keccakf_piln[24] = {
+        10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4,
+        15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
+    };
+
+    // variables
+    int i, j, r;
     uint64_t t, bc[5];
-#define KECCAK_ROUNDS 24
 
-    for(round = 0; round < KECCAK_ROUNDS; round++) {
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+    uint8_t *v;
 
-        /* Theta */
-        for(i = 0; i < 5; i++)
-            bc[i] = s[i] ^ s[i + 5] ^ s[i + 10] ^ s[i + 15] ^ s[i + 20];
+    // endianess conversion. this is redundant on little-endian targets
+    for (i = 0; i < 25; i++) {
+        v = (uint8_t *) &st[i];
+        st[i] = ((uint64_t) v[0])     | (((uint64_t) v[1]) << 8) |
+            (((uint64_t) v[2]) << 16) | (((uint64_t) v[3]) << 24) |
+            (((uint64_t) v[4]) << 32) | (((uint64_t) v[5]) << 40) |
+            (((uint64_t) v[6]) << 48) | (((uint64_t) v[7]) << 56);
+    }
+#endif
 
-        for(i = 0; i < 5; i++) {
-            t = bc[(i + 4) % 5] ^ SHA3_ROTL64(bc[(i + 1) % 5], 1);
-            for(j = 0; j < 25; j += 5)
-                s[j + i] ^= t;
+    // actual iteration
+    for (r = 0; r < KECCAKF_ROUNDS; r++) {
+
+        // Theta
+        for (i = 0; i < 5; i++)
+            bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
+
+        for (i = 0; i < 5; i++) {
+            t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);
+            for (j = 0; j < 25; j += 5)
+                st[j + i] ^= t;
         }
 
-        /* Rho Pi */
-        t = s[1];
-        for(i = 0; i < 24; i++) {
+        // Rho Pi
+        t = st[1];
+        for (i = 0; i < 24; i++) {
             j = keccakf_piln[i];
-            bc[0] = s[j];
-            s[j] = SHA3_ROTL64(t, keccakf_rotc[i]);
+            bc[0] = st[j];
+            st[j] = ROTL64(t, keccakf_rotc[i]);
             t = bc[0];
         }
 
-        /* Chi */
-        for(j = 0; j < 25; j += 5) {
-            for(i = 0; i < 5; i++)
-                bc[i] = s[j + i];
-            for(i = 0; i < 5; i++)
-                s[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
+        //  Chi
+        for (j = 0; j < 25; j += 5) {
+            for (i = 0; i < 5; i++)
+                bc[i] = st[j + i];
+            for (i = 0; i < 5; i++)
+                st[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
         }
 
-        /* Iota */
-        s[0] ^= keccakf_rndc[round];
-    }
-}
-
-/* *************************** Public Inteface ************************ */
-
-/* For Init or Reset call these: */
-sha3_return_t
-sha3_Init(void *priv, unsigned bitSize) {
-    sha3_context *ctx = (sha3_context *) priv;
-    if( bitSize != 256 && bitSize != 384 && bitSize != 512 )
-        return SHA3_RETURN_BAD_PARAMS;
-    memset(ctx, 0, sizeof(*ctx));
-    ctx->capacityWords = 2 * bitSize / (8 * sizeof(uint64_t));
-    return SHA3_RETURN_OK;
-}
-
-void
-sha3_Init256(void *priv)
-{
-    sha3_Init(priv, 256);
-}
-
-void
-sha3_Init384(void *priv)
-{
-    sha3_Init(priv, 384);
-}
-
-void
-sha3_Init512(void *priv)
-{
-    sha3_Init(priv, 512);
-}
-
-enum SHA3_FLAGS
-sha3_SetFlags(void *priv, enum SHA3_FLAGS flags)
-{
-    sha3_context *ctx = (sha3_context *) priv;
-    flags = flags & SHA3_FLAGS_KECCAK;
-    ctx->capacityWords |= (flags == SHA3_FLAGS_KECCAK ? SHA3_USE_KECCAK_FLAG : 0);
-    return flags;
-}
-
-
-void
-sha3_Update(void *priv, void const *bufIn, size_t len)
-{
-    sha3_context *ctx = (sha3_context *) priv;
-
-    /* 0...7 -- how much is needed to have a word */
-    unsigned old_tail = (8 - ctx->byteIndex) & 7;
-
-    size_t words;
-    unsigned tail;
-    size_t i;
-
-    const uint8_t *buf = reinterpret_cast<const uint8_t*>(bufIn);
-
-    SHA3_TRACE_BUF("called to update with:", buf, len);
-
-    SHA3_ASSERT(ctx->byteIndex < 8);
-    SHA3_ASSERT(ctx->wordIndex < sizeof(ctx->s) / sizeof(ctx->s[0]));
-
-    if(len < old_tail) {        /* have no complete word or haven't started 
-                                 * the word yet */
-        SHA3_TRACE("because %d<%d, store it and return", (unsigned)len,
-                (unsigned)old_tail);
-        /* endian-independent code follows: */
-        while (len--)
-            ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
-        SHA3_ASSERT(ctx->byteIndex < 8);
-        return;
+        //  Iota
+        st[0] ^= keccakf_rndc[r];
     }
 
-    if(old_tail) {              /* will have one word to process */
-        SHA3_TRACE("completing one word with %d bytes", (unsigned)old_tail);
-        /* endian-independent code follows: */
-        len -= old_tail;
-        while (old_tail--)
-            ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
-
-        /* now ready to add saved to the sponge */
-        ctx->s[ctx->wordIndex] ^= ctx->saved;
-        SHA3_ASSERT(ctx->byteIndex == 8);
-        ctx->byteIndex = 0;
-        ctx->saved = 0;
-        if(++ctx->wordIndex ==
-                (SHA3_KECCAK_SPONGE_WORDS - SHA3_CW(ctx->capacityWords))) {
-            keccakf(ctx->s);
-            ctx->wordIndex = 0;
-        }
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+    // endianess conversion. this is redundant on little-endian targets
+    for (i = 0; i < 25; i++) {
+        v = (uint8_t *) &st[i];
+        t = st[i];
+        v[0] = t & 0xFF;
+        v[1] = (t >> 8) & 0xFF;
+        v[2] = (t >> 16) & 0xFF;
+        v[3] = (t >> 24) & 0xFF;
+        v[4] = (t >> 32) & 0xFF;
+        v[5] = (t >> 40) & 0xFF;
+        v[6] = (t >> 48) & 0xFF;
+        v[7] = (t >> 56) & 0xFF;
     }
-
-    /* now work in full words directly from input */
-
-    SHA3_ASSERT(ctx->byteIndex == 0);
-
-    words = len / sizeof(uint64_t);
-    tail = len - words * sizeof(uint64_t);
-
-    SHA3_TRACE("have %d full words to process", (unsigned)words);
-
-    for(i = 0; i < words; i++, buf += sizeof(uint64_t)) {
-        const uint64_t t = (uint64_t) (buf[0]) |
-                ((uint64_t) (buf[1]) << 8 * 1) |
-                ((uint64_t) (buf[2]) << 8 * 2) |
-                ((uint64_t) (buf[3]) << 8 * 3) |
-                ((uint64_t) (buf[4]) << 8 * 4) |
-                ((uint64_t) (buf[5]) << 8 * 5) |
-                ((uint64_t) (buf[6]) << 8 * 6) |
-                ((uint64_t) (buf[7]) << 8 * 7);
-#if defined(__x86_64__ ) || defined(__i386__)
-        SHA3_ASSERT(memcmp(&t, buf, 8) == 0);
 #endif
-        ctx->s[ctx->wordIndex] ^= t;
-        if(++ctx->wordIndex ==
-                (SHA3_KECCAK_SPONGE_WORDS - SHA3_CW(ctx->capacityWords))) {
-            keccakf(ctx->s);
-            ctx->wordIndex = 0;
-        }
-    }
-
-    SHA3_TRACE("have %d bytes left to process, save them", (unsigned)tail);
-
-    /* finally, save the partial word */
-    SHA3_ASSERT(ctx->byteIndex == 0 && tail < 8);
-    while (tail--) {
-        SHA3_TRACE("Store byte %02x '%c'", *buf, *buf);
-        ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
-    }
-    SHA3_ASSERT(ctx->byteIndex < 8);
-    SHA3_TRACE("Have saved=0x%016" PRIx64 " at the end", ctx->saved);
 }
 
-/* This is simply the 'update' with the padding block.
- * The padding block is 0x01 || 0x00* || 0x80. First 0x01 and last 0x80 
- * bytes are always present, but they can be the same byte.
- */
-void const *
-sha3_Finalize(void *priv)
+// Initialize the context for SHA3
+
+int sha3_init(sha3_ctx_t *c, int mdlen)
 {
-    sha3_context *ctx = (sha3_context *) priv;
+    int i;
 
-    SHA3_TRACE("called with %d bytes in the buffer", ctx->byteIndex);
+    for (i = 0; i < 25; i++)
+        c->st.q[i] = 0;
+    c->mdlen = mdlen;
+    c->rsiz = 200 - 2 * mdlen;
+    c->pt = 0;
 
-    /* Append 2-bit suffix 01, per SHA-3 spec. Instead of 1 for padding we
-     * use 1<<2 below. The 0x02 below corresponds to the suffix 01.
-     * Overall, we feed 0, then 1, and finally 1 to start padding. Without
-     * M || 01, we would simply use 1 to start padding. */
+    return 1;
+}
 
-    uint64_t t;
+// update state with more data
 
-    if( ctx->capacityWords & SHA3_USE_KECCAK_FLAG ) {
-        /* Keccak version */
-        t = (uint64_t)(((uint64_t) 1) << (ctx->byteIndex * 8));
-    }
-    else {
-        /* SHA3 version */
-        t = (uint64_t)(((uint64_t)(0x02 | (1 << 2))) << ((ctx->byteIndex) * 8));
-    }
+int sha3_update(sha3_ctx_t *c, const void *data, size_t len)
+{
+    size_t i;
+    int j;
 
-    ctx->s[ctx->wordIndex] ^= ctx->saved ^ t;
-
-    ctx->s[SHA3_KECCAK_SPONGE_WORDS - SHA3_CW(ctx->capacityWords) - 1] ^=
-            SHA3_CONST(0x8000000000000000UL);
-    keccakf(ctx->s);
-
-    /* Return first bytes of the ctx->s. This conversion is not needed for
-     * little-endian platforms e.g. wrap with #if !defined(__BYTE_ORDER__)
-     * || !defined(__ORDER_LITTLE_ENDIAN__) || __BYTE_ORDER__!=__ORDER_LITTLE_ENDIAN__ 
-     *    ... the conversion below ...
-     * #endif */
-    {
-        unsigned i;
-        for(i = 0; i < SHA3_KECCAK_SPONGE_WORDS; i++) {
-            const unsigned t1 = (uint32_t) ctx->s[i];
-            const unsigned t2 = (uint32_t) ((ctx->s[i] >> 16) >> 16);
-            ctx->sb[i * 8 + 0] = (uint8_t) (t1);
-            ctx->sb[i * 8 + 1] = (uint8_t) (t1 >> 8);
-            ctx->sb[i * 8 + 2] = (uint8_t) (t1 >> 16);
-            ctx->sb[i * 8 + 3] = (uint8_t) (t1 >> 24);
-            ctx->sb[i * 8 + 4] = (uint8_t) (t2);
-            ctx->sb[i * 8 + 5] = (uint8_t) (t2 >> 8);
-            ctx->sb[i * 8 + 6] = (uint8_t) (t2 >> 16);
-            ctx->sb[i * 8 + 7] = (uint8_t) (t2 >> 24);
+    j = c->pt;
+    for (i = 0; i < len; i++) {
+        c->st.b[j++] ^= ((const uint8_t *) data)[i];
+        if (j >= c->rsiz) {
+            sha3_keccakf(c->st.q);
+            j = 0;
         }
     }
+    c->pt = j;
 
-    SHA3_TRACE_BUF("Hash: (first 32 bytes)", ctx->sb, 256 / 8);
-
-    return (ctx->sb);
+    return 1;
 }
 
-sha3_return_t sha3_HashBuffer( unsigned bitSize, enum SHA3_FLAGS flags, const void *in, unsigned inBytes, void *out, unsigned outBytes ) {
-    sha3_return_t err;
-    sha3_context c;
+// finalize and output a hash
 
-    err = sha3_Init(&c, bitSize);
-    if( err != SHA3_RETURN_OK )
-        return err;
-    if( sha3_SetFlags(&c, flags) != flags ) {
-        return SHA3_RETURN_BAD_PARAMS;
+int sha3_final(void *md, sha3_ctx_t *c)
+{
+    int i;
+
+    c->st.b[c->pt] ^= 0x06;
+    c->st.b[c->rsiz - 1] ^= 0x80;
+    sha3_keccakf(c->st.q);
+
+    for (i = 0; i < c->mdlen; i++) {
+        ((uint8_t *) md)[i] = c->st.b[i];
     }
-    sha3_Update(&c, in, inBytes);
-    const void *h = sha3_Finalize(&c);
 
-    if(outBytes > bitSize/8)
-        outBytes = bitSize/8;
-    memcpy(out, h, outBytes);
-    return SHA3_RETURN_OK;
+    return 1;
 }
+
+// compute a SHA-3 hash (md) of given byte length from "in"
+
+void *sha3(const void *in, size_t inlen, void *md, int mdlen)
+{
+    sha3_ctx_t sha3;
+
+    sha3_init(&sha3, mdlen);
+    sha3_update(&sha3, in, inlen);
+    sha3_final(md, &sha3);
+
+    return md;
+}
+
+// SHAKE128 and SHAKE256 extensible-output functionality
+
+void shake_xof(sha3_ctx_t *c)
+{
+    c->st.b[c->pt] ^= 0x1F;
+    c->st.b[c->rsiz - 1] ^= 0x80;
+    sha3_keccakf(c->st.q);
+    c->pt = 0;
+}
+
+void shake_out(sha3_ctx_t *c, void *out, size_t len)
+{
+    size_t i;
+    int j;
+
+    j = c->pt;
+    for (i = 0; i < len; i++) {
+        if (j >= c->rsiz) {
+            sha3_keccakf(c->st.q);
+            j = 0;
+        }
+        ((uint8_t *) out)[i] = c->st.b[j++];
+    }
+    c->pt = j;
+}
+
