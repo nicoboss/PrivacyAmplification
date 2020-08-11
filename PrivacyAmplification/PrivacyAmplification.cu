@@ -382,18 +382,10 @@ void printBin(const uint32_t* position, const uint32_t* end) {
     std::cout << std::endl;
 }
 
-inline void keySetZeroPadding() {
-    for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
-        uint32_t* key_start_block = key_start + input_cache_block_size * i;
-        uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
-        memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
-        memset(key_rest_block + desired_block - horizontal_block, 0b00000000, horizontal_block * sizeof(uint32_t));
-    }
-}
-
 inline void key2StartRest() {
     uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
     uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
+
     memcpy(key_start_block, recv_key, key_blocks * sizeof(uint32_t));
     *(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
 
@@ -404,6 +396,9 @@ inline void key2StartRest() {
         ++j;
     }
     key_rest_block[vertical_block - 1] = ((recv_key[j] << 1));
+
+    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
+    memset(key_rest_block + desired_block - horizontal_block, 0b00000000, horizontal_block * sizeof(uint32_t));
 }
 
 
@@ -493,8 +488,6 @@ void reciveData() {
     }
     #endif
 
-
-    keySetZeroPadding();
     bool recive_toeplitz_matrix_seed = true;
     while (true)
     {
@@ -550,7 +543,6 @@ void reciveData() {
         }
         println("Key Block recived");
         key2StartRest();
-        keySetZeroPadding();
         #endif
 
         #if SHOW_KEY_DEBUG_OUTPUT == TRUE
