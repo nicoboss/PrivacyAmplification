@@ -27,7 +27,7 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="sha3.h" />
+    <ClInclude Include="sha3.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="byte_order.h" />
