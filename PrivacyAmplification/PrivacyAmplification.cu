@@ -92,7 +92,9 @@ constexpr uint32_t output_cache_block_size = (desired_block + 31) * sizeof(uint3
 uint32_t* recv_key = (uint32_t*)malloc(desired_block * sizeof(uint32_t));
 uint32_t* toeplitz_seed;
 uint32_t* key_start;
+uint32_t* key_start_zero_pos = (uint32_t*)malloc(INPUT_BLOCKS_TO_CACHE * sizeof(uint32_t));
 uint32_t* key_rest;
+uint32_t* key_rest_zero_pos = (uint32_t*)malloc(INPUT_BLOCKS_TO_CACHE * sizeof(uint32_t));
 uint8_t * Output;
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
@@ -385,8 +387,10 @@ void printBin(const uint32_t* position, const uint32_t* end) {
 inline void key2StartRest() {
     uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
     uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
+    uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos;
+    uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + input_cache_write_pos;
 
-    memcpy(key_start_block, recv_key, key_blocks * sizeof(uint32_t));
+    memcpy(key_start_block, recv_key, horizontal_block * sizeof(uint32_t));
     *(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
 
     uint32_t j = horizontal_block;
@@ -397,8 +401,21 @@ inline void key2StartRest() {
     }
     key_rest_block[vertical_block - 1] = ((recv_key[j] << 1));
 
-    memset(key_start_block + horizontal_block + 1, 0b00000000, (desired_block - horizontal_block - 1) * sizeof(uint32_t));
-    memset(key_rest_block + desired_block - horizontal_block, 0b00000000, horizontal_block * sizeof(uint32_t));
+    uint32_t new_key_start_zero_pos = horizontal_block + 1;
+    if (new_key_start_zero_pos < *key_start_zero_pos_block)
+    {
+        uint32_t key_start_fill_length = *key_start_zero_pos_block - new_key_start_zero_pos;
+        memset(key_start_block + new_key_start_zero_pos, 0b00000000, key_start_fill_length * sizeof(uint32_t));
+        *key_start_zero_pos_block = new_key_start_zero_pos;
+    }
+    
+    uint32_t new_key_rest_zero_pos = desired_block - horizontal_block;
+    if (new_key_rest_zero_pos < *key_rest_zero_pos_block)
+    {
+        uint32_t key_rest_fill_length = *key_rest_zero_pos_block - new_key_rest_zero_pos;
+        memset(key_rest_block + new_key_rest_zero_pos, 0b00000000, key_rest_fill_length * sizeof(uint32_t));
+        *key_rest_zero_pos_block = new_key_rest_zero_pos;
+    }
 }
 
 
@@ -483,8 +500,12 @@ void reciveData() {
     for (uint32_t i = 0; i < INPUT_BLOCKS_TO_CACHE; ++i) {
         uint32_t* key_start_block = key_start + input_cache_block_size * i;
         uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
+        uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
+        uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
         memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
         memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
+        *key_start_zero_pos_block = *key_start_zero_pos;
+        *key_rest_zero_pos_block = *key_rest_zero_pos;
     }
     #endif
 
@@ -718,6 +739,10 @@ int main(int argc, char* argv[])
     #if SHOW_DEBUG_OUTPUT == TRUE
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * OUTPUT_BLOCKS_TO_CACHE);
     #endif
+
+    //Set key_start_zero_pos and key_rest_zero_pos to thair default values
+    std::fill(key_start_zero_pos, key_start_zero_pos + INPUT_BLOCKS_TO_CACHE, desired_block);
+    std::fill(key_rest_zero_pos, key_rest_zero_pos + INPUT_BLOCKS_TO_CACHE, desired_block);
 
     // Allocate memory on GPU
     cudaMalloc(&count_one_global_seed, sizeof(uint32_t));
