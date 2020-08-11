@@ -40,18 +40,27 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER TRUE
-#define USE_KEY_SERVER TRUE
-#define HOST_AMPOUT_SERVER TRUE
+#define USE_MATRIX_SEED_SERVER FALSE
+#define USE_KEY_SERVER FALSE
+#define HOST_AMPOUT_SERVER FALSE
 #define STORE_FIRST_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
+#define VERIFY_AMPOUT TRUE
 #define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
 #define minValue(a,b) (((a) < (b)) ? (a) : (b))
 #define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
 const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/((float)total_reduction);
+
+#if VERIFY_AMPOUT == TRUE
+#include <sha3.c>
+const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
+                               0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
+                               0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
+                               0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
+#endif
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -630,6 +639,22 @@ void sendData() {
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
+        #if VERIFY_AMPOUT == TRUE
+        sha3_ctx_t sha3;
+        sha3_init(&sha3, 32);
+        sha3_update(&sha3, (char*)&output_block[0], vertical_len / 8);
+        uint8_t* hash = (uint8_t*)malloc(32);
+        sha3_final(hash, &sha3);
+        if (memcmp(hash, ampout_sha3, 32) == 0) {
+            println("VERIFIED!")
+        }
+        else
+        {
+            println("VERIFICATION FAILED!")
+            exit(101);
+        }
+        #endif
+
         #if STORE_FIRST_AMPOUT_IN_FILE == TRUE
         if (firstAmpOutToStore) {
             firstAmpOutToStore = false;
@@ -848,7 +873,6 @@ int main(int argc, char* argv[])
         #endif
 
         output_cache_write_pos = (output_cache_write_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
-
     }
 
 

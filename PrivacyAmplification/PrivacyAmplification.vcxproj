@@ -50,7 +50,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <IntDir>$(Platform)/$(Configuration)/</IntDir>
-    <IncludePath>$(IncludePath)</IncludePath>
+    <IncludePath>.\include;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules />
     <CodeAnalysisRuleAssemblies />
