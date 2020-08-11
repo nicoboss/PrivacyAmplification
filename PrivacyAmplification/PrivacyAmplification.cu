@@ -550,6 +550,7 @@ void reciveData() {
         }
         println("Key Block recived");
         key2StartRest();
+        keySetZeroPadding();
         #endif
 
         #if SHOW_KEY_DEBUG_OUTPUT == TRUE
