@@ -48,6 +48,7 @@ typedef float2   Complex;
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
 #define KEYFILE_PATH "keyfile.bin"
 #define VERIFY_AMPOUT TRUE
+#define VERIFY_AMPOUT_THREADS 8
 #define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
 #define minValue(a,b) (((a) < (b)) ? (a) : (b))
@@ -56,6 +57,7 @@ const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/(
 
 #if VERIFY_AMPOUT == TRUE
 #include "sha3.h"
+#include "ThreadPool.h"
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
                                0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
                                0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
@@ -610,6 +612,21 @@ void reciveData() {
     #endif
 }
 
+void verifyData(const unsigned char* dataToVerify) {
+    sha3_ctx sha3;
+    rhash_sha3_256_init(&sha3);
+    rhash_sha3_update(&sha3, dataToVerify, vertical_len / 8);
+    unsigned char* hash = (unsigned char*)malloc(32);
+    rhash_sha3_final(&sha3, hash);
+    if (memcmp(hash, ampout_sha3, 32) == 0) {
+        println("VERIFIED!")
+    }
+    else
+    {
+        println("VERIFICATION FAILED!")
+            exit(101);
+}
+}
 
 void sendData() {
     #if HOST_AMPOUT_SERVER == TRUE
@@ -624,6 +641,9 @@ void sendData() {
     #if STORE_FIRST_AMPOUT_IN_FILE == TRUE
     bool firstAmpOutToStore = true;
     #endif
+    #if VERIFY_AMPOUT == TRUE
+    ThreadPool verifyDataPool(VERIFY_AMPOUT_THREADS);
+    #endif
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
 
@@ -634,25 +654,13 @@ void sendData() {
         }
         output_cache_read_pos = (output_cache_read_pos + 1) % OUTPUT_BLOCKS_TO_CACHE;
 
-        uint8_t * output_block = Output + output_cache_block_size * output_cache_read_pos;
+        uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
         #if SHOW_DEBUG_OUTPUT == TRUE
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
         #if VERIFY_AMPOUT == TRUE
-        sha3_ctx sha3;
-        rhash_sha3_256_init(&sha3);
-        rhash_sha3_update(&sha3, (const unsigned char*)&output_block[0], vertical_len / 8);
-        unsigned char* hash = (unsigned char*)malloc(32);
-        rhash_sha3_final(&sha3, hash);
-        if (memcmp(hash, ampout_sha3, 32) == 0) {
-            println("VERIFIED!")
-        }
-        else
-        {
-            println("VERIFICATION FAILED!")
-            exit(101);
-        }
+        verifyDataPool.enqueue(verifyData, output_block);
         #endif
 
         #if STORE_FIRST_AMPOUT_IN_FILE == TRUE

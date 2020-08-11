@@ -11,5 +11,6 @@
   <ItemGroup>
     <ClInclude Include="ustd.h" />
     <ClInclude Include="byte_order.h" />
+    <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
 </Project>
