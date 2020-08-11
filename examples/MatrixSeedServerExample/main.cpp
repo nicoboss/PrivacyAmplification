@@ -1,35 +1,79 @@
 #include <iostream>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <thread>
 #include <mutex>
 #include <atomic>
-#include <sstream>
 #include <zmq.h>
+using namespace std;
 
 #define TRUE 1
 #define FALSE 0
 #define TWO_CLIENTS FALSE
-#define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
+#define println(TEXT) printlnStream(ostringstream().flush() << TEXT);
+#define fatal(TEXT) fatalPrint(ostringstream().flush() << TEXT);
 const char* address_alice = "tcp://127.0.0.1:45555";
 const char* address_bob = "tcp://127.0.0.1:46666";
-constexpr int vertical_len = 96;
-constexpr int horizontal_len = 160;
-constexpr int key_len = 257;
-constexpr int vertical_block = vertical_len / 32;
-constexpr int horizontal_block = horizontal_len / 32;
-constexpr int key_blocks = vertical_block + horizontal_block + 1;
-constexpr int desired_block = vertical_block + horizontal_block;
-constexpr int desired_len = vertical_len + horizontal_len;
-unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block);
-std::atomic<int> aliceReady = 1;
-std::atomic<int> bobReady = 1;
-std::mutex printlock;
+#define factor 27
+#define pwrtwo(x) (1 << (x))
+#define sample_size pwrtwo(factor)
+constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
+constexpr uint32_t horizontal_len = sample_size / 2 + sample_size / 8;
+constexpr uint32_t key_len = sample_size + 1;
+constexpr uint32_t vertical_block = vertical_len / 32;
+constexpr uint32_t horizontal_block = horizontal_len / 32;
+constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
+constexpr uint32_t desired_block = vertical_block + horizontal_block;
+constexpr uint32_t desired_len = vertical_len + horizontal_len;
+unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
 
-void printlnStream(std::ostream& os) {
-    std::ostringstream& ss = dynamic_cast<std::ostringstream&>(os);
+atomic<int> aliceReady = 1;
+atomic<int> bobReady = 1;
+mutex printlock;
+
+
+void printlnStream(ostream& os) {
+    ostringstream& ss = dynamic_cast<ostringstream&>(os);
     printlock.lock();
-    std::cout << ss.str() << std::endl;
+    cout << ss.str() << endl;
     printlock.unlock();
+}
+
+void fatalPrint(ostream& os) {
+    cout << dynamic_cast<ostringstream&>(os).str() << endl;
+    exit(1);
+    abort();
+}
+
+
+size_t getFileSize(ifstream& file) {
+    int pos = file.tellg();
+    file.seekg(0, ios::end);
+    size_t filelength = file.tellg();
+    file.seekg(pos, ios::beg);
+    return filelength;
+}
+
+
+void fromFile(const char* filepath, unsigned int* recv_seed) {
+    ifstream seedfile(filepath, ios::binary);
+
+    if (seedfile.fail())
+    {
+        fatal("Can't open file \"" << filepath << "\" => terminating!");
+    }
+
+    size_t seedfile_length = getFileSize(seedfile);
+    if (seedfile_length < desired_block * sizeof(uint32_t))
+    {
+        fatal("File \"" << filepath << "\" is with " << seedfile_length << " bytes too short!" << endl <<
+            "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!");
+    }
+
+    char* recv_seed_char = reinterpret_cast<char*>(recv_seed);
+    seedfile.read(recv_seed_char, desired_block * sizeof(uint32_t));
+    seedfile.close();
 }
 
 void send_alice() {
@@ -56,7 +100,7 @@ void send_alice() {
 
         aliceReady = 1;
         while (aliceReady != 0) {
-            std::this_thread::yield();
+            this_thread::yield();
         }
     }
 
@@ -89,7 +133,7 @@ void send_bob() {
 
         bobReady = 1;
         while (bobReady != 0) {
-            std::this_thread::yield();
+            this_thread::yield();
         }
     }
 
@@ -101,10 +145,10 @@ void send_bob() {
 
 int main(int argc, char* argv[])
 {
-    std::thread threadReciveObjAlice(send_alice);
+    thread threadReciveObjAlice(send_alice);
     threadReciveObjAlice.detach();
     #if TWO_CLIENTS == TRUE
-    std::thread threadReciveObjBob(send_bob);
+    thread threadReciveObjBob(send_bob);
     threadReciveObjBob.detach();
     #endif
 
@@ -115,13 +159,10 @@ int main(int argc, char* argv[])
         #else
         while (aliceReady == 0) {
         #endif
-            std::this_thread::yield();
+            this_thread::yield();
         }
 
-        unsigned int* vertical_data_alice = new unsigned int[vertical_block] { 0b10101000111111011010010101110111, 0b11110011000000000110101010011000, 0b11110110110001111100111001101001 };
-        unsigned int* horizontal_data_alice = new unsigned int[horizontal_block] { 0b10010011000111011111001011110011, 0b10111010011101010011011101000100, 0b11111100010001011111010011000100, 0b00110101010111010010000010010111, 0b01001110101110100111110001100101 };
-        memcpy(toeplitz_seed, vertical_data_alice, vertical_block * sizeof(unsigned int));
-        memcpy(toeplitz_seed + vertical_block, horizontal_data_alice, horizontal_block * sizeof(unsigned int));
+        fromFile("toeplitz_seed.bin", toeplitz_seed);
 
         aliceReady = 0;
         bobReady = 0;

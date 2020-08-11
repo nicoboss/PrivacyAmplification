@@ -3,9 +3,12 @@
 #include <mutex>
 #include <bitset>
 
+#define factor 27
+#define pwrtwo(x) (1 << (x))
+#define sample_size pwrtwo(factor)
 const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
-constexpr int vertical_len = 96;
-constexpr int vertical_bytes = vertical_len / 8;
+constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
+constexpr uint32_t vertical_bytes = (vertical_len / 32) * 8;
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 unsigned char* ampOutInData = (unsigned char*)malloc(vertical_bytes);
 

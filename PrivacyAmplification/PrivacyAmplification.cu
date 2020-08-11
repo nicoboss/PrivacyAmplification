@@ -40,9 +40,9 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER FALSE
+#define USE_MATRIX_SEED_SERVER TRUE
 #define USE_KEY_SERVER TRUE
-#define HOST_AMPOUT_SERVER FALSE
+#define HOST_AMPOUT_SERVER TRUE
 #define STORE_FIRST_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
@@ -89,7 +89,7 @@ constexpr uint32_t desired_block = sample_size / 32;
 constexpr uint32_t key_blocks = desired_block + 1;
 constexpr uint32_t input_cache_block_size = desired_block;
 constexpr uint32_t output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
-uint32_t* recv_key = (uint32_t*)malloc(desired_block * sizeof(uint32_t));
+uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
 uint32_t* toeplitz_seed;
 uint32_t* key_start;
 uint32_t* key_start_zero_pos = (uint32_t*)malloc(INPUT_BLOCKS_TO_CACHE * sizeof(uint32_t));

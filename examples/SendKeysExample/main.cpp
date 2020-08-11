@@ -56,6 +56,7 @@ void fromFile(const char* filepath, unsigned int* recv_key) {
 
     char* recv_key_char = reinterpret_cast<char*>(recv_key);
     keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
+    keyfile.close();
 }
 
 
@@ -67,15 +68,16 @@ int main(int argc, char* argv[])
         cout << "Binding to \"" << address << "\" failed! Retrying..." << endl;
     }
 
-    //4 time 0x00 bytes at the end for conversion to unsigned int array
-    //Key data alice in liddle endians
-    fromFile("keyfile.bin", key_data_alice);
-
     char syn[3];
     int32_t rc;
     cout << "Waiting for clients..." << endl;
 
     while (true) {
+
+        //4 time 0x00 bytes at the end for conversion to unsigned int array
+        //Key data alice in liddle endians
+        fromFile("keyfile.bin", key_data_alice);
+
         rc = zmq_recv(SendKeys_socket, syn, 3, 0);
         if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
             cout << "Error receiving SYN! Retrying..." << endl;
