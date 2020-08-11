@@ -6,4 +6,10 @@
   <ItemGroup>
     <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="sha3.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="sha3.h" />
+  </ItemGroup>
 </Project>
