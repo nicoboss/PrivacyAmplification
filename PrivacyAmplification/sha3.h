@@ -1,47 +1,54 @@
-// sha3.h
-// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
+/* sha3.h */
+#ifndef RHASH_SHA3_H
+#define RHASH_SHA3_H
+#include "ustd.h"
 
-#ifndef SHA3_H
-#define SHA3_H
-
-#include <stddef.h>
-#include <stdint.h>
-
-#ifndef KECCAKF_ROUNDS
-#define KECCAKF_ROUNDS 24
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-#ifndef ROTL64
-#define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
+#define sha3_224_hash_size  28
+#define sha3_256_hash_size  32
+#define sha3_384_hash_size  48
+#define sha3_512_hash_size  64
+#define sha3_max_permutation_size 25
+#define sha3_max_rate_in_qwords 24
+
+/**
+ * SHA3 Algorithm context.
+ */
+typedef struct sha3_ctx
+{
+	/* 1600 bits algorithm hashing state */
+	uint64_t hash[sha3_max_permutation_size];
+	/* 1536-bit buffer for leftovers */
+	uint64_t message[sha3_max_rate_in_qwords];
+	/* count of bytes in the message[] buffer */
+	unsigned rest;
+	/* size of a message block processed at once */
+	unsigned block_size;
+} sha3_ctx;
+
+/* methods for calculating the hash function */
+
+void rhash_sha3_224_init(sha3_ctx* ctx);
+void rhash_sha3_256_init(sha3_ctx* ctx);
+void rhash_sha3_384_init(sha3_ctx* ctx);
+void rhash_sha3_512_init(sha3_ctx* ctx);
+void rhash_sha3_update(sha3_ctx* ctx, const unsigned char* msg, size_t size);
+void rhash_sha3_final(sha3_ctx* ctx, unsigned char* result);
+
+#ifdef USE_KECCAK
+#define rhash_keccak_224_init rhash_sha3_224_init
+#define rhash_keccak_256_init rhash_sha3_256_init
+#define rhash_keccak_384_init rhash_sha3_384_init
+#define rhash_keccak_512_init rhash_sha3_512_init
+#define rhash_keccak_update rhash_sha3_update
+void rhash_keccak_final(sha3_ctx* ctx, unsigned char* result);
 #endif
 
-// state context
-typedef struct {
-    union {                                 // state:
-        uint8_t b[200];                     // 8-bit bytes
-        uint64_t q[25];                     // 64-bit words
-    } st;
-    int pt, rsiz, mdlen;                    // these don't overflow
-} sha3_ctx_t;
+#ifdef __cplusplus
+} /* extern "C" */
+#endif /* __cplusplus */
 
-// Compression function.
-void sha3_keccakf(uint64_t st[25]);
-
-// OpenSSL - like interfece
-int sha3_init(sha3_ctx_t *c, int mdlen);    // mdlen = hash output in bytes
-int sha3_update(sha3_ctx_t *c, const void *data, size_t len);
-int sha3_final(void *md, sha3_ctx_t *c);    // digest goes to md
-
-// compute a sha3 hash (md) of given byte length from "in"
-void *sha3(const void *in, size_t inlen, void *md, int mdlen);
-
-// SHAKE128 and SHAKE256 extensible-output functions
-#define shake128_init(c) sha3_init(c, 16)
-#define shake256_init(c) sha3_init(c, 32)
-#define shake_update sha3_update
-
-void shake_xof(sha3_ctx_t *c);
-void shake_out(sha3_ctx_t *c, void *out, size_t len);
-
-#endif
-
+#endif /* RHASH_SHA3_H */

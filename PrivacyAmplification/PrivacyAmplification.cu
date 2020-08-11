@@ -640,11 +640,11 @@ void sendData() {
         #endif
 
         #if VERIFY_AMPOUT == TRUE
-        sha3_ctx_t sha3;
-        sha3_init(&sha3, 32);
-        sha3_update(&sha3, (char*)&output_block[0], vertical_len / 8);
-        uint8_t* hash = (uint8_t*)malloc(32);
-        sha3_final(hash, &sha3);
+        sha3_ctx sha3;
+        rhash_sha3_256_init(&sha3);
+        rhash_sha3_update(&sha3, (const unsigned char*)&output_block[0], vertical_len / 8);
+        unsigned char* hash = (unsigned char*)malloc(32);
+        rhash_sha3_final(&sha3, hash);
         if (memcmp(hash, ampout_sha3, 32) == 0) {
             println("VERIFIED!")
         }

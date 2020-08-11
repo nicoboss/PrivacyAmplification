@@ -29,6 +29,10 @@
   <ItemGroup>
     <CudaCompile Include="sha3.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="byte_order.h" />
+    <ClInclude Include="ustd.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}</ProjectGuid>
     <RootNamespace>PrivacyAmplification</RootNamespace>

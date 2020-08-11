@@ -2,14 +2,14 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <CudaCompile Include="PrivacyAmplification.cu" />
+    <CudaCompile Include="sha3.c" />
+    <CudaCompile Include="sha3.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="sha3.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="sha3.h" />
+    <ClInclude Include="ustd.h" />
+    <ClInclude Include="byte_order.h" />
   </ItemGroup>
 </Project>

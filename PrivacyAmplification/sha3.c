@@ -1,191 +1,363 @@
-// sha3.c
-// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
+/* sha3.c - an implementation of Secure Hash Algorithm 3 (Keccak).
+ * based on the
+ * The Keccak SHA-3 submission. Submission to NIST (Round 3), 2011
+ * by Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche
+ *
+ * Copyright (c) 2013, Aleksey Kravchenko <rhash.admin@gmail.com>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE  INCLUDING ALL IMPLIED WARRANTIES OF  MERCHANTABILITY
+ * AND FITNESS.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT,  OR CONSEQUENTIAL DAMAGES  OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE,  DATA OR PROFITS,  WHETHER IN AN ACTION OF CONTRACT,  NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION,  ARISING OUT OF  OR IN CONNECTION  WITH THE USE  OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
 
-// Revised 07-Aug-15 to match with official release of FIPS PUB 202 "SHA3"
-// Revised 03-Sep-15 for portability + OpenSSL - style API
-
+#include <assert.h>
+#include <string.h>
+#include "byte_order.h"
 #include "sha3.h"
+#include <cstdint>
 
-// update the state with given number of rounds
+/* constants */
+#define NumberOfRounds 24
 
-void sha3_keccakf(uint64_t st[25])
+/* SHA3 (Keccak) constants for 24 rounds */
+static uint64_t keccak_round_constants[NumberOfRounds] = {
+	I64(0x0000000000000001), I64(0x0000000000008082), I64(0x800000000000808A), I64(0x8000000080008000),
+	I64(0x000000000000808B), I64(0x0000000080000001), I64(0x8000000080008081), I64(0x8000000000008009),
+	I64(0x000000000000008A), I64(0x0000000000000088), I64(0x0000000080008009), I64(0x000000008000000A),
+	I64(0x000000008000808B), I64(0x800000000000008B), I64(0x8000000000008089), I64(0x8000000000008003),
+	I64(0x8000000000008002), I64(0x8000000000000080), I64(0x000000000000800A), I64(0x800000008000000A),
+	I64(0x8000000080008081), I64(0x8000000000008080), I64(0x0000000080000001), I64(0x8000000080008008)
+};
+
+/* Initializing a sha3 context for given number of output bits */
+static void rhash_keccak_init(sha3_ctx* ctx, unsigned bits)
 {
-    // constants
-    const uint64_t keccakf_rndc[24] = {
-        0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
-        0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
-        0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
-        0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
-        0x000000008000808b, 0x800000000000008b, 0x8000000000008089,
-        0x8000000000008003, 0x8000000000008002, 0x8000000000000080,
-        0x000000000000800a, 0x800000008000000a, 0x8000000080008081,
-        0x8000000000008080, 0x0000000080000001, 0x8000000080008008
-    };
-    const int keccakf_rotc[24] = {
-        1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14,
-        27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
-    };
-    const int keccakf_piln[24] = {
-        10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4,
-        15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
-    };
+	/* NB: The Keccak capacity parameter = bits * 2 */
+	unsigned rate = 1600 - bits * 2;
 
-    // variables
-    int i, j, r;
-    uint64_t t, bc[5];
+	memset(ctx, 0, sizeof(sha3_ctx));
+	ctx->block_size = rate / 8;
+	assert(rate <= 1600 && (rate % 64) == 0);
+}
 
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-    uint8_t *v;
+/**
+ * Initialize context before calculating hash.
+ *
+ * @param ctx context to initialize
+ */
+void rhash_sha3_224_init(sha3_ctx* ctx)
+{
+	rhash_keccak_init(ctx, 224);
+}
 
-    // endianess conversion. this is redundant on little-endian targets
-    for (i = 0; i < 25; i++) {
-        v = (uint8_t *) &st[i];
-        st[i] = ((uint64_t) v[0])     | (((uint64_t) v[1]) << 8) |
-            (((uint64_t) v[2]) << 16) | (((uint64_t) v[3]) << 24) |
-            (((uint64_t) v[4]) << 32) | (((uint64_t) v[5]) << 40) |
-            (((uint64_t) v[6]) << 48) | (((uint64_t) v[7]) << 56);
-    }
+/**
+ * Initialize context before calculating hash.
+ *
+ * @param ctx context to initialize
+ */
+void rhash_sha3_256_init(sha3_ctx* ctx)
+{
+	rhash_keccak_init(ctx, 256);
+}
+
+/**
+ * Initialize context before calculating hash.
+ *
+ * @param ctx context to initialize
+ */
+void rhash_sha3_384_init(sha3_ctx* ctx)
+{
+	rhash_keccak_init(ctx, 384);
+}
+
+/**
+ * Initialize context before calculating hash.
+ *
+ * @param ctx context to initialize
+ */
+void rhash_sha3_512_init(sha3_ctx* ctx)
+{
+	rhash_keccak_init(ctx, 512);
+}
+
+#define XORED_A(i) A[(i)] ^ A[(i) + 5] ^ A[(i) + 10] ^ A[(i) + 15] ^ A[(i) + 20]
+#define THETA_STEP(i) \
+	A[(i)]      ^= D[(i)]; \
+	A[(i) + 5]  ^= D[(i)]; \
+	A[(i) + 10] ^= D[(i)]; \
+	A[(i) + 15] ^= D[(i)]; \
+	A[(i) + 20] ^= D[(i)] \
+
+/* Keccak theta() transformation */
+static void keccak_theta(uint64_t* A)
+{
+	uint64_t D[5];
+	D[0] = ROTL64(XORED_A(1), 1) ^ XORED_A(4);
+	D[1] = ROTL64(XORED_A(2), 1) ^ XORED_A(0);
+	D[2] = ROTL64(XORED_A(3), 1) ^ XORED_A(1);
+	D[3] = ROTL64(XORED_A(4), 1) ^ XORED_A(2);
+	D[4] = ROTL64(XORED_A(0), 1) ^ XORED_A(3);
+	THETA_STEP(0);
+	THETA_STEP(1);
+	THETA_STEP(2);
+	THETA_STEP(3);
+	THETA_STEP(4);
+}
+
+/* Keccak pi() transformation */
+static void keccak_pi(uint64_t* A)
+{
+	uint64_t A1;
+	A1 = A[1];
+	A[ 1] = A[ 6];
+	A[ 6] = A[ 9];
+	A[ 9] = A[22];
+	A[22] = A[14];
+	A[14] = A[20];
+	A[20] = A[ 2];
+	A[ 2] = A[12];
+	A[12] = A[13];
+	A[13] = A[19];
+	A[19] = A[23];
+	A[23] = A[15];
+	A[15] = A[ 4];
+	A[ 4] = A[24];
+	A[24] = A[21];
+	A[21] = A[ 8];
+	A[ 8] = A[16];
+	A[16] = A[ 5];
+	A[ 5] = A[ 3];
+	A[ 3] = A[18];
+	A[18] = A[17];
+	A[17] = A[11];
+	A[11] = A[ 7];
+	A[ 7] = A[10];
+	A[10] = A1;
+	/* note: A[ 0] is left as is */
+}
+
+#define CHI_STEP(i) \
+	A0 = A[0 + (i)]; \
+	A1 = A[1 + (i)]; \
+	A[0 + (i)] ^= ~A1 & A[2 + (i)]; \
+	A[1 + (i)] ^= ~A[2 + (i)] & A[3 + (i)]; \
+	A[2 + (i)] ^= ~A[3 + (i)] & A[4 + (i)]; \
+	A[3 + (i)] ^= ~A[4 + (i)] & A0; \
+	A[4 + (i)] ^= ~A0 & A1 \
+
+/* Keccak chi() transformation */
+static void keccak_chi(uint64_t* A)
+{
+	uint64_t A0, A1;
+	CHI_STEP(0);
+	CHI_STEP(5);
+	CHI_STEP(10);
+	CHI_STEP(15);
+	CHI_STEP(20);
+}
+
+static void rhash_sha3_permutation(uint64_t* state)
+{
+	int round;
+	for (round = 0; round < NumberOfRounds; round++)
+	{
+		keccak_theta(state);
+
+		/* apply Keccak rho() transformation */
+		state[ 1] = ROTL64(state[ 1],  1);
+		state[ 2] = ROTL64(state[ 2], 62);
+		state[ 3] = ROTL64(state[ 3], 28);
+		state[ 4] = ROTL64(state[ 4], 27);
+		state[ 5] = ROTL64(state[ 5], 36);
+		state[ 6] = ROTL64(state[ 6], 44);
+		state[ 7] = ROTL64(state[ 7],  6);
+		state[ 8] = ROTL64(state[ 8], 55);
+		state[ 9] = ROTL64(state[ 9], 20);
+		state[10] = ROTL64(state[10],  3);
+		state[11] = ROTL64(state[11], 10);
+		state[12] = ROTL64(state[12], 43);
+		state[13] = ROTL64(state[13], 25);
+		state[14] = ROTL64(state[14], 39);
+		state[15] = ROTL64(state[15], 41);
+		state[16] = ROTL64(state[16], 45);
+		state[17] = ROTL64(state[17], 15);
+		state[18] = ROTL64(state[18], 21);
+		state[19] = ROTL64(state[19],  8);
+		state[20] = ROTL64(state[20], 18);
+		state[21] = ROTL64(state[21],  2);
+		state[22] = ROTL64(state[22], 61);
+		state[23] = ROTL64(state[23], 56);
+		state[24] = ROTL64(state[24], 14);
+
+		keccak_pi(state);
+		keccak_chi(state);
+
+		/* apply iota(state, round) */
+		*state ^= keccak_round_constants[round];
+	}
+}
+
+/**
+ * The core transformation. Process the specified block of data.
+ *
+ * @param hash the algorithm state
+ * @param block the message block to process
+ * @param block_size the size of the processed block in bytes
+ */
+static void rhash_sha3_process_block(uint64_t hash[25], const uint64_t* block, size_t block_size)
+{
+	/* expanded loop */
+	hash[ 0] ^= le2me_64(block[ 0]);
+	hash[ 1] ^= le2me_64(block[ 1]);
+	hash[ 2] ^= le2me_64(block[ 2]);
+	hash[ 3] ^= le2me_64(block[ 3]);
+	hash[ 4] ^= le2me_64(block[ 4]);
+	hash[ 5] ^= le2me_64(block[ 5]);
+	hash[ 6] ^= le2me_64(block[ 6]);
+	hash[ 7] ^= le2me_64(block[ 7]);
+	hash[ 8] ^= le2me_64(block[ 8]);
+	/* if not sha3-512 */
+	if (block_size > 72) {
+		hash[ 9] ^= le2me_64(block[ 9]);
+		hash[10] ^= le2me_64(block[10]);
+		hash[11] ^= le2me_64(block[11]);
+		hash[12] ^= le2me_64(block[12]);
+		/* if not sha3-384 */
+		if (block_size > 104) {
+			hash[13] ^= le2me_64(block[13]);
+			hash[14] ^= le2me_64(block[14]);
+			hash[15] ^= le2me_64(block[15]);
+			hash[16] ^= le2me_64(block[16]);
+			/* if not sha3-256 */
+			if (block_size > 136) {
+				hash[17] ^= le2me_64(block[17]);
+#ifdef FULL_SHA3_FAMILY_SUPPORT
+				/* if not sha3-224 */
+				if (block_size > 144) {
+					hash[18] ^= le2me_64(block[18]);
+					hash[19] ^= le2me_64(block[19]);
+					hash[20] ^= le2me_64(block[20]);
+					hash[21] ^= le2me_64(block[21]);
+					hash[22] ^= le2me_64(block[22]);
+					hash[23] ^= le2me_64(block[23]);
+					hash[24] ^= le2me_64(block[24]);
+				}
 #endif
-
-    // actual iteration
-    for (r = 0; r < KECCAKF_ROUNDS; r++) {
-
-        // Theta
-        for (i = 0; i < 5; i++)
-            bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
-
-        for (i = 0; i < 5; i++) {
-            t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);
-            for (j = 0; j < 25; j += 5)
-                st[j + i] ^= t;
-        }
-
-        // Rho Pi
-        t = st[1];
-        for (i = 0; i < 24; i++) {
-            j = keccakf_piln[i];
-            bc[0] = st[j];
-            st[j] = ROTL64(t, keccakf_rotc[i]);
-            t = bc[0];
-        }
-
-        //  Chi
-        for (j = 0; j < 25; j += 5) {
-            for (i = 0; i < 5; i++)
-                bc[i] = st[j + i];
-            for (i = 0; i < 5; i++)
-                st[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
-        }
-
-        //  Iota
-        st[0] ^= keccakf_rndc[r];
-    }
-
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-    // endianess conversion. this is redundant on little-endian targets
-    for (i = 0; i < 25; i++) {
-        v = (uint8_t *) &st[i];
-        t = st[i];
-        v[0] = t & 0xFF;
-        v[1] = (t >> 8) & 0xFF;
-        v[2] = (t >> 16) & 0xFF;
-        v[3] = (t >> 24) & 0xFF;
-        v[4] = (t >> 32) & 0xFF;
-        v[5] = (t >> 40) & 0xFF;
-        v[6] = (t >> 48) & 0xFF;
-        v[7] = (t >> 56) & 0xFF;
-    }
-#endif
+			}
+		}
+	}
+	/* make a permutation of the hash */
+	rhash_sha3_permutation(hash);
 }
 
-// Initialize the context for SHA3
+#define SHA3_FINALIZED 0x80000000
 
-int sha3_init(sha3_ctx_t *c, int mdlen)
+/**
+ * Calculate message hash.
+ * Can be called repeatedly with chunks of the message to be hashed.
+ *
+ * @param ctx the algorithm context containing current hashing state
+ * @param msg message chunk
+ * @param size length of the message chunk
+ */
+void rhash_sha3_update(sha3_ctx* ctx, const unsigned char* msg, size_t size)
 {
-    int i;
+	size_t index = (size_t)ctx->rest;
+	size_t block_size = (size_t)ctx->block_size;
 
-    for (i = 0; i < 25; i++)
-        c->st.q[i] = 0;
-    c->mdlen = mdlen;
-    c->rsiz = 200 - 2 * mdlen;
-    c->pt = 0;
+	if (ctx->rest & SHA3_FINALIZED) return; /* too late for additional input */
+	ctx->rest = (unsigned)((ctx->rest + size) % block_size);
 
-    return 1;
+	/* fill partial block */
+	if (index) {
+		size_t left = block_size - index;
+		memcpy((char*)ctx->message + index, msg, (size < left ? size : left));
+		if (size < left) return;
+
+		/* process partial block */
+		rhash_sha3_process_block(ctx->hash, ctx->message, block_size);
+		msg  += left;
+		size -= left;
+	}
+	while (size >= block_size) {
+		uint64_t* aligned_message_block;
+		if (IS_ALIGNED_64(msg)) {
+			/* the most common case is processing of an already aligned message
+			without copying it */
+			aligned_message_block = (uint64_t*)msg;
+		} else {
+			memcpy(ctx->message, msg, block_size);
+			aligned_message_block = ctx->message;
+		}
+
+		rhash_sha3_process_block(ctx->hash, aligned_message_block, block_size);
+		msg  += block_size;
+		size -= block_size;
+	}
+	if (size) {
+		memcpy(ctx->message, msg, size); /* save leftovers */
+	}
 }
 
-// update state with more data
-
-int sha3_update(sha3_ctx_t *c, const void *data, size_t len)
+/**
+ * Store calculated hash into the given array.
+ *
+ * @param ctx the algorithm context containing current hashing state
+ * @param result calculated hash in binary form
+ */
+void rhash_sha3_final(sha3_ctx* ctx, unsigned char* result)
 {
-    size_t i;
-    int j;
+	size_t digest_length = 100 - ctx->block_size / 2;
+	const size_t block_size = ctx->block_size;
 
-    j = c->pt;
-    for (i = 0; i < len; i++) {
-        c->st.b[j++] ^= ((const uint8_t *) data)[i];
-        if (j >= c->rsiz) {
-            sha3_keccakf(c->st.q);
-            j = 0;
-        }
-    }
-    c->pt = j;
+	if (!(ctx->rest & SHA3_FINALIZED))
+	{
+		/* clear the rest of the data queue */
+		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+		((char*)ctx->message)[ctx->rest] |= 0x06;
+		((char*)ctx->message)[block_size - 1] |= 0x80;
 
-    return 1;
+		/* process final block */
+		rhash_sha3_process_block(ctx->hash, ctx->message, block_size);
+		ctx->rest = SHA3_FINALIZED; /* mark context as finalized */
+	}
+
+	assert(block_size > digest_length);
+	if (result) me64_to_le_str(result, ctx->hash, digest_length);
 }
 
-// finalize and output a hash
-
-int sha3_final(void *md, sha3_ctx_t *c)
+#ifdef USE_KECCAK
+/**
+* Store calculated hash into the given array.
+*
+* @param ctx the algorithm context containing current hashing state
+* @param result calculated hash in binary form
+*/
+void rhash_keccak_final(sha3_ctx* ctx, unsigned char* result)
 {
-    int i;
+	size_t digest_length = 100 - ctx->block_size / 2;
+	const size_t block_size = ctx->block_size;
 
-    c->st.b[c->pt] ^= 0x06;
-    c->st.b[c->rsiz - 1] ^= 0x80;
-    sha3_keccakf(c->st.q);
+	if (!(ctx->rest & SHA3_FINALIZED))
+	{
+		/* clear the rest of the data queue */
+		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+		((char*)ctx->message)[ctx->rest] |= 0x01;
+		((char*)ctx->message)[block_size - 1] |= 0x80;
 
-    for (i = 0; i < c->mdlen; i++) {
-        ((uint8_t *) md)[i] = c->st.b[i];
-    }
+		/* process final block */
+		rhash_sha3_process_block(ctx->hash, ctx->message, block_size);
+		ctx->rest = SHA3_FINALIZED; /* mark context as finalized */
+	}
 
-    return 1;
+	assert(block_size > digest_length);
+	if (result) me64_to_le_str(result, ctx->hash, digest_length);
 }
-
-// compute a SHA-3 hash (md) of given byte length from "in"
-
-void *sha3(const void *in, size_t inlen, void *md, int mdlen)
-{
-    sha3_ctx_t sha3;
-
-    sha3_init(&sha3, mdlen);
-    sha3_update(&sha3, in, inlen);
-    sha3_final(md, &sha3);
-
-    return md;
-}
-
-// SHAKE128 and SHAKE256 extensible-output functionality
-
-void shake_xof(sha3_ctx_t *c)
-{
-    c->st.b[c->pt] ^= 0x1F;
-    c->st.b[c->rsiz - 1] ^= 0x80;
-    sha3_keccakf(c->st.q);
-    c->pt = 0;
-}
-
-void shake_out(sha3_ctx_t *c, void *out, size_t len)
-{
-    size_t i;
-    int j;
-
-    j = c->pt;
-    for (i = 0; i < len; i++) {
-        if (j >= c->rsiz) {
-            sha3_keccakf(c->st.q);
-            j = 0;
-        }
-        ((uint8_t *) out)[i] = c->st.b[j++];
-    }
-    c->pt = j;
-}
-
+#endif /* USE_KECCAK */
