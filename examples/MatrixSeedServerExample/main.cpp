@@ -1,7 +1,10 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <iomanip>
 #include <iostream>
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <time.h>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -84,6 +87,7 @@ void send_alice() {
     }
     char syn[3];
     int32_t rc;
+    time_t currentTime;
 
     println("Waiting for Alice...");
     while (true){
@@ -96,7 +100,8 @@ void send_alice() {
             println("Error sending data to Alice! Retrying...");
             continue;
         }
-        println("Sent seed to Alice");
+        time(&currentTime);
+        println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Alice");
 
         aliceReady = 1;
         while (aliceReady != 0) {
@@ -117,11 +122,12 @@ void send_bob() {
     }
     char syn[3];
     int32_t rc;
+    time_t currentTime;
 
     println("Waiting for Bob...");
     while (true) {
         rc = zmq_recv(MatrixSeedServer_socket_bob, syn, 3, 0);
-        if (rc != 3 || syn != "SYN") {
+        if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
             println("Error receiving SYN! Retrying...");
             continue;
         }
@@ -129,7 +135,8 @@ void send_bob() {
             println("Error sending data to Bob! Retrying...");
             continue;
         }
-        println("Sent seed to Bob");
+        time(&currentTime);
+        println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Bob");
 
         bobReady = 1;
         while (bobReady != 0) {

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <time.h>
 #include <mutex>
 #include <zmq.h>
 using namespace std;
@@ -70,6 +71,7 @@ int main(int argc, char* argv[])
 
     char syn[3];
     int32_t rc;
+    time_t currentTime;
     cout << "Waiting for clients..." << endl;
 
     while (true) {
@@ -91,7 +93,7 @@ int main(int argc, char* argv[])
             cout << "Error sending Key! Retrying..." << endl;
             continue;
         }
-        auto currentTime = time(nullptr);
+        time(&currentTime);
         cout << put_time(localtime(&currentTime), "%F %T") << " Sent Key" << endl;
     }
 

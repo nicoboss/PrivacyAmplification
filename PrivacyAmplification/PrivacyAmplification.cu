@@ -40,9 +40,9 @@ typedef float2   Complex;
 #define SHOW_AMPOUT TRUE
 #define SHOW_DEBUG_OUTPUT FALSE
 #define SHOW_SHOW_KEY_DEBUG_OUTPUT FALSE
-#define USE_MATRIX_SEED_SERVER FALSE
-#define USE_KEY_SERVER FALSE
-#define HOST_AMPOUT_SERVER FALSE
+#define USE_MATRIX_SEED_SERVER TRUE
+#define USE_KEY_SERVER TRUE
+#define HOST_AMPOUT_SERVER TRUE
 #define STORE_FIRST_AMPOUT_IN_FILE TRUE
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define TOEPLITZ_SEED_PATH "toeplitz_seed.bin"
@@ -431,9 +431,8 @@ inline void key2StartRest() {
 
 
 void reciveData() {
-
-    int32_t rc;
     #if USE_MATRIX_SEED_SERVER == TRUE
+    int32_t rc;
     void* context_seed_in = zmq_ctx_new();
     void* socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
     while(zmq_connect(socket_seed_in, address_seed_in) != 0) {
@@ -520,7 +519,9 @@ void reciveData() {
     }
     #endif
 
+    #if USE_MATRIX_SEED_SERVER == TRUE
     bool recive_toeplitz_matrix_seed = true;
+    #endif
     while (true)
     {
 
@@ -532,7 +533,7 @@ void reciveData() {
         #if USE_MATRIX_SEED_SERVER == TRUE
         if (recive_toeplitz_matrix_seed) {
             retry_receiving_seed:
-            int32_t rc = zmq_send(socket_seed_in, "SYN", 3, 0);
+            rc = zmq_send(socket_seed_in, "SYN", 3, 0);
             if (rc != 3) {
                 println("Error sending SYN to Seedserver! Error Code: " << zmq_errno() << " - Retrying...");
                 goto retry_receiving_seed;
@@ -625,7 +626,7 @@ void verifyData(const unsigned char* dataToVerify) {
     {
         println("VERIFICATION FAILED!")
             exit(101);
-}
+    }
 }
 
 void sendData() {

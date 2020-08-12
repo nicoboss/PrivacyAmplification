@@ -21,7 +21,7 @@
 #include <string.h>
 #include "byte_order.h"
 #include "sha3.h"
-#include <cstdint>
+#include <stdint.h>
 
 /* constants */
 #define NumberOfRounds 24

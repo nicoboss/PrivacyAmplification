@@ -1,19 +1,24 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <iomanip>
 #include <iostream>
-#include <zmq.h>
+#include <time.h>
 #include <mutex>
 #include <bitset>
+#include <zmq.h>
 
 #define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
-constexpr uint32_t vertical_bytes = (vertical_len / 32) * 8;
+constexpr uint32_t vertical_bytes = vertical_len / 8;
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 unsigned char* ampOutInData = (unsigned char*)malloc(vertical_bytes);
 
 int main(int argc, char* argv[])
 {
+    int32_t rc;
+    time_t currentTime;
     void* context = zmq_ctx_new();
     void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
     while (zmq_connect(ampOutIn_socket, privacyAmplificationServer_address) != 0) {
@@ -26,11 +31,15 @@ int main(int argc, char* argv[])
             std::cout << "Error sending SYN to PrivacyAmplification Server! Retrying..." << std::endl;
             continue;
         }
-        if (zmq_recv(ampOutIn_socket, ampOutInData, vertical_bytes, 0) != vertical_bytes) {
-            std::cout << "Error receiving data from PrivacyAmplification Server! Retrying..." << std::endl;
+        
+        rc = zmq_recv(ampOutIn_socket, ampOutInData, vertical_bytes, 0);
+        if (rc != vertical_bytes) {
+            std::cout << "Error receiving data from PrivacyAmplification Server!" << std::endl;
+            std::cout << "Expected " << vertical_bytes << " bytes but received " << rc << " bytes!" << "Retrying..." << std::endl;
             continue;
         }
-        std::cout << "Key Block recived" << std::endl;
+        time(&currentTime);
+        std::cout << std::put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << std::endl;
         
         for (size_t i = 0; i < min(vertical_bytes, 16); ++i)
         {
