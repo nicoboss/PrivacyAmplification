@@ -360,6 +360,8 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Custom ignores
+*.o
+build/*
 PrivacyAmplification/ampout.bin
 PrivacyAmplificationSetup.exe
 examples/MatrixSeedServerExample/MatrixSeedServerExample
