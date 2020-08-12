@@ -1,4 +1,16 @@
 #!/bin/bash
+source ~/.bashrc
+
+if ! [[ `ps -elf | grep 'usr/sbin/sshd' | grep -v grep` ]]; then
+  /etc/init.d/ssh start
+fi
+
+if [[ `git status --porcelain` ]]; then
+  echo "git pull skipped due to local changes"
+else
+  git pull
+fi
+
 tmux kill-session -t PrivacyAmplification
 if [ "$1" = 'stop' ]; then
     echo  "Stopped!"
