@@ -10,6 +10,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y \
+    rsyslog \
     openssh-server \
     iputils-ping \
     iproute2 \
@@ -22,6 +23,9 @@ RUN apt-get update \
     gdb
 RUN echo "alias tmux='tmux -u'" >> ~/.bashrc && \
     echo 'set -g default-terminal "screen-256color"' >> ~/.tmux.conf
+RUN mkdir .ssh && chmod 700 .ssh
+COPY PrivacyAmplificationDocker.pub .ssh/authorized_keys
+RUN chmod 755 .ssh/authorized_keys
 RUN git clone --recursive https://oauth2:_tqToxodj7-zxRsANcyD@gitlab.enterpriselab.ch/fm-20hs/privacyamplification.git \
     && chmod +x privacyamplification/run.sh
 WORKDIR /root/privacyamplification

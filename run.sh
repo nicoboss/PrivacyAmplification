@@ -1,6 +1,10 @@
 #!/bin/bash
 source ~/.bashrc
 
+if ! [[ `ps -elf | grep 'usr/sbin/rsyslog' | grep -v grep` ]]; then
+  service rsyslog start
+fi
+
 if ! [[ `ps -elf | grep 'usr/sbin/sshd' | grep -v grep` ]]; then
   /etc/init.d/ssh start
 fi
