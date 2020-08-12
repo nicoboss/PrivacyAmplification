@@ -56,7 +56,7 @@ typedef float2   Complex;
 const Real normalisation_float = ((float)sample_size)/((float)total_reduction)/((float)total_reduction);
 
 #if VERIFY_AMPOUT == TRUE
-#include "sha3.h"
+#include "sha3/sha3.h"
 #include "ThreadPool.h"
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
                                0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,

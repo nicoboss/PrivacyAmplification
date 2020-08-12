@@ -2,15 +2,30 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <CudaCompile Include="PrivacyAmplification.cu" />
-    <CudaCompile Include="sha3.c" />
-    <CudaCompile Include="sha3.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ustd.h" />
-    <ClInclude Include="byte_order.h" />
     <ClInclude Include="ThreadPool.h" />
+    <ClInclude Include="sha3\byte_order.h">
+      <Filter>sha3</Filter>
+    </ClInclude>
+    <ClInclude Include="sha3\sha3.h">
+      <Filter>sha3</Filter>
+    </ClInclude>
+    <ClInclude Include="sha3\ustd.h">
+      <Filter>sha3</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="sha3">
+      <UniqueIdentifier>{0c8bd3a1-e4a7-4e94-94be-cf6009a09b88}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="sha3\sha3.c">
+      <Filter>sha3</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
