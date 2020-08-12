@@ -165,6 +165,7 @@ CCFLAGS     :=
 LDFLAGS     :=
 
 # build flags
+NVCCFLAGS   += -std=c++14
 ifeq ($(TARGET_OS),darwin)
     LDFLAGS += -rpath $(CUDA_PATH)/lib
     CCFLAGS += -arch $(HOST_ARCH)
@@ -314,16 +315,17 @@ endif
 PrivacyAmplification.o:PrivacyAmplification.cu
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
-PrivacyAmplification: PrivacyAmplification.o
+sha3/sha3.o:sha3/sha3.c
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
+PrivacyAmplification: PrivacyAmplification.o sha3/sha3.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
-	$(EXEC) mkdir -p ../../bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)
-	$(EXEC) cp $@ ../../bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)
 
 run: build
 	$(EXEC) ./PrivacyAmplification
 
 clean:
+	rm -f sha3/sha3.o
 	rm -f PrivacyAmplification PrivacyAmplification.o
-	rm -rf ../../bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)/PrivacyAmplification
 
 clobber: clean
