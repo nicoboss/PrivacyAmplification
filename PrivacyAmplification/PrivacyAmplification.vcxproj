@@ -26,11 +26,15 @@
     <ClInclude Include="sha3\sha3.h" />
     <ClInclude Include="sha3\ustd.h" />
     <ClInclude Include="ThreadPool.h" />
+    <ClInclude Include="yaml\Yaml.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="sha3\sha3.c">
       <FileType>CppCode</FileType>
     </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="yaml\Yaml.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}</ProjectGuid>
