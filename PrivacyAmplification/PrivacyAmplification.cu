@@ -33,6 +33,7 @@ typedef float2   Complex;
 #define pre_mul_reduction pwrtwo(5)
 #define total_reduction reduction*pre_mul_reduction
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
+#define CUDA_DEVICE_ID_TO_USE 1
 #define INPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define OUTPUT_BLOCKS_TO_CACHE 16 //Has to be larger then 1
 #define DYNAMIC_TOEPLITZ_MATRIX_SEED TRUE
@@ -717,6 +718,7 @@ void sendData() {
 int main(int argc, char* argv[])
 {
     std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl << std::endl;
+    cudaSetDevice(CUDA_DEVICE_ID_TO_USE);
 
     #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
