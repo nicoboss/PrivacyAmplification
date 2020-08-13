@@ -21,7 +21,9 @@
 #include <sstream>
 #include <chrono>
 #include <math.h>
-#include "yaml/Yaml.cpp"
+#include "yaml/Yaml.hpp"
+#include "sha3/sha3.h"
+#include "ThreadPool.h"
 
 typedef float    Real;
 typedef float2   Complex;
@@ -29,7 +31,15 @@ typedef float2   Complex;
 #define TRUE 1
 #define FALSE 0
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
-#define XOR_WITH_KEY_REST TRUE //Must be enabled for security! On purpose not in config.yaml!
+
+//Must be enabled for security!
+//On purpose not in config.yaml for security and performance!
+#define XOR_WITH_KEY_REST TRUE
+
+//On purpose not in config.yaml for performance or developer only things!
+#define SHOW_DEBUG_OUTPUT FALSE
+#define AMPOUT_REVERSE_ENDIAN TRUE
+#define SHOW_KEY_DEBUG_OUTPUT FALSE
 
 uint32_t sample_size = pow(2, 27);
 uint32_t reduction = pow(2, 11);
@@ -40,12 +50,12 @@ uint32_t input_blocks_to_cache = 16; //Has to be larger then 1
 uint32_t output_blocks_to_cache = 16; //Has to be larger then 1
 bool dynamic_toeplitz_matrix_seed = true;
 bool show_ampout = true;
-bool show_debug_output = false;
+
 bool use_matrix_seed_server = true;
 bool use_key_server = true;
 bool host_ampout_server = true;
 bool store_first_ampout_in_file = true;
-bool ampout_reverse_endian = true;
+
 std::string toeplitz_seed_path = "toeplitz_seed.bin";
 std::string keyfile_path = "keyfile.bin";
 bool verify_ampout = true;
@@ -56,14 +66,10 @@ Real normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((f
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
 #define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
 
-#if verify_ampout == TRUE
-#include "sha3/sha3.h"
-#include "ThreadPool.h"
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
                                0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
                                0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
                                0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
-#endif
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -83,16 +89,11 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
 #endif
 
-#if use_matrix_seed_server == TRUE
 const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
 //const char* address_seed_in = "tcp://127.0.0.1:46666"; //seed_in_bob
-#endif
-#if use_key_server == TRUE
 const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
-#endif
-#if host_ampout_server == TRUE
 const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
-#endif
+
 uint32_t vertical_len = sample_size/4 + sample_size/8;
 uint32_t horizontal_len = sample_size/2 + sample_size/8;
 uint32_t vertical_block = vertical_len / 32;
@@ -108,7 +109,7 @@ uint32_t* key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(
 uint32_t* key_rest;
 uint32_t* key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 uint8_t * Output;
-#if show_debug_output == TRUE
+#if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
 #endif
 std::atomic<uint32_t> input_cache_read_pos;
@@ -122,6 +123,8 @@ __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
 __device__ __constant__ Real h1_reduced_dev;
 __device__ __constant__ Real normalisation_float_dev;
+__device__ __constant__ uint32_t sample_size_dev;
+__device__ __constant__ uint32_t pre_mul_reduction_dev;
 
 __device__ __constant__ uint32_t intTobinMask_dev[32] =
 {
@@ -161,7 +164,7 @@ __device__ __constant__ uint32_t intTobinMask_dev[32] =
 
 __device__ __constant__ uint32_t ToBinaryBitShiftArray_dev[32] =
 {
-    #if ampout_reverse_endian == TRUE
+    #if AMPOUT_REVERSE_ENDIAN == TRUE
     7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24
     #else
     31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
@@ -187,7 +190,7 @@ void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_o
 {
     //*correction_float_dev = (float)((unsigned long)(*count_one_global_key-60000000));
     uint64_t count_multiblicated = *count_one_global_seed * *count_one_global_key;
-    double count_multiblicated_normalized = count_multiblicated / (double)sample_size;
+    double count_multiblicated_normalized = count_multiblicated / (double)sample_size_dev;
     double two = 2.0;
     Real count_multiblicated_normalized_modulo = (float)modf(count_multiblicated_normalized, &two);
     *correction_float_dev = count_multiblicated_normalized_modulo;
@@ -211,7 +214,7 @@ void ElementWiseProduct(Complex* do1, Complex* do2)
     //Requires at least sm_53 as sm_52 and below don't support float maths.
     //Tegra/Jetson from Maxwell, Pascal, Volta, Turing and probably the upcomming Ampere
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    float r = pre_mul_reduction;
+    float r = pre_mul_reduction_dev;
     Real do1x = do1[i].x/r;
     Real do1y = do1[i].y/r;
     Real do2x = do2[i].x/r;
@@ -275,7 +278,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
     }
     else if (idx < 1023)
     {
-        #if ampout_reverse_endian == TRUE
+        #if AMPOUT_REVERSE_ENDIAN == TRUE
         uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
         key_rest_xor[idx - 992] =
             ((((key_rest_little) & 0xff000000) >> 24) |
@@ -284,7 +287,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
                 (((key_rest_little) & 0x000000ff) << 24));
         #else
                 key_rest_xor[idx - 992] = key_rest_local[block * 31 + idx - 992];
-        #endif 
+        #endif
     }
     __syncthreads();
 
@@ -299,7 +302,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
             binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
             binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
             binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
-            #if XOR_WITH_KEY_REST == TRUE 
+            #if XOR_WITH_KEY_REST == TRUE
             ^ key_rest_xor[idx]
             #endif
             ;
@@ -432,97 +435,103 @@ inline void key2StartRest() {
 
 
 void reciveData() {
-    #if use_matrix_seed_server == TRUE
     int32_t rc;
-    void* context_seed_in = zmq_ctx_new();
-    void* socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
-    while(zmq_connect(socket_seed_in, address_seed_in) != 0) {
-        println("Connection to \"" << address_seed_in << "\" failed! Retrying...");
-    }
-    #else
-    //Cryptographically random Toeplitz seed generated by XOR a self-generated
-    //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_7
-    //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
-    std::ifstream seedfile(toeplitz_seed_path, std::ios::binary);
-
-    if (seedfile.fail())
+    void* socket_seed_in = nullptr;
+    void* socket_key_in = nullptr;
+    if (use_matrix_seed_server)
     {
-        std::cout << "Can't open file \"" << toeplitz_seed_path << "\" => terminating!" << std::endl;
-        exit(1);
-        abort();
+        void* context_seed_in = zmq_ctx_new();
+        socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
+        while (zmq_connect(socket_seed_in, address_seed_in) != 0) {
+            println("Connection to \"" << address_seed_in << "\" failed! Retrying...");
+        }
     }
-
-    seedfile.seekg(0, std::ios::end);
-    size_t seedfile_length = seedfile.tellg();
-    seedfile.seekg(0, std::ios::beg);
-
-    if (seedfile_length < desired_block * sizeof(uint32_t))
+    else
     {
-        std::cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << std::endl;
-        std::cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
-        exit(1);
-        abort();
+        //Cryptographically random Toeplitz seed generated by XOR a self-generated
+        //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_7
+        //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
+        std::ifstream seedfile(toeplitz_seed_path, std::ios::binary);
+
+        if (seedfile.fail())
+        {
+            std::cout << "Can't open file \"" << toeplitz_seed_path << "\" => terminating!" << std::endl;
+            exit(1);
+            abort();
+        }
+
+        seedfile.seekg(0, std::ios::end);
+        size_t seedfile_length = seedfile.tellg();
+        seedfile.seekg(0, std::ios::beg);
+
+        if (seedfile_length < desired_block * sizeof(uint32_t))
+        {
+            std::cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << std::endl;
+            std::cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
+            exit(1);
+            abort();
+        }
+
+        char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
+        seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
+        for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+            uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+            memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+        }
     }
 
-    char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
-    seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
-    for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
-    }
-    #endif
-
-    #if use_key_server == TRUE
-    void* context_key_in = zmq_ctx_new();
-    void* socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-    while (zmq_connect(socket_key_in, address_key_in) != 0) {
-        printlock.lock();
-        std::cout << "Connection to \"" << address_key_in << "\" failed! Retrying..." << std::endl;
-        printlock.unlock();
-    }
-    #else
-    //Cryptographically random Toeplitz seed generated by XOR a self-generated
-    //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_49
-    //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
-    std::ifstream keyfile(keyfile_path, std::ios::binary);
-
-    if (keyfile.fail())
+    if (use_key_server)
     {
-        std::cout << "Can't open file \"" << keyfile_path << "\" => terminating!" << std::endl;
-        exit(1);
-        abort();
+        void* context_key_in = zmq_ctx_new();
+        void* socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+        while (zmq_connect(socket_key_in, address_key_in) != 0) {
+            printlock.lock();
+            std::cout << "Connection to \"" << address_key_in << "\" failed! Retrying..." << std::endl;
+            printlock.unlock();
+        }
     }
-
-    keyfile.seekg(0, std::ios::end);
-    size_t keyfile_length = keyfile.tellg();
-    keyfile.seekg(0, std::ios::beg);
-
-    if (keyfile_length < key_blocks * sizeof(uint32_t))
+    else
     {
-        std::cout << "File \"" << keyfile_path << "\" is with " << keyfile_length << " bytes too short!" << std::endl;
-        std::cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
-        exit(1);
-        abort();
+        //Cryptographically random Toeplitz seed generated by XOR a self-generated
+        //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_49
+        //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
+        std::ifstream keyfile(keyfile_path, std::ios::binary);
+
+        if (keyfile.fail())
+        {
+            std::cout << "Can't open file \"" << keyfile_path << "\" => terminating!" << std::endl;
+            exit(1);
+            abort();
+        }
+
+        keyfile.seekg(0, std::ios::end);
+        size_t keyfile_length = keyfile.tellg();
+        keyfile.seekg(0, std::ios::beg);
+
+        if (keyfile_length < key_blocks * sizeof(uint32_t))
+        {
+            std::cout << "File \"" << keyfile_path << "\" is with " << keyfile_length << " bytes too short!" << std::endl;
+            std::cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
+            exit(1);
+            abort();
+        }
+
+        char* recv_key_char = reinterpret_cast<char*>(recv_key);
+        keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
+        key2StartRest();
+        for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+            uint32_t* key_start_block = key_start + input_cache_block_size * i;
+            uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
+            uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
+            uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
+            memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
+            memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
+            *key_start_zero_pos_block = *key_start_zero_pos;
+            *key_rest_zero_pos_block = *key_rest_zero_pos;
+        }
     }
 
-    char* recv_key_char = reinterpret_cast<char*>(recv_key);
-    keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
-    key2StartRest();
-    for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-        uint32_t* key_start_block = key_start + input_cache_block_size * i;
-        uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
-        uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
-        uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
-        memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
-        memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
-        *key_start_zero_pos_block = *key_start_zero_pos;
-        *key_rest_zero_pos_block = *key_rest_zero_pos;
-    }
-    #endif
-
-    #if use_matrix_seed_server == TRUE
-    bool recive_toeplitz_matrix_seed = true;
-    #endif
+    bool recive_toeplitz_matrix_seed = use_matrix_seed_server;
     while (true)
     {
 
@@ -531,7 +540,6 @@ void reciveData() {
         }
 
         uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
-        #if use_matrix_seed_server == TRUE
         if (recive_toeplitz_matrix_seed) {
             retry_receiving_seed:
             rc = zmq_send(socket_seed_in, "SYN", 3, 0);
@@ -545,39 +553,40 @@ void reciveData() {
             }
             println("Seed Block recived");
 
-            #if dynamic_toeplitz_matrix_seed == FALSE
-            recive_toeplitz_matrix_seed = false;
-            zmq_disconnect(socket_seed_in, address_seed_in);
-            zmq_close(socket_seed_in);
-            zmq_ctx_destroy(socket_seed_in);
-            for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-                uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-                memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+            if (!dynamic_toeplitz_matrix_seed)
+            {
+                recive_toeplitz_matrix_seed = false;
+                zmq_disconnect(socket_seed_in, address_seed_in);
+                zmq_close(socket_seed_in);
+                zmq_ctx_destroy(socket_seed_in);
+                for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+                    uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+                    memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+                }
             }
-            #endif
         }
-        #endif
 
-        #if use_key_server == TRUE
-        retry_receiving_key:
-        if (zmq_send(socket_key_in, "SYN", 3, 0) != 3) {
-            println("Error sending SYN to Keyserver! Retrying...");
-            goto retry_receiving_key;
+        if (use_key_server)
+        {
+            retry_receiving_key:
+            if (zmq_send(socket_key_in, "SYN", 3, 0) != 3) {
+                println("Error sending SYN to Keyserver! Retrying...");
+                goto retry_receiving_key;
+            }
+            if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
+                println("Error receiving vertical_blocks from Keyserver! Retrying...");
+                goto retry_receiving_key;
+            }
+            vertical_len = vertical_block * 32;
+            horizontal_len = sample_size - vertical_len;
+            horizontal_block = horizontal_len / 32;
+            if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
+                println("Error receiving data from Keyserver! Retrying...");
+                goto retry_receiving_key;
+            }
+            println("Key Block recived");
+            key2StartRest();
         }
-        if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
-            println("Error receiving vertical_blocks from Keyserver! Retrying...");
-            goto retry_receiving_key;
-        }
-        vertical_len = vertical_block * 32;
-        horizontal_len = sample_size - vertical_len;
-        horizontal_block = horizontal_len / 32;
-        if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
-            println("Error receiving data from Keyserver! Retrying...");
-            goto retry_receiving_key;
-        }
-        println("Key Block recived");
-        key2StartRest();
-        #endif
 
         #if SHOW_KEY_DEBUG_OUTPUT == TRUE
         uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
@@ -596,22 +605,20 @@ void reciveData() {
         #endif
 
         input_cache_write_pos = (input_cache_write_pos + 1) % input_blocks_to_cache;
-
     }
 
-    #if use_matrix_seed_server == TRUE
-    if (recive_toeplitz_matrix_seed) {
+    if (use_matrix_seed_server && recive_toeplitz_matrix_seed) {
         zmq_disconnect(socket_seed_in, address_seed_in);
         zmq_close(socket_seed_in);
         zmq_ctx_destroy(socket_seed_in);
     }
-    #endif
 
-    #if use_key_server == TRUE
-    zmq_disconnect(socket_key_in, address_key_in);
-    zmq_close(socket_key_in);
-    zmq_ctx_destroy(socket_key_in);
-    #endif
+    if (use_key_server)
+    {
+        zmq_disconnect(socket_key_in, address_key_in);
+        zmq_close(socket_key_in);
+        zmq_ctx_destroy(socket_key_in);
+    }
 }
 
 void verifyData(const unsigned char* dataToVerify) {
@@ -631,21 +638,25 @@ void verifyData(const unsigned char* dataToVerify) {
 }
 
 void sendData() {
-    #if host_ampout_server == TRUE
-    char syn[3];
     int32_t rc;
-    void* amp_out_context = zmq_ctx_new();
-    void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
-    while (zmq_bind(amp_out_socket, address_amp_out) != 0) {
-        println("Binding to \"" << address_amp_out << "\" failed! Retrying...");
+    char syn[3];
+    void* amp_out_socket = nullptr;
+    if (host_ampout_server)
+    {
+        void* amp_out_context = zmq_ctx_new();
+        void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
+        while (zmq_bind(amp_out_socket, address_amp_out) != 0) {
+            println("Binding to \"" << address_amp_out << "\" failed! Retrying...");
+        }
     }
-    #endif
-    #if store_first_ampout_in_file == TRUE
-    bool firstAmpOutToStore = true;
-    #endif
-    #if verify_ampout == TRUE
-    ThreadPool verifyDataPool(verify_ampout_threads);
-    #endif
+
+    bool firstAmpOutToStore = store_first_ampout_in_file;
+
+    ThreadPool* verifyDataPool = nullptr;
+    if (verify_ampout)
+    {
+        verifyDataPool = &ThreadPool(verify_ampout_threads);
+    }
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
 
@@ -657,38 +668,38 @@ void sendData() {
         output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
         uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
-        #if show_debug_output == TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         uint8_t * outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
         #endif
 
-        #if verify_ampout == TRUE
-        verifyDataPool.enqueue(verifyData, output_block);
-        #endif
+        if (verify_ampout)
+        {
+            verifyDataPool->enqueue(verifyData, output_block);
+        }
 
-        #if store_first_ampout_in_file == TRUE
         if (firstAmpOutToStore) {
             firstAmpOutToStore = false;
             auto ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
             ampout_file.write((char*)&output_block[0], vertical_len / 8);
             ampout_file.close();
         }
-        #endif
 
-        #if host_ampout_server == TRUE
-        retry_sending_amp_out:
-        rc = zmq_recv(amp_out_socket, syn, 3, 0);
-        if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-            println("Error receiving SYN! Retrying...");
-            goto retry_sending_amp_out;
+        if (host_ampout_server)
+        {
+            retry_sending_amp_out:
+            rc = zmq_recv(amp_out_socket, syn, 3, 0);
+            if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
+                println("Error receiving SYN! Retrying...");
+                goto retry_sending_amp_out;
+            }
+            if (zmq_send(amp_out_socket, output_block, vertical_len / 8, 0) != vertical_len / 8) {
+                println("Error sending data to AMPOUT client! Retrying...");
+                goto retry_sending_amp_out;
+            }
+            println("Block sent to AMPOUT Client");
         }
-        if (zmq_send(amp_out_socket, output_block, vertical_len / 8, 0) != vertical_len / 8) {
-            println("Error sending data to AMPOUT client! Retrying...");
-            goto retry_sending_amp_out;
-        }
-        println("Block sent to AMPOUT Client");
-        #endif
 
-        #if show_debug_output == TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         printlock.lock();
         for (size_t i = 0; i < min_template(dist_freq, 64); ++i)
         {
@@ -701,16 +712,17 @@ void sendData() {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
         start = std::chrono::high_resolution_clock::now();
 
-        #if SHOW_AMPOUT == TRUE
-        printlock.lock();
-        std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s" << std::endl;
-        for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
+        if (show_ampout)
         {
-            printf("0x%02X: %s\n", output_block[i], std::bitset<8>(output_block[i]).to_string().c_str());
+            printlock.lock();
+            std::cout << "Blocktime: " << duration/1000.0 << " ms => " << (1000000.0/duration)*(sample_size/1000000.0) << " Mbit/s" << std::endl;
+            for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
+            {
+                printf("0x%02X: %s\n", output_block[i], std::bitset<8>(output_block[i]).to_string().c_str());
+            }
+            fflush(stdout);
+            printlock.unlock();
         }
-        fflush(stdout);
-        printlock.unlock();
-        #endif
     }
 }
 
@@ -786,7 +798,7 @@ int main(int argc, char* argv[])
     cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
     cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
     cudaMallocHost((void**)&Output, output_cache_block_size * output_blocks_to_cache);
-    #if show_debug_output == TRUE
+    #if SHOW_DEBUG_OUTPUT == TRUE
     cudaMallocHost((void**)&OutputFloat, dist_sample * sizeof(float) * output_blocks_to_cache);
     #endif
 
@@ -812,6 +824,10 @@ int main(int argc, char* argv[])
     cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
     cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
     cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
+
+    cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+    cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+    
 
     std::thread threadReciveObj(reciveData);
     threadReciveObj.detach();
@@ -856,11 +872,11 @@ int main(int argc, char* argv[])
         }
 
         cudaMemset(count_one_global_key, 0x00, sizeof(uint32_t));
-        binInt2float KERNEL_ARG4((int)((relevant_keyBlocks*32+1023) / 1024), std::min(relevant_keyBlocks * 32, 1024), 0,
+        binInt2float KERNEL_ARG4((int)((relevant_keyBlocks*32+1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
             BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_global_key);
         if (recalculate_toeplitz_matrix_seed) {
             cudaMemset(count_one_global_seed, 0x00, sizeof(uint32_t));
-            binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), std::min(sample_size, 1024), 0,
+            binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
                 BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_global_seed);
             cudaStreamSynchronize(BinInt2floatSeedStream);
         }
@@ -888,11 +904,12 @@ int main(int argc, char* argv[])
             (invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
         cudaStreamSynchronize(ToBinaryArrayStream);
 
-        #if dynamic_toeplitz_matrix_seed == FALSE
-        recalculate_toeplitz_matrix_seed = false;
-        #endif
+        if (!dynamic_toeplitz_matrix_seed)
+        {
+            recalculate_toeplitz_matrix_seed = false;
+        }
 
-        #if show_debug_output == TRUE
+        #if SHOW_DEBUG_OUTPUT == TRUE
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
         #endif
