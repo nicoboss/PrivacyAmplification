@@ -24,9 +24,7 @@
 #include "yaml/Yaml.hpp"
 #include "sha3/sha3.h"
 #include "ThreadPool.h"
-
-typedef float    Real;
-typedef float2   Complex;
+#include "PrivacyAmplification.h"
 
 #define TRUE 1
 #define FALSE 0

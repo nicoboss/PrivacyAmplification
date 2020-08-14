@@ -22,6 +22,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PrivacyAmplification.h" />
     <ClInclude Include="sha3\byte_order.h" />
     <ClInclude Include="sha3\sha3.h" />
     <ClInclude Include="sha3\ustd.h" />

@@ -2,7 +2,9 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <CudaCompile Include="PrivacyAmplification.cu" />
-    <CudaCompile Include="sha3\sha3.c" />
+    <CudaCompile Include="sha3\sha3.c">
+      <Filter>sha3</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
@@ -21,6 +23,7 @@
     <ClInclude Include="yaml\Yaml.hpp">
       <Filter>yaml</Filter>
     </ClInclude>
+    <ClInclude Include="PrivacyAmplification.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sha3">
