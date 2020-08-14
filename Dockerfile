@@ -21,6 +21,7 @@ RUN apt-get update \
     tmux \
     htop \
     nano \
+    rhash \
     gdb
 RUN echo "alias tmux='tmux -u'" >> ~/.bashrc && \
     echo 'set -g default-terminal "screen-256color"' >> ~/.tmux.conf
