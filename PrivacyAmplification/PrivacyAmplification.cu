@@ -770,10 +770,8 @@ void readConfig() {
 
     verify_ampout = root["verify_ampout"].As<bool>(true);
     verify_ampout_threads = root["verify_ampout_threads"].As<uint32_t>(8);
-
-    uint32_t total_reduction = reduction * pre_mul_reduction;
-    float normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
-
+    
+    
     vertical_len = sample_size / 4 + sample_size / 8;
     horizontal_len = sample_size / 2 + sample_size / 8;
     vertical_block = vertical_len / 32;
@@ -785,16 +783,6 @@ void readConfig() {
     recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
     key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
     key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
-
-    register const Complex complex0 = make_float2(0.0f, 0.0f);
-    register const Real float0 = 0.0f;
-    register const Real float1_reduced = 1.0f / reduction;
-    cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
-    cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-    cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
-    cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
-    cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
-    cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
 }
 
 
@@ -878,6 +866,20 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
     cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
+
+    register const Complex complex0 = make_float2(0.0f, 0.0f);
+    register const Real float0 = 0.0f;
+    register const Real float1_reduced = 1.0f/reduction;
+    uint32_t total_reduction = reduction * pre_mul_reduction;
+    float normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+    
+    cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
+    cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
+    cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
+    cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
+
+    cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+    cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
 
     std::thread threadReciveObj(reciveData);
     threadReciveObj.detach();
