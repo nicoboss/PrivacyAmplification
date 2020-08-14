@@ -30,6 +30,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
+#define VERSION "1.0"
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 
 //Must be enabled for security!
@@ -41,28 +42,29 @@ typedef float2   Complex;
 #define AMPOUT_REVERSE_ENDIAN TRUE
 #define SHOW_KEY_DEBUG_OUTPUT FALSE
 
-uint32_t sample_size = pow(2, 27);
-uint32_t reduction = pow(2, 11);
-uint32_t pre_mul_reduction = pow(2, 5);
-uint32_t total_reduction = reduction * pre_mul_reduction;
-uint32_t cuda_device_id_to_use = 1;
-uint32_t input_blocks_to_cache = 16; //Has to be larger then 1
-uint32_t output_blocks_to_cache = 16; //Has to be larger then 1
-bool dynamic_toeplitz_matrix_seed = true;
-bool show_ampout = true;
-bool use_matrix_seed_server = true;
-bool use_key_server = true;
-bool host_ampout_server = true;
-bool store_first_ampout_in_file = true;
+uint32_t sample_size;
+uint32_t reduction;
+uint32_t pre_mul_reduction;
+uint32_t cuda_device_id_to_use;
+uint32_t input_blocks_to_cache;
+uint32_t output_blocks_to_cache;
 
-std::string toeplitz_seed_path = "toeplitz_seed.bin";
-std::string keyfile_path = "keyfile.bin";
-bool verify_ampout = true;
-uint32_t verify_ampout_threads = 8;
-Real normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+bool dynamic_toeplitz_matrix_seed ;
+bool show_ampout;
+bool use_matrix_seed_server;
+bool use_key_server;
+bool host_ampout_server;
+bool store_first_ampout_in_file;
+
+std::string toeplitz_seed_path;
+std::string keyfile_path;
+
+bool verify_ampout;
+uint32_t verify_ampout_threads;
 
 #define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
+#define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
 #define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
 
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
@@ -88,26 +90,26 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
 #endif
 
-const char* address_seed_in = "tcp://127.0.0.1:45555"; //seed_in_alice
-//const char* address_seed_in = "tcp://127.0.0.1:46666"; //seed_in_bob
-const char* address_key_in = "tcp://127.0.0.1:47777"; //key_in
-const char* address_amp_out = "tcp://127.0.0.1:48888"; //amp_out
+std::string address_seed_in;
+std::string address_key_in;
+std::string address_amp_out;
 
-uint32_t vertical_len = sample_size/4 + sample_size/8;
-uint32_t horizontal_len = sample_size/2 + sample_size/8;
-uint32_t vertical_block = vertical_len / 32;
-uint32_t horizontal_block = horizontal_len / 32;
-uint32_t desired_block = sample_size / 32;
-uint32_t key_blocks = desired_block + 1;
-uint32_t input_cache_block_size = desired_block;
-uint32_t output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
-uint32_t* recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
+uint32_t vertical_len;
+uint32_t horizontal_len;
+uint32_t vertical_block;
+uint32_t horizontal_block;
+uint32_t desired_block;
+uint32_t key_blocks;
+uint32_t input_cache_block_size;
+uint32_t output_cache_block_size;
+uint32_t* recv_key;
 uint32_t* toeplitz_seed;
 uint32_t* key_start;
-uint32_t* key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+uint32_t* key_start_zero_pos;
 uint32_t* key_rest;
-uint32_t* key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+uint32_t* key_rest_zero_pos;
 uint8_t * Output;
+
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
 #endif
@@ -182,6 +184,11 @@ void printlnStream(std::ostream& os) {
     printlock.lock();
     std::cout << ss.str() << std::endl;
     printlock.unlock();
+}
+
+std::string convertStreamToString(std::ostream& os) {
+    std::ostringstream& ss = dynamic_cast<std::ostringstream&>(os);
+    return ss.str();
 }
 
 __global__
@@ -441,7 +448,7 @@ void reciveData() {
     {
         void* context_seed_in = zmq_ctx_new();
         socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
-        while (zmq_connect(socket_seed_in, address_seed_in) != 0) {
+        while (zmq_connect(socket_seed_in, address_seed_in.c_str()) != 0) {
             println("Connection to \"" << address_seed_in << "\" failed! Retrying...");
         }
     }
@@ -483,7 +490,7 @@ void reciveData() {
     {
         void* context_key_in = zmq_ctx_new();
         socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-        while (zmq_connect(socket_key_in, address_key_in) != 0) {
+        while (zmq_connect(socket_key_in, address_key_in.c_str()) != 0) {
             printlock.lock();
             std::cout << "Connection to \"" << address_key_in << "\" failed! Retrying..." << std::endl;
             printlock.unlock();
@@ -555,7 +562,7 @@ void reciveData() {
             if (!dynamic_toeplitz_matrix_seed)
             {
                 recive_toeplitz_matrix_seed = false;
-                zmq_disconnect(socket_seed_in, address_seed_in);
+                zmq_disconnect(socket_seed_in, address_seed_in.c_str());
                 zmq_close(socket_seed_in);
                 zmq_ctx_destroy(socket_seed_in);
                 for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
@@ -607,14 +614,14 @@ void reciveData() {
     }
 
     if (use_matrix_seed_server && recive_toeplitz_matrix_seed) {
-        zmq_disconnect(socket_seed_in, address_seed_in);
+        zmq_disconnect(socket_seed_in, address_seed_in.c_str());
         zmq_close(socket_seed_in);
         zmq_ctx_destroy(socket_seed_in);
     }
 
     if (use_key_server)
     {
-        zmq_disconnect(socket_key_in, address_key_in);
+        zmq_disconnect(socket_key_in, address_key_in.c_str());
         zmq_close(socket_key_in);
         zmq_ctx_destroy(socket_key_in);
     }
@@ -644,7 +651,7 @@ void sendData() {
     {
         void* amp_out_context = zmq_ctx_new();
         amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
-        while (zmq_bind(amp_out_socket, address_amp_out) != 0) {
+        while (zmq_bind(amp_out_socket, address_amp_out.c_str()) != 0) {
             println("Binding to \"" << address_amp_out << "\" failed! Retrying...");
         }
     }
@@ -728,6 +735,7 @@ void sendData() {
 
 void readConfig() {
     Yaml::Node root;
+    std::cout << "Reading config.yaml..." << std::endl;
     try
     {
         Yaml::Parse(root, "config.yaml");
@@ -736,12 +744,68 @@ void readConfig() {
     {
         std::cout << "Exception " << e.Type() << ": " << e.what() << std::endl;
         return;
-    } 
+    }
+
+    //45555 =>seed_in_alice, 46666 => seed_in_bob
+    address_seed_in = root["address_seed_in"].As<std::string>("tcp://127.0.0.1:45555");
+    address_key_in = root["address_key_in"].As<std::string>("tcp://127.0.0.1:47777");  //key_in
+    address_amp_out = root["address_amp_out"].As<std::string>("tcp://127.0.0.1:48888"); //amp_out
+
+    sample_size = pow(2, root["factor"].As<uint32_t>(27));
+    reduction = pow(2, root["reduction"].As<uint32_t>(11));
+    pre_mul_reduction = pow(2, root["pre_mul_reduction"].As<uint32_t>(5));
+    cuda_device_id_to_use = root["cuda_device_id_to_use"].As<uint32_t>(1);
+    input_blocks_to_cache = root["input_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
+    output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
+
+    dynamic_toeplitz_matrix_seed = root["dynamic_toeplitz_matrix_seed"].As<bool>(true);
+    show_ampout = root["show_ampout"].As<bool>(true);
+    use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(false);
+    use_key_server = root["use_key_server"].As<bool>(true);
+    host_ampout_server = root["host_ampout_server"].As<bool>(false);
+    store_first_ampout_in_file = root["store_first_ampout_in_file"].As<bool>(true);
+
+    toeplitz_seed_path = root["toeplitz_seed_path"].As<std::string>("toeplitz_seed.bin");
+    keyfile_path = root["keyfile_path"].As<std::string>("keyfile.bin");
+
+    verify_ampout = root["verify_ampout"].As<bool>(true);
+    verify_ampout_threads = root["verify_ampout_threads"].As<uint32_t>(8);
+
+    uint32_t total_reduction = reduction * pre_mul_reduction;
+    float normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+
+    vertical_len = sample_size / 4 + sample_size / 8;
+    horizontal_len = sample_size / 2 + sample_size / 8;
+    vertical_block = vertical_len / 32;
+    horizontal_block = horizontal_len / 32;
+    desired_block = sample_size / 32;
+    key_blocks = desired_block + 1;
+    input_cache_block_size = desired_block;
+    output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
+    recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
+    key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+    key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+
+    register const Complex complex0 = make_float2(0.0f, 0.0f);
+    register const Real float0 = 0.0f;
+    register const Real float1_reduced = 1.0f / reduction;
+    cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
+    cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+    cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+    cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
+    cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
+    cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
 }
 
 
 int main(int argc, char* argv[])
 {
+    std::string about = streamToString("# PrivacyAmplification v" << VERSION << " by Nico Bosshard from " << __DATE__ << " #");
+    std::string border(about.length(), '#');
+    std::cout << border << std::endl;
+    std::cout << "# PrivacyAmplification v1.0 by Nico Bosshard from " << __DATE__ << " #" << std::endl;
+    std::cout << border << std::endl << std::endl;
+    readConfig();
     std::cout << "PrivacyAmplification with " << sample_size << " bits" << std::endl << std::endl;
     cudaSetDevice(cuda_device_id_to_use);
 
@@ -814,19 +878,6 @@ int main(int argc, char* argv[])
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
     cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
     cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
-
-    register const Complex complex0 = make_float2(0.0f, 0.0f);
-    register const Real float0 = 0.0f;
-    register const Real float1_reduced = 1.0f/reduction;
-
-    cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
-    cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
-    cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
-    cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
-
-    cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-    cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
-    
 
     std::thread threadReciveObj(reciveData);
     threadReciveObj.detach();
