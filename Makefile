@@ -8,6 +8,7 @@ all:
 	cp -a PrivacyAmplification/keyfile.bin ./build
 	cp -a PrivacyAmplification/toeplitz_seed.bin ./build
 	cp -a PrivacyAmplification/ampout.sh3 ./build
+	ln PrivacyAmplification/config.yaml ./build/config.yaml
 
 clean:
 	rm -rf build

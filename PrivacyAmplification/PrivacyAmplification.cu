@@ -743,7 +743,8 @@ void readConfig() {
     catch (const Yaml::Exception e)
     {
         std::cout << "Exception " << e.Type() << ": " << e.what() << std::endl;
-        return;
+        std::cout << "Can't open file config.yaml => terminating!" << std::endl;
+        exit(102);
     }
 
     //45555 =>seed_in_alice, 46666 => seed_in_bob
@@ -760,9 +761,9 @@ void readConfig() {
 
     dynamic_toeplitz_matrix_seed = root["dynamic_toeplitz_matrix_seed"].As<bool>(true);
     show_ampout = root["show_ampout"].As<bool>(true);
-    use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(false);
+    use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(true);
     use_key_server = root["use_key_server"].As<bool>(true);
-    host_ampout_server = root["host_ampout_server"].As<bool>(false);
+    host_ampout_server = root["host_ampout_server"].As<bool>(true);
     store_first_ampout_in_file = root["store_first_ampout_in_file"].As<bool>(true);
 
     toeplitz_seed_path = root["toeplitz_seed_path"].As<std::string>("toeplitz_seed.bin");
