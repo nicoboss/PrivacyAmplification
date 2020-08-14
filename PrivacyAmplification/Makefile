@@ -315,16 +315,20 @@ endif
 PrivacyAmplification.o:PrivacyAmplification.cu
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
+yaml/Yaml.o:yaml/Yaml.cpp
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
 sha3/sha3.o:sha3/sha3.c
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
-PrivacyAmplification: PrivacyAmplification.o sha3/sha3.o
+PrivacyAmplification: PrivacyAmplification.o yaml/Yaml.o sha3/sha3.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
 run: build
 	$(EXEC) ./PrivacyAmplification
 
 clean:
+	rm -f yaml/Yaml.o
 	rm -f sha3/sha3.o
 	rm -f PrivacyAmplification PrivacyAmplification.o
 

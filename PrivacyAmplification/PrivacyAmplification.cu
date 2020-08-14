@@ -482,7 +482,7 @@ void reciveData() {
     if (use_key_server)
     {
         void* context_key_in = zmq_ctx_new();
-        void* socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+        socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
         while (zmq_connect(socket_key_in, address_key_in) != 0) {
             printlock.lock();
             std::cout << "Connection to \"" << address_key_in << "\" failed! Retrying..." << std::endl;
@@ -643,7 +643,7 @@ void sendData() {
     if (host_ampout_server)
     {
         void* amp_out_context = zmq_ctx_new();
-        void* amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
+        amp_out_socket = zmq_socket(amp_out_context, ZMQ_REP);
         while (zmq_bind(amp_out_socket, address_amp_out) != 0) {
             println("Binding to \"" << address_amp_out << "\" failed! Retrying...");
         }
