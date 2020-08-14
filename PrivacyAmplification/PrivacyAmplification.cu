@@ -50,7 +50,6 @@ uint32_t input_blocks_to_cache = 16; //Has to be larger then 1
 uint32_t output_blocks_to_cache = 16; //Has to be larger then 1
 bool dynamic_toeplitz_matrix_seed = true;
 bool show_ampout = true;
-
 bool use_matrix_seed_server = true;
 bool use_key_server = true;
 bool host_ampout_server = true;
@@ -655,7 +654,7 @@ void sendData() {
     ThreadPool* verifyDataPool = nullptr;
     if (verify_ampout)
     {
-        verifyDataPool = &ThreadPool(verify_ampout_threads);
+        verifyDataPool = new ThreadPool(verify_ampout_threads);
     }
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
