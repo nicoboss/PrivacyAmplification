@@ -1,19 +1,75 @@
-address_seed_in: 'tcp://127.0.0.1:45555'
-address_key_in: 'tcp://127.0.0.1:47777'
-address_amp_out: 'tcp://127.0.0.1:48888'
-factor: 27
-reduction: 11
-pre_mul_reduction: 5
+
+#Privacy Amplification input size in the
+#form 2^factor_exp where 27 is the maximum
+#The result of 2^factor_exp is in bits
+factor_exp: 27
+
+#FFT input maps binary 0, 1 to 0 and 1/(2^reduction_exp) which
+#will be corrected during normalisation after IFFT
+#This has an impact on the Privacy Amplification precission
+reduction_exp: 11
+
+#After the FFT before the element wise multiplication
+#every element will be devided by 2^pre_mul_reduction_exp
+#This has an impact on the Privacy Amplification precission
+pre_mul_reduction_exp: 5
+
+#Specifies which GPU to use by setting this value to the CUDA device ID.
+#Which ID matches to which GPU can be seen using nvidia-smi (on Linux and Windows)
 cuda_device_id_to_use: 1
+
+#Specifies how large the input cache should be. If Privacy Amplification is slower
+#then the data input this cache will fill up. Cache requires RAM.
+#It's value must be 2 or larger while at 16 or higher is recommended.
 input_blocks_to_cache: 16
+
+#Specifies how large the ouput cache should be. If the data reciever is slower
+#then the Privacy Amplification this cache will fill up. Cache requires RAM.
+#It's value must be 2 or larger while at 16 or higher is recommended.
 output_blocks_to_cache: 16
+
+#Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
+#This has a huge performance and security impact. Not changing it will make the algorithms
+#security to be no longer the matimatically proofen to be secure while changing
+#it every time will reduce performance by around 33% (around 47% faster).
+#I highly recommend to leave this enabled if security matters.
 dynamic_toeplitz_matrix_seed: true
+
+#Displays Blocktime, Mbit/s input throughput and the first 4 bytes of the final
+#Privacy Amplification result to the screen and only has a very little
+#impact on performance. I would leave it on but feel free to disable that.
 show_ampout: true
+
+#If enabled connects to the matrix seed server on address_seed_in to request the toeplitz
+#matrix seed for the current block. If dynamic_toeplitz_matrix_seed is disabled and this 
+#enabled only one block at the programm start will be requested. The matrix seed server
+#ensures all parties envolved will recive the same seed for the same block.
+#Warning: Currently the channel to the matrix is not authenticated and has to be
+#implmented before any real world use. This is planed to be done in the next few months. 
+#If disabled the matrix seed will be read from the path specified in toeplitz_seed_path
+#however this only makes sense if dynamic_toeplitz_matrix_seed is disabled
+#or for testcases as only one block worth of data will be ever read from that file and
+#copied input_blocks_to_cache to fill the input cache.
 use_matrix_seed_server: true
-use_key_server: true
-host_ampout_server: true
-store_first_ampout_in_file: true
+address_seed_in: 'tcp://127.0.0.1:45555'
 toeplitz_seed_path: 'toeplitz_seed.bin'
+
+#If enabled connects to the key server on address_key_in to request the key for the
+#current block.
+#Warning: The server has to be on the same computer as the key gets transmiten insecurrely
+#If disabled they key will be read from the path specified in keyfile_path however this
+#only makes sense for testcases as only one block worth of data will be ever read from
+#that file and copied input_blocks_to_cache to fill the input cache.
+use_key_server: true
+address_key_in: 'tcp://127.0.0.1:47777'
 keyfile_path: 'keyfile.bin'
+
+host_ampout_server: true
+address_amp_out: 'tcp://127.0.0.1:48888'
+
+
+store_first_ampout_in_file: true
+
+
 verify_ampout: true
 verify_ampout_threads: 8

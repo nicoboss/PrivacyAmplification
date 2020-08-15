@@ -26,50 +26,6 @@
 #include "ThreadPool.h"
 #include "PrivacyAmplification.h"
 
-#define TRUE 1
-#define FALSE 0
-#define VERSION "1.0"
-#define min_template(a,b) (((a) < (b)) ? (a) : (b))
-
-//Must be enabled for security!
-//On purpose not in config.yaml for security and performance!
-#define XOR_WITH_KEY_REST TRUE
-
-//On purpose not in config.yaml for performance or developer only things!
-#define SHOW_DEBUG_OUTPUT FALSE
-#define AMPOUT_REVERSE_ENDIAN TRUE
-#define SHOW_KEY_DEBUG_OUTPUT FALSE
-
-uint32_t sample_size;
-uint32_t reduction;
-uint32_t pre_mul_reduction;
-uint32_t cuda_device_id_to_use;
-uint32_t input_blocks_to_cache;
-uint32_t output_blocks_to_cache;
-
-bool dynamic_toeplitz_matrix_seed ;
-bool show_ampout;
-bool use_matrix_seed_server;
-bool use_key_server;
-bool host_ampout_server;
-bool store_first_ampout_in_file;
-
-std::string toeplitz_seed_path;
-std::string keyfile_path;
-
-bool verify_ampout;
-uint32_t verify_ampout_threads;
-
-#define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
-#define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
-#define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
-#define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
-
-const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
-                               0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
-                               0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
-                               0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
-
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
 #define KERNEL_ARG3(grid, block, sh_mem) <<< grid, block, sh_mem >>>
@@ -592,7 +548,7 @@ void reciveData() {
             key2StartRest();
         }
 
-        #if SHOW_KEY_DEBUG_OUTPUT == TRUE
+        #if SHOW_INPUT_DEBUG_OUTPUT == TRUE
         uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
         uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
         printlock.lock();
@@ -750,9 +706,9 @@ void readConfig() {
     address_key_in = root["address_key_in"].As<std::string>("tcp://127.0.0.1:47777");  //key_in
     address_amp_out = root["address_amp_out"].As<std::string>("tcp://127.0.0.1:48888"); //amp_out
 
-    sample_size = pow(2, root["factor"].As<uint32_t>(27));
-    reduction = pow(2, root["reduction"].As<uint32_t>(11));
-    pre_mul_reduction = pow(2, root["pre_mul_reduction"].As<uint32_t>(5));
+    sample_size = pow(2, root["factor_exp"].As<uint32_t>(27));
+    reduction = pow(2, root["reduction_exp"].As<uint32_t>(11));
+    pre_mul_reduction = pow(2, root["pre_mul_reduction_exp"].As<uint32_t>(5));
     cuda_device_id_to_use = root["cuda_device_id_to_use"].As<uint32_t>(1);
     input_blocks_to_cache = root["input_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
     output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1

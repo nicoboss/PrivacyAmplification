@@ -2,8 +2,115 @@
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 
+//Real numbers are stored as single precision float
 typedef float    Real;
+//Complex numbers are stored as two single precision floats glued together
 typedef float2   Complex;
+
+#define TRUE 1
+#define FALSE 0
+#define VERSION "1.0"
+//Return the minimum of two values
+#define min_template(a,b) (((a) < (b)) ? (a) : (b))
+
+/*In modified toeplitz hashing the result needs to be XORed with key_rest
+  This can be disabled for debuging purposes but must be enabled for security!
+  On purpose not in config.yaml for security and performance!*/
+#define XOR_WITH_KEY_REST TRUE
+
+/*By default the result will be in 4 byte little endian.
+  If big endian is required set the following definition to true otherwise to false.
+  This as a very small perfromance impact.
+  Dueto performance reasons this can't be set in config.yaml*/
+#define AMPOUT_REVERSE_ENDIAN TRUE
+
+/*Enable debug output required for debugging purposes.
+  On purpose not in config.yaml as this is only meant to be used by developers*/
+#define SHOW_DEBUG_OUTPUT FALSE
+
+/*Enable input debug output required for debugging purposes like markix seed and key.
+  On purpose not in config.yaml as this is only meant to be used by developers*/
+#define SHOW_INPUT_DEBUG_OUTPUT FALSE
+
+/*Privacy Amplification input size in bits
+  Has to be 2^x and 2^27 is the maximum*/
+uint32_t sample_size;
+
+/*FFT input maps binary 0, 1 to 0 and 1/reduction which
+  will be corrected during normalisation after IFFT
+  This has an impact on the Privacy Amplification precission*/
+uint32_t reduction;
+
+/*After the FFT before the element wise multiplication
+  every element will be devided by pre_mul_reduction
+  This has an impact on the Privacy Amplification precission*/
+uint32_t pre_mul_reduction;
+
+/*Specifies which GPU to use by setting this value to the CUDA device ID.
+  Which ID matches to which GPU can be seen using nvidia-smi (on Linux and Windows)*/
+uint32_t cuda_device_id_to_use;
+
+/*Specifies how large the input cache should be. If Privacy Amplification is slower
+  then the data input this cache will fill up. Cache requires RAM.
+  It's value must be 2 or larger while at 16 or higher is recommended.*/
+uint32_t input_blocks_to_cache;
+
+/*Specifies how large the ouput cache should be. If the data reciever is slower
+  then the Privacy Amplification this cache will fill up. Cache requires RAM.
+  It's value must be 2 or larger while at 16 or higher is recommended.*/
+uint32_t output_blocks_to_cache;
+
+/*Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
+  This has a huge performance and security impact. Not changing it will make the algorithms
+  security to be no longer the matimatically proofen to be secure while changing
+  it every time will reduce performance by around 33% (around 47% faster).
+  I highly recommend to leave this enabled if security matters.*/
+bool dynamic_toeplitz_matrix_seed;
+
+/*Displays Blocktime, Mbit/s input throughput and the first 4 bytes of the final
+  Privacy Amplification result to the screen and only has a very little
+  impact on performance. I would leave it on but feel free to disable that.*/
+bool show_ampout;
+
+/*If enabled connects to the matrix seed server on address_seed_in to request the toeplitz
+  matrix seed for the current block. If dynamic_toeplitz_matrix_seed is disabled and this 
+  enabled only one block at the programm start will be requested. The matrix seed server
+  ensures all parties envolved will recive the same seed for the same block.
+  Warning: Currently the channel to the matrix is not authenticated and has to be
+  implmented before any real world use. This is planed to be done in the next few months.
+  
+  If disabled the matrix seed will be read from the path specified in toeplitz_seed_path
+  however this only makes sense if dynamic_toeplitz_matrix_seed is disabled
+  or for testcases as only one block worth of data will be ever read from that file and
+  copied input_blocks_to_cache to fill the input cache.*/
+bool use_matrix_seed_server;
+std::string toeplitz_seed_path;
+
+/*If enabled connects to the key server on address_key_in to request the key for the
+  current block.
+  Warning: The server has to be on the same computer as the key gets transmiten insecurrely
+  
+  If disabled they key will be read from the path specified in keyfile_path however this
+  only makes sense for testcases as only one block worth of data will be ever read from
+  that file and copied input_blocks_to_cache to fill the input cache.*/
+bool use_key_server;
+std::string keyfile_path;
+
+bool host_ampout_server;
+bool store_first_ampout_in_file;
+
+bool verify_ampout;
+uint32_t verify_ampout_threads;
+
+#define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
+#define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
+#define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
+#define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
+
+const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
+                               0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
+                               0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
+                               0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
 
 void printStream(std::ostream& os);
 
