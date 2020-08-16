@@ -610,7 +610,11 @@ void sendData() {
         }
     }
 
-    bool firstAmpOutToStore = store_first_ampout_in_file;
+    int32_t ampOutsToStore = store_first_ampouts_in_file;
+    std::fstream ampout_file;
+    if (ampOutsToStore != 0) {
+        ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
+    }
 
     ThreadPool* verifyDataPool = nullptr;
     if (verify_ampout)
@@ -637,11 +641,15 @@ void sendData() {
             verifyDataPool->enqueue(verifyData, output_block);
         }
 
-        if (firstAmpOutToStore) {
-            firstAmpOutToStore = false;
-            auto ampout_file = std::fstream("ampout.bin", std::ios::out | std::ios::binary);
+        if (ampOutsToStore != 0) {
+            if (ampOutsToStore > 0) {
+                --ampOutsToStore;
+            }
             ampout_file.write((char*)&output_block[0], vertical_len / 8);
-            ampout_file.close();
+            ampout_file.flush();
+            if (ampOutsToStore == 0) {
+                ampout_file.close();
+            }
         }
 
         if (host_ampout_server)
@@ -718,7 +726,7 @@ void readConfig() {
     use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(true);
     use_key_server = root["use_key_server"].As<bool>(true);
     host_ampout_server = root["host_ampout_server"].As<bool>(true);
-    store_first_ampout_in_file = root["store_first_ampout_in_file"].As<bool>(true);
+    store_first_ampouts_in_file = root["store_first_ampouts_in_file"].As<int32_t>(true);
 
     toeplitz_seed_path = root["toeplitz_seed_path"].As<std::string>("toeplitz_seed.bin");
     keyfile_path = root["keyfile_path"].As<std::string>("keyfile.bin");
