@@ -692,7 +692,8 @@ void readConfig() {
 }
 
 
-inline void setWindowsConsoleDesign() {
+inline void setConsoleDesign() {
+    #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     DWORD dwConSize;
@@ -705,6 +706,7 @@ inline void setWindowsConsoleDesign() {
         dwConSize, coordScreen, &cCharsWritten);
     SetConsoleTextAttribute(hConsole,
         FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
+    #endif
 }
 
 
@@ -721,10 +723,7 @@ int main(int argc, char* argv[])
 
     cout << "PrivacyAmplification with " << sample_size << " bits" << endl << endl;
     cudaSetDevice(cuda_device_id_to_use);
-
-    #ifdef _WIN32
-    setWindowsConsoleDesign();
-    #endif
+    setConsoleDesign();
 
     uint32_t dist_freq = sample_size / 2 + 1;
     input_cache_read_pos = input_blocks_to_cache - 1;

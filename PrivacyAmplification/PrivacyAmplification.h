@@ -312,7 +312,7 @@ void sendData();
 void readConfig();
 
 /// @brief Set the Windows consoles backgroud color and font color
-void setWindowsConsoleDesign();
+void setConsoleDesign();
 
 /// @brief Actual Privacy Amplification Algorithm
 /// @param [UNUSED] Ammount of arguments
