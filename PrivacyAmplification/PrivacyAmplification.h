@@ -18,9 +18,8 @@ typedef float2   Complex;
   On purpose not in config.yaml for security and performance!*/
 #define XOR_WITH_KEY_REST TRUE
 
-/*By default the result will be in 4 byte little endian.
-  If big endian is required, set the following definition to true otherwise to false.
-  This has a very small perfromance impact.
+/*If big endian is required, set the following definition to true otherwise to false.
+  Enabling this has a very small perfromance impact.
   Due to performance reasons this can't be set in config.yaml*/
 #define AMPOUT_REVERSE_ENDIAN TRUE
 
@@ -111,7 +110,7 @@ int32_t store_first_ampouts_in_file;
 /*If enabled verifies if the result of the Privacy Amplification of the provided
   keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27 and a compression
   factor of vertical = sample_size / 4 + sample_size / 8 matches the SHA3-256
-  hash of  C422B6865C72CAD82CC26A1462B8A4566F911750F31B1475691269C1B7D4A716.
+  hash of C422B6865C72CAD82CC26A1462B8A4566F911750F31B1475691269C1B7D4A716.
   This result was verified with a python reference implementation and ensures
   during development that correctness of this Privacy Amplification implementation.
   Disable this if you are using anything else then the provided testdata with above
@@ -124,36 +123,109 @@ bool verify_ampout;
   I recommend setting this value to 4 or higher to not bottleneck performance*/
 uint32_t verify_ampout_threads;
 
+/*streams are awesome in C++ but we want to be able to call a funtion line
+println("Hallo " << name) which requires the following function-like macros*/
+
+/*Prints a stream in a thread save way.
+  Example: print("Hallo " << name)*/
 #define print(TEXT) printStream(std::ostringstream().flush() << TEXT);
+
+/*Prints a stream in a thread save way and adds a newline at the end.
+  Example: println("Hallo " << name)*/
 #define println(TEXT) printlnStream(std::ostringstream().flush() << TEXT);
+
+/*Convearts a stream into an std::string
+  Example: std::string greeting = streamToString("Hallo " << name);*/
 #define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
+
+/*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
 #define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
 
+/*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
+and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
+with a python reference implementation and is used for correctness testing*/
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
                                0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
                                0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
                                0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
 
+
+/// @brief Prints a stream in a thread save way.
+/// @param[in] std::ostringstream().flush() << TEXT but used like print(TEXT) with macros
+/// Aquires the printlock, prints the provided key and releases the printlock.
+/// It flushes at the end without adding a newline character.
+/// Note: This function is supossed to always be called using the print macro.
+/// Example: print("Hallo " << name);
 void printStream(std::ostream& os);
 
+/// @brief Prints a stream in a thread save way and adds a newline at the end.
+/// @param[in] std::ostringstream().flush() << TEXT but used like println(TEXT) with macros
+/// Aquires the printlock, prints the provided key, adds a std::endl and
+/// releases the printlock. It flushes with the std::endl.
+/// Note: This function is supossed to always be called using the println macro.
+/// Example: println("Hallo " << name);
 void printlnStream(std::ostream& os);
 
-/// @return The sum of both parameters.
+/// @brief Converts a stream into an std::string
+/// @param[in] std::ostringstream().flush() << TEXT but used like streamToString(TEXT) with macros
+/// Note: This function is supossed to always be called using the streamToString macro.
+/// Example: std::string greeting = streamToString("Hallo " << name);
+/// @return Input stream converted as std::string
 std::string convertStreamToString(std::ostream& os);
 
+
+//#################//
+//  CUDA KERNELS!  //
+//   __global__    //
+//#################//
+
+/// @brief Calculates how much the IFFT output needs to be Y-shifted
+/// @param[in] Hamming weight (amount of 1-bits) of toeplitz matrix seed
+/// @param[in] Hamming weight (amount of 1-bits) of key
+/// @param[out] The Kernels output will be stored in correction_float_dev
+/// Because we use random 0 and 1 as input the average (without reduction) 
+/// will always be around 0.5. This adds up as we have up to 2^27 as input
+/// That would result in the first Element of the FFT (0 HZ) be around 2^26
+/// After elementwise multiplication that would be 2^56 which leads to inaccurate
+/// floating point precision. Because of that let's just zero out the first
+/// element after FFT and correct with correction_float_dev after normalized IFFT
+/// Simplified Calculation: arg3 = ((arg1 * arg2) / sample_size) % 2
 __global__ void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_one_global_key, float* correction_float_dev);
 
+/// @brief Sets the first Element of both input arrays to Zero.
+/// @param[in,out] Output of key FFT
+/// @param[in,out] Output of toeplitz seed FFT
+/// It sets the first Element to float2(0.0f, 0.0f) which sets both the 
+/// real and imaginary part to zero. This is done on GPU as it's faster
+/// then acccessing that data from CPU as that way no PCIe datatransfer is needed.
+/// This is done so for precision. See calculateCorrectionFloat for more information.
 __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
 
+/// @brief Calculates the element wise product of two Complex arrays
+/// @param[in,out] Output of key FFT
+/// @param[in] Output of toeplitz seed FFT
+/// It stores the result in the same memory as the first input to save memory
+/// Complex (float2) arrays from from the size of 2^27 are 1074 MB each!
+/// We only have limited GPU storage and the goal is to only require 8 GB.
+/// Why the first? Because we already use the second one to store the result of the IFFT.
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
 
-__global__ void ToFloatArray(uint32_t n, uint32_t b, Real* floatOut, Real normalisation_float);
-
-__global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
-
+/// @brief Converts binary data to a float array where every bit represents one float
+/// @param[in] Binary Input
+/// @param[out] Floating point output
+/// @param[in, out] Hamming weight (amount of 1-bits) (if initial value is 0)
+/// This function also counts the Hamming weight (amount of 1-bits).
+/// binary => float: 0 => 0.0f and 1 => 1.0f/reduction
 __global__ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global);
 
-void intToBinCPU(int* intIn, uint32_t* binOut, uint32_t outSize);
+/// @brief Generates the Privacy amplification results from the IFFT result and key rest 
+/// @param[in] Raw IFFT output
+/// @param[out] Privacy Amplification result in correct endianness
+/// @param[in] Key rest with which the normalized converted IFFT result will be XORed
+/// @param[in] Result from calculateCorrectionFloat
+/// This function normalizes the IFFT floating point ouput and converts it to binary
+/// while also XORing it with the key rest to optain the Privacy Amplification result.
+__global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
 
 /// @brief Prints bynary byte data.
 /// @param position The memory location where the data to print start
@@ -162,21 +234,87 @@ void intToBinCPU(int* intIn, uint32_t* binOut, uint32_t outSize);
 /// After printing all binary data a newline character is printed
 void printBin(const uint8_t* position, const uint8_t* end);
 
-/// @brief Prints bynary integer data.
+/// @brief Prints binary integer data.
 /// @param position The memory location where the data to print start
 /// @param end The memory location where the data to print end
 /// Loops from start to end and prints each integers binary representation
 /// After printing all binary data a newline character is printed
 void printBin(const uint32_t* position, const uint32_t* end);
 
+/// @brief Splits the recived key into key_start and key_rest
+/// This function also is responsible of filling dirty cache
+/// regions with zeros the most efficient way possible.
+/// The key rest has to be shifted by one bit which this function
+/// also takes care of by using a memcopy loop that does exactly that.
+/// Note: This function doesn't need any arguments because it uses 
+/// key_start, key_rest, key_start_zero_pos, key_rest_zero_pos
+/// input_cache_block_size and input_cache_write_pos
 void key2StartRest();
 
+/// @brief Reads one block of matrix seed data from a file.
+/// This function reads from the toeplitz_seed_path path specified in config.yaml
+/// The whole cache will be filled with that block so that
+/// PrivacyAmplification will forever use that matrix seed.
+/// See toeplitz_seed_path for more information.
+void readMatrixSeedFromFile();
+
+/// @brief Reads one block of key data from a file.
+/// This function reads from the keyfile_path path specified in config.yaml
+/// The whole cache will be filled with that block so that
+/// PrivacyAmplification will forever use that key.
+/// See keyfile_path for more information.
+void readKeyFromFile();
+
+/// @brief Recives data from the key server and matrix seed server or a file
+/// This function contains all the code needed to communicate with
+/// the key server and matrix seed server and reading it from a file.
+/// This functions runs on its own Thread which is started inside main.
+/// Because this function runs in parallel it never returns
+/// 
+/// Comunnication matrix seed server:
+/// Action                    Size [bytes]                    endianness
+/// Send: SYN                 3                               big
+/// Receive: recv_key          ((sample_size / 32) * 4         4 byte little
+/// 
+/// Comunnication with key server:
+/// Action                    Size [bytes]                    endianness
+/// Send: SYN                 3                               big
+/// Receive: vertical_block    4                               4 byte little
+/// Receive: recv_key          ((sample_size / 32) + 1) * 4    4 byte little
 void reciveData();
 
+/// @brief Prints binary byte data.
+/// @param Data containing the Privacy Amplification result to verify
+/// This function runs in a ThreadPool of the size verify_ampout_threads.
+/// Warning: This function can fail if more tasks arrive than it can handle
+/// because by that time the data it verifies would have already been overwritten
+/// by the next trip though the output cache. This only occures if the thread pool
+/// contains not enough threads or the output cache is too small. See verify_ampout,
+/// verify_ampout_threads and output_blocks_to_cache for more information.
 void verifyData(const unsigned char* dataToVerify);
 
+/// @brief Sends data to the ReceiveAmpOutExample client or stores it in file
+/// This function contains all the code needed to send the Privacy Amplification
+/// result to ReceiveAmpOutExample client or storing it in a file.
+/// This function runs on its own Thread which is started inside main.
+/// Because this function runs in parallel it never returns
+/// 
+/// Comunnication with ReceiveAmpOutExample client:
+/// Action                    Size [bytes]                    endianness
+/// Receive: SYN               3                               big
+/// Send: output_block        vertical_len / 8                4 byte little or big
+/// If big endian is required, set AMPOUT_REVERSE_ENDIAN to true otherwise to false.
 void sendData();
 
+/// @brief Pharses config.yaml
+/// If config.yaml doesn't exist the program to exit with error 102
+/// If a value is missing in config.yaml the default value will be used instead.
 void readConfig();
 
+/// @brief Actual Privacy Amplification Algorithm
+/// @param [UNUSED] Ammount of arguments
+/// @param [UNUSED] Array of arguments
+/// The main function contains the actual Privacy Amplification Algorithm
+/// It handles and conrolls everything that happens in the main thread.
+/// It also contains the whole memory management on both RAM and GPU.
 int main(int argc, char* argv[]);

@@ -148,12 +148,11 @@ std::string convertStreamToString(std::ostream& os) {
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_one_global_key, float* correction_float_dev)
 {
-    //*correction_float_dev = (float)((unsigned long)(*count_one_global_key-60000000));
-    uint64_t count_multiblicated = *count_one_global_seed * *count_one_global_key;
-    double count_multiblicated_normalized = count_multiblicated / (double)sample_size_dev;
+    uint64_t count_multiplied = *count_one_global_seed * *count_one_global_key;
+    double count_multiplied_normalized = count_multiplied / (double)sample_size_dev;
     double two = 2.0;
-    Real count_multiblicated_normalized_modulo = (float)modf(count_multiblicated_normalized, &two);
-    *correction_float_dev = count_multiblicated_normalized_modulo;
+    Real count_multiplied_normalized_modulo = (float)modf(count_multiplied_normalized, &two);
+    *correction_float_dev = count_multiplied_normalized_modulo;
 }
 
 __global__
@@ -171,8 +170,6 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 __global__
 void ElementWiseProduct(Complex* do1, Complex* do2)
 {
-    //Requires at least sm_53 as sm_52 and below don't support float maths.
-    //Tegra/Jetson from Maxwell, Pascal, Volta, Turing and probably the upcomming Ampere
     uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
     float r = pre_mul_reduction_dev;
     Real do1x = do1[i].x/r;
@@ -184,43 +181,35 @@ void ElementWiseProduct(Complex* do1, Complex* do2)
 }
 
 __global__
-void ToFloatArray(uint32_t n, uint32_t b, Real* floatOut, Real normalisation_float)
+void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 {
-    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t j = i * 32;
+    //Multicast
+    Real h0_local = h0_dev;
+    Real h1_reduced_local = h1_reduced_dev;
+    __shared__ uint32_t binInShared[32];
 
-    floatOut[j]    = (b & 0b10000000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+1]  = (b & 0b01000000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+2]  = (b & 0b00100000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+3]  = (b & 0b00010000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+4]  = (b & 0b00001000000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+5]  = (b & 0b00000100000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+6]  = (b & 0b00000010000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+7]  = (b & 0b00000001000000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+8]  = (b & 0b00000000100000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+9]  = (b & 0b00000000010000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+10] = (b & 0b00000000001000000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+11] = (b & 0b00000000000100000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+12] = (b & 0b00000000000010000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+13] = (b & 0b00000000000001000000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+14] = (b & 0b00000000000000100000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+15] = (b & 0b00000000000000010000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+16] = (b & 0b00000000000000001000000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+17] = (b & 0b00000000000000000100000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+18] = (b & 0b00000000000000000010000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+19] = (b & 0b00000000000000000001000000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+20] = (b & 0b00000000000000000000100000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+21] = (b & 0b00000000000000000000010000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+22] = (b & 0b00000000000000000000001000000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+23] = (b & 0b00000000000000000000000100000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+24] = (b & 0b00000000000000000000000010000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+25] = (b & 0b00000000000000000000000001000000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+26] = (b & 0b00000000000000000000000000100000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+27] = (b & 0b00000000000000000000000000010000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+28] = (b & 0b00000000000000000000000000001000 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+29] = (b & 0b00000000000000000000000000000100 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+30] = (b & 0b00000000000000000000000000000010 > 0) ? h1_reduced_dev : h0_dev;
-    floatOut[j+31] = (b & 0b00000000000000000000000000000001 > 0) ? h1_reduced_dev : h0_dev;
+    uint32_t block = blockIdx.x;
+    uint32_t idx = threadIdx.x;
+    uint32_t maskToUse;
+    uint32_t inPos;
+    uint32_t outPos;
+    maskToUse = idx % 32;
+    inPos = idx / 32;
+    outPos = 1024 * block + idx;
+
+    if (threadIdx.x < 32) {
+        binInShared[idx] = binIn[32 * block + idx];
+    }
+    __syncthreads();
+
+    if ((binInShared[inPos] & intTobinMask_dev[maskToUse]) == 0) {
+        realOut[outPos] = h0_local;
+    }
+    else
+    {
+        atomicAdd(count_one_global, 1);
+        realOut[outPos] = h1_reduced_local;
+    }
 }
 
 __global__
@@ -269,79 +258,6 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
         binOut[block * 31 + idx] = binOutLocal;
     }
 }
-
-__global__
-void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
-{
-    //Multicast
-    Real h0_local = h0_dev;
-    Real h1_reduced_local = h1_reduced_dev;
-    __shared__ uint32_t binInShared[32];
-
-    uint32_t block = blockIdx.x;
-    uint32_t idx = threadIdx.x;
-    uint32_t maskToUse;
-    uint32_t inPos;
-    uint32_t outPos;
-    maskToUse = idx % 32;
-    inPos = idx / 32;
-    outPos = 1024 * block + idx;
-
-    if (threadIdx.x < 32) {
-        binInShared[idx] = binIn[32 * block + idx];
-    }
-    __syncthreads();
-
-    if ((binInShared[inPos] & intTobinMask_dev[maskToUse]) == 0) {
-        realOut[outPos] = h0_local;
-    }
-    else
-    {
-        atomicAdd(count_one_global, 1);
-        realOut[outPos] = h1_reduced_local;
-    }
-}
-
-void intToBinCPU(int* intIn, uint32_t* binOut, uint32_t outSize) {
-    uint32_t j = 0;
-    for (uint32_t i = 0; i < outSize; ++i) {
-        binOut[i] =
-            (intIn[j] & 1 << 31) |
-            (intIn[j + 1] & 1 << 30) |
-            (intIn[j + 2] & 1 << 29) |
-            (intIn[j + 3] & 1 << 28) |
-            (intIn[j + 4] & 1 << 27) |
-            (intIn[j + 5] & 1 << 26) |
-            (intIn[j + 6] & 1 << 25) |
-            (intIn[j + 7] & 1 << 24) |
-            (intIn[j + 8] & 1 << 23) |
-            (intIn[j + 9] & 1 << 22) |
-            (intIn[j + 10] & 1 << 21) |
-            (intIn[j + 11] & 1 << 20) |
-            (intIn[j + 12] & 1 << 19) |
-            (intIn[j + 13] & 1 << 18) |
-            (intIn[j + 14] & 1 << 17) |
-            (intIn[j + 15] & 1 << 16) |
-            (intIn[j + 16] & 1 << 15) |
-            (intIn[j + 17] & 1 << 14) |
-            (intIn[j + 18] & 1 << 13) |
-            (intIn[j + 19] & 1 << 12) |
-            (intIn[j + 20] & 1 << 11) |
-            (intIn[j + 21] & 1 << 10) |
-            (intIn[j + 22] & 1 << 9) |
-            (intIn[j + 23] & 1 << 8) |
-            (intIn[j + 24] & 1 << 7) |
-            (intIn[j + 25] & 1 << 6) |
-            (intIn[j + 26] & 1 << 5) |
-            (intIn[j + 27] & 1 << 4) |
-            (intIn[j + 28] & 1 << 3) |
-            (intIn[j + 29] & 1 << 2) |
-            (intIn[j + 30] & 1 << 1) |
-            (intIn[j + 31] & 1);
-        j += 32;
-    }
-}
-
 
 void printBin(const uint8_t * position, const uint8_t * end) {
     while (position < end) {
@@ -393,6 +309,78 @@ inline void key2StartRest() {
     }
 }
 
+inline void readMatrixSeedFromFile() {
+    //Cryptographically random Toeplitz seed generated by XOR a self-generated
+    //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_7
+    //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
+    std::ifstream seedfile(toeplitz_seed_path, std::ios::binary);
+
+    if (seedfile.fail())
+    {
+        std::cout << "Can't open file \"" << toeplitz_seed_path << "\" => terminating!" << std::endl;
+        exit(1);
+        abort();
+    }
+
+    seedfile.seekg(0, std::ios::end);
+    size_t seedfile_length = seedfile.tellg();
+    seedfile.seekg(0, std::ios::beg);
+
+    if (seedfile_length < desired_block * sizeof(uint32_t))
+    {
+        std::cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << std::endl;
+        std::cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
+        exit(1);
+        abort();
+    }
+
+    char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
+    seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
+    for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+        uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
+        memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+    }
+}
+
+inline void readKeyFromFile() {
+    //Cryptographically random Toeplitz seed generated by XOR a self-generated
+    //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_49
+    //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
+    std::ifstream keyfile(keyfile_path, std::ios::binary);
+
+    if (keyfile.fail())
+    {
+        std::cout << "Can't open file \"" << keyfile_path << "\" => terminating!" << std::endl;
+        exit(1);
+        abort();
+    }
+
+    keyfile.seekg(0, std::ios::end);
+    size_t keyfile_length = keyfile.tellg();
+    keyfile.seekg(0, std::ios::beg);
+
+    if (keyfile_length < key_blocks * sizeof(uint32_t))
+    {
+        std::cout << "File \"" << keyfile_path << "\" is with " << keyfile_length << " bytes too short!" << std::endl;
+        std::cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
+        exit(1);
+        abort();
+    }
+
+    char* recv_key_char = reinterpret_cast<char*>(recv_key);
+    keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
+    key2StartRest();
+    for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+        uint32_t* key_start_block = key_start + input_cache_block_size * i;
+        uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
+        uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
+        uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
+        memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
+        memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
+        *key_start_zero_pos_block = *key_start_zero_pos;
+        *key_rest_zero_pos_block = *key_rest_zero_pos;
+    }
+}
 
 void reciveData() {
     int32_t rc;
@@ -408,36 +396,7 @@ void reciveData() {
     }
     else
     {
-        //Cryptographically random Toeplitz seed generated by XOR a self-generated
-        //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_7
-        //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
-        std::ifstream seedfile(toeplitz_seed_path, std::ios::binary);
-
-        if (seedfile.fail())
-        {
-            std::cout << "Can't open file \"" << toeplitz_seed_path << "\" => terminating!" << std::endl;
-            exit(1);
-            abort();
-        }
-
-        seedfile.seekg(0, std::ios::end);
-        size_t seedfile_length = seedfile.tellg();
-        seedfile.seekg(0, std::ios::beg);
-
-        if (seedfile_length < desired_block * sizeof(uint32_t))
-        {
-            std::cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << std::endl;
-            std::cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
-            exit(1);
-            abort();
-        }
-
-        char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
-        seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
-        for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-            uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-            memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
-        }
+        readMatrixSeedFromFile();
     }
 
     if (use_key_server)
@@ -452,43 +411,7 @@ void reciveData() {
     }
     else
     {
-        //Cryptographically random Toeplitz seed generated by XOR a self-generated
-        //VeraCrypt key file (PRF: SHA-512) with ANU_20Oct2017_100MB_49
-        //from the ANU Quantum Random Numbers Server (https://qrng.anu.edu.au/)
-        std::ifstream keyfile(keyfile_path, std::ios::binary);
-
-        if (keyfile.fail())
-        {
-            std::cout << "Can't open file \"" << keyfile_path << "\" => terminating!" << std::endl;
-            exit(1);
-            abort();
-        }
-
-        keyfile.seekg(0, std::ios::end);
-        size_t keyfile_length = keyfile.tellg();
-        keyfile.seekg(0, std::ios::beg);
-
-        if (keyfile_length < key_blocks * sizeof(uint32_t))
-        {
-            std::cout << "File \"" << keyfile_path << "\" is with " << keyfile_length << " bytes too short!" << std::endl;
-            std::cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << std::endl;
-            exit(1);
-            abort();
-        }
-
-        char* recv_key_char = reinterpret_cast<char*>(recv_key);
-        keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
-        key2StartRest();
-        for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-            uint32_t* key_start_block = key_start + input_cache_block_size * i;
-            uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
-            uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
-            uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
-            memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
-            memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
-            *key_start_zero_pos_block = *key_start_zero_pos;
-            *key_rest_zero_pos_block = *key_rest_zero_pos;
-        }
+        readKeyFromFile();
     }
 
     bool recive_toeplitz_matrix_seed = use_matrix_seed_server;
@@ -827,8 +750,8 @@ int main(int argc, char* argv[])
     cudaCalloc((void**)&di1, sample_size * sizeof(Real));
     cudaMalloc((void**)&di2, sample_size * sizeof(Real));
     cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
-    cudaMalloc((void**)&do2, sample_size * sizeof(Complex));
-    cudaMalloc(&invOut, (dist_sample + 992) * sizeof(Real));
+    cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (dist_sample + 992) * sizeof(Real)));
+    invOut = reinterpret_cast<Real*>(do2);
 
     register const Complex complex0 = make_float2(0.0f, 0.0f);
     register const Real float0 = 0.0f;
@@ -866,7 +789,7 @@ int main(int argc, char* argv[])
         printf("Failed to plan IFFT 1! Error Code: %i\n", r);
         exit(0);
     }
-    cufftSetStream(plan_forward_R2C, FFTStream);
+    cufftSetStream(plan_inverse_C2R, FFTStream);
 
 
     uint32_t relevant_keyBlocks = horizontal_block + 1;

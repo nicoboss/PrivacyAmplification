@@ -26,6 +26,8 @@ input_blocks_to_cache: 16
 #Specifies how large the ouput cache should be. If the data reciever is slower
 #then the Privacy Amplification this cache will fill up. Cache requires RAM.
 #Its value must be 2 or larger while at 16 or higher is recommended.
+#Keep in mind that for verify_ampout_threads to work properly the output_blocks_to_cache
+#has to be around double of what specified in output_blocks_to_cache
 output_blocks_to_cache: 16
 
 #Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
@@ -80,7 +82,7 @@ store_first_ampouts_in_file: 1
 #If enabled verifies if the result of the Privacy Amplification of the provided
 #keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27 and a compression
 #factor of vertical = sample_size / 4 + sample_size / 8 matches the SHA3-256
-#hash of  C422B6865C72CAD82CC26A1462B8A4566F911750F31B1475691269C1B7D4A716.
+#hash of C422B6865C72CAD82CC26A1462B8A4566F911750F31B1475691269C1B7D4A716.
 #This result was verified with a python reference implementation and ensures
 #during debvelopment that corectness of this Privacy Amplification implementation.
 #Disable this if you are using anything else than the provided testdata with above
