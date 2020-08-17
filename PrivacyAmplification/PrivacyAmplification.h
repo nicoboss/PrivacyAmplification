@@ -190,7 +190,7 @@ std::string convertStreamToString(std::ostream& os);
 /// floating point precision. Because of that let's just zero out the first
 /// element after FFT and correct with correction_float_dev after normalized IFFT
 /// Simplified Calculation: arg3 = ((arg1 * arg2) / sample_size) % 2
-__global__ void calculateCorrectionFloat(uint32_t* count_one_global_seed, uint32_t* count_one_global_key, float* correction_float_dev);
+__global__ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev);
 
 /// @brief Sets the first Element of both input arrays to Zero.
 /// @param[in,out] Output of key FFT
@@ -205,7 +205,7 @@ __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
 /// @param[in,out] Output of key FFT
 /// @param[in] Output of toeplitz seed FFT
 /// It stores the result in the same memory as the first input to save memory
-/// Complex (float2) arrays from from the size of 2^27 are 1074 MB each!
+/// Complex (float2) arrays from the size of 2^27 are 1074 MB each!
 /// We only have limited GPU storage and the goal is to only require 8 GB.
 /// Why the first? Because we already use the second one to store the result of the IFFT.
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
@@ -310,6 +310,9 @@ void sendData();
 /// If config.yaml doesn't exist the program to exit with error 102
 /// If a value is missing in config.yaml the default value will be used instead.
 void readConfig();
+
+/// @brief Set the Windows consoles backgroud color and font color
+void setWindowsConsoleDesign();
 
 /// @brief Actual Privacy Amplification Algorithm
 /// @param [UNUSED] Ammount of arguments
