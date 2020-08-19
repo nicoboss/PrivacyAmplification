@@ -78,12 +78,12 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>%userprofile%\Documents\GitHub\libzmq\include;./;$(CudaToolkitDir)/include;$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\libzmq\include;./;$(CudaToolkitDir)/include;$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>%userprofile%\Documents\GitHub\libzmq\build\lib\Release\libzmq-v142-mt-4_3_3.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>%userprofile%\Documents\GitHub\libzmq\build\bin\Release;$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>..\libzmq\lib\libzmq-v142-mt-4_3_3.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\libzmq\dll;$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <OutputFile>$(OutDir)/PrivacyAmplification.exe</OutputFile>
     </Link>
     <CudaCompile>
@@ -111,7 +111,7 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
     <PreBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xcopy /y /d  "%userprofile%\Documents\GitHub\libzmq\build\bin\Release\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.2\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"</Command>
@@ -138,7 +138,7 @@ xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"</Command>
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
     <PreBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d  "%userprofile%\Documents\GitHub\libzmq\build\bin\Release\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.2\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"</Command>

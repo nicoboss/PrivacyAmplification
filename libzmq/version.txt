@@ -1,0 +1,1 @@
+Visual Studio 2019 v16.7.2 libzmq from Aug 17, 2020 at master/29f5ede68463b3b3af4fb8ce5b884ce5db60e24a
