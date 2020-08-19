@@ -404,13 +404,17 @@ void reciveData() {
     int32_t rc;
     void* socket_seed_in = nullptr;
     void* socket_key_in = nullptr;
+    void* context_seed_in = nullptr;
+    void* context_key_in = nullptr;
+    int timeout_seed_in = 1000;
+    int timeout_key_in = 1000;
+
     if (use_matrix_seed_server)
     {
-        void* context_seed_in = zmq_ctx_new();
+        context_seed_in = zmq_ctx_new();
         socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
-        while (zmq_connect(socket_seed_in, address_seed_in.c_str()) != 0) {
-            println("Connection to \"" << address_seed_in << "\" failed! Retrying...");
-        }
+        zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int));
+        zmq_connect(socket_seed_in, address_seed_in.c_str());
     }
     else
     {
@@ -419,13 +423,10 @@ void reciveData() {
 
     if (use_key_server)
     {
-        void* context_key_in = zmq_ctx_new();
+        context_key_in = zmq_ctx_new();
         socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-        while (zmq_connect(socket_key_in, address_key_in.c_str()) != 0) {
-            printlock.lock();
-            cout << "Connection to \"" << address_key_in << "\" failed! Retrying..." << endl;
-            printlock.unlock();
-        }
+        zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+        zmq_connect(socket_key_in, address_key_in.c_str());
     }
     else
     {
@@ -443,13 +444,13 @@ void reciveData() {
         uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
         if (recive_toeplitz_matrix_seed) {
             retry_receiving_seed:
-            rc = zmq_send(socket_seed_in, "SYN", 3, 0);
-            if (rc != 3) {
-                println("Error sending SYN to Seedserver! Error Code: " << zmq_errno() << " - Retrying...");
-                goto retry_receiving_seed;
-            }
+            zmq_send(socket_seed_in, "SYN", 3, 0);
             if (zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0) != desired_block * sizeof(uint32_t)) {
                 println("Error receiving data from Seedserver! Retrying...");
+                zmq_close(context_seed_in);
+                socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
+                zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int));
+                zmq_connect(socket_seed_in, address_seed_in.c_str());
                 goto retry_receiving_seed;
             }
             println("Seed Block recived");
@@ -476,6 +477,10 @@ void reciveData() {
             }
             if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
                 println("Error receiving vertical_blocks from Keyserver! Retrying...");
+                zmq_close(context_key_in);
+                socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+                zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+                zmq_connect(socket_key_in, address_key_in.c_str());
                 goto retry_receiving_key;
             }
             vertical_len = vertical_block * 32;
@@ -483,6 +488,10 @@ void reciveData() {
             horizontal_block = horizontal_len / 32;
             if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
                 println("Error receiving data from Keyserver! Retrying...");
+                zmq_close(context_key_in);
+                socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+                zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+                zmq_connect(socket_key_in, address_key_in.c_str());
                 goto retry_receiving_key;
             }
             println("Key Block recived");

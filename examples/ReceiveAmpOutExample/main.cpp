@@ -20,24 +20,25 @@ int main(int argc, char* argv[])
     int32_t rc;
     time_t currentTime;
     void* context = zmq_ctx_new();
-    void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
-    while (zmq_connect(ampOutIn_socket, privacyAmplificationServer_address) != 0) {
-        std::cout << "Connection to \"" << privacyAmplificationServer_address << "\" failed! Retrying..." << std::endl;
-    }
+    int timeout = 1000;
 
+    reconnect:;
+    void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
+    zmq_setsockopt(ampOutIn_socket, ZMQ_RCVTIMEO, &timeout, sizeof(int));
+    
     std::cout << "Waiting for PrivacyAmplification Server..." << std::endl;
+    zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
+    
     while (true) {
-        if (zmq_send(ampOutIn_socket, "SYN", 3, 0) != 3) {
-            std::cout << "Error sending SYN to PrivacyAmplification Server! Retrying..." << std::endl;
-            continue;
-        }
-        
+        zmq_send(ampOutIn_socket, "SYN", 3, 0);
         rc = zmq_recv(ampOutIn_socket, ampOutInData, vertical_bytes, 0);
         if (rc != vertical_bytes) {
             std::cout << "Error receiving data from PrivacyAmplification Server!" << std::endl;
-            std::cout << "Expected " << vertical_bytes << " bytes but received " << rc << " bytes!" << "Retrying..." << std::endl;
-            continue;
+            std::cout << "Expected " << vertical_bytes << " bytes but received " << rc << " bytes! Retrying..." << std::endl;
+            zmq_close(ampOutIn_socket);
+            goto reconnect;
         }
+
         time(&currentTime);
         std::cout << std::put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << std::endl;
         
@@ -47,7 +48,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    zmq_unbind(ampOutIn_socket, privacyAmplificationServer_address);
     zmq_close(ampOutIn_socket);
     zmq_ctx_destroy(ampOutIn_socket);
     return 0;
