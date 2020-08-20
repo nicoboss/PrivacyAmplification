@@ -207,7 +207,9 @@ __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
 /// It stores the result in the same memory as the first input to save memory
 /// Complex (float2) arrays from the size of 2^27 are 1074 MB each!
 /// We only have limited GPU storage and the goal is to only require 8 GB.
-/// Why the first? Because we already use the second one to store the result of the IFFT.
+/// Why the first? Because we already use the second one to store the result of the IFFT
+/// and as precalculated FFT result if toeplitz matrix doesn't have to be recalulated
+/// for the next block in which case the result of the IFFT is stored in di2.
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
 
 /// @brief Converts binary data to a float array where every bit represents one float

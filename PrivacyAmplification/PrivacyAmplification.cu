@@ -785,10 +785,17 @@ int main(int argc, char* argv[])
 	cudaMalloc(&count_one_of_global_key, sizeof(uint32_t));
 	cudaMalloc(&correction_float_dev, sizeof(float));
 	cudaCalloc((void**)&di1, sample_size * sizeof(Real));
-	cudaMalloc((void**)&di2, sample_size * sizeof(Real));
+
+	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
+	  if toeplitz matrix seed recalculation is disabled for the next block*/
+	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
+
+	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
 	cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
+
+	/*Toeplitz Seed FFT output but this memory region is shared with invOut
+	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
 	register const Complex complex0 = make_float2(0.0f, 0.0f);
 	register const Real float0 = 0.0f;
@@ -835,7 +842,9 @@ int main(int argc, char* argv[])
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
 	uint32_t relevant_keyBlocks_old = 0;
+
 	bool recalculate_toeplitz_matrix_seed = true;
+	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
 	//##########################
 	// Mainloop of main thread #
@@ -871,6 +880,11 @@ int main(int argc, char* argv[])
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
+			if (!dynamic_toeplitz_matrix_seed)
+			{
+				recalculate_toeplitz_matrix_seed = false;
+				invOut = reinterpret_cast<Real*>(do1); //invOut and do1 share together the same memory region
+			}
 		}
 		cudaStreamSynchronize(FFTStream);
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
@@ -891,11 +905,6 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		cudaStreamSynchronize(ToBinaryArrayStream);
-
-		if (!dynamic_toeplitz_matrix_seed)
-		{
-			recalculate_toeplitz_matrix_seed = false;
-		}
 
 		#if SHOW_DEBUG_OUTPUT == TRUE
 		cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
