@@ -401,7 +401,6 @@ inline void readKeyFromFile() {
 
 
 void reciveData() {
-	int32_t rc;
 	void* socket_seed_in = nullptr;
 	void* socket_key_in = nullptr;
 	void* context_seed_in = nullptr;
@@ -666,9 +665,9 @@ void readConfig() {
 	address_key_in = root["address_key_in"].As<string>("tcp://127.0.0.1:47777");  //key_in
 	address_amp_out = root["address_amp_out"].As<string>("tcp://127.0.0.1:48888"); //amp_out
 
-	sample_size = pow(2, root["factor_exp"].As<uint32_t>(27));
-	reduction = pow(2, root["reduction_exp"].As<uint32_t>(11));
-	pre_mul_reduction = pow(2, root["pre_mul_reduction_exp"].As<uint32_t>(5));
+	sample_size = static_cast<int>(round(pow(2, root["factor_exp"].As<uint32_t>(27))));
+	reduction = static_cast<int>(round(pow(2, root["reduction_exp"].As<uint32_t>(11))));
+	pre_mul_reduction = static_cast<int>(round(pow(2, root["pre_mul_reduction_exp"].As<uint32_t>(5))));
 	cuda_device_id_to_use = root["cuda_device_id_to_use"].As<uint32_t>(1);
 	input_blocks_to_cache = root["input_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 	output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
