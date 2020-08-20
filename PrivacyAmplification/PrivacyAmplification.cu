@@ -479,7 +479,7 @@ void reciveData() {
                 println("Error receiving vertical_blocks from Keyserver! Retrying...");
                 zmq_close(context_key_in);
                 socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-                zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+                zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
                 zmq_connect(socket_key_in, address_key_in.c_str());
                 goto retry_receiving_key;
             }
@@ -490,7 +490,7 @@ void reciveData() {
                 println("Error receiving data from Keyserver! Retrying...");
                 zmq_close(context_key_in);
                 socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-                zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+                zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
                 zmq_connect(socket_key_in, address_key_in.c_str());
                 goto retry_receiving_key;
             }
