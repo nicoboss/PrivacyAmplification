@@ -605,7 +605,7 @@ void sendData() {
 
 		if (host_ampout_server)
 		{
-		retry_sending_amp_out:
+			retry_sending_amp_out:
 			rc = zmq_recv(amp_out_socket, syn, 3, 0);
 			if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
 				println("Error receiving SYN! Retrying...");

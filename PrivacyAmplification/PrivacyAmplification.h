@@ -32,7 +32,8 @@ typedef float2   Complex;
 #define SHOW_INPUT_DEBUG_OUTPUT FALSE
 
 /*Privacy Amplification input size in bits
-  Has to be 2^x and 2^27 is the maximum*/
+  Has to be 2^x and 2^27 is the maximum
+  Needs to match with the one specified in other components*/
 uint32_t sample_size;
 
 /*FFT input maps binary 0, 1 to 0 and 1/reduction which
@@ -85,8 +86,8 @@ bool show_ampout;
 bool use_matrix_seed_server;
 std::string toeplitz_seed_path;
 
-/*If enabled connects to the key server on address_key_in to request the key for the
-  current block.
+/*If enabled connects to the key server on address_key_in to request the raw corrected key
+  for the current block.
   Warning: The server has to be on the same computer as the key gets transmitted insecurrely
   
   If disabled they key will be read from the path specified in keyfile_path however this
@@ -276,13 +277,13 @@ void readKeyFromFile();
 /// Comunnication matrix seed server:
 /// Action                    Size [bytes]                    endianness
 /// Send: SYN                 3                               big
-/// Receive: recv_key          ((sample_size / 32) * 4         4 byte little
+/// Receive: recv_key         ((sample_size / 32) * 4         4 byte little
 /// 
 /// Comunnication with key server:
 /// Action                    Size [bytes]                    endianness
 /// Send: SYN                 3                               big
-/// Receive: vertical_block    4                               4 byte little
-/// Receive: recv_key          ((sample_size / 32) + 1) * 4    4 byte little
+/// Receive: vertical_block   4                               4 byte little
+/// Receive: recv_key         ((sample_size / 32) + 1) * 4    4 byte little
 void reciveData();
 
 /// @brief Prints binary byte data.

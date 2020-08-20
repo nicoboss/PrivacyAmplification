@@ -2,6 +2,7 @@
 #Privacy Amplification input size in the
 #form 2^factor_exp where 27 is the maximum
 #The result of 2^factor_exp is in bits
+#Needs to match with the one specified in other components
 factor_exp: 27
 
 #FFT input maps binary 0, 1 to 0 and 1/(2^reduction_exp) which
@@ -56,8 +57,8 @@ use_matrix_seed_server: true
 address_seed_in: 'tcp://127.0.0.1:45555'
 toeplitz_seed_path: 'toeplitz_seed.bin'
 
-#If enabled connects to the key server on address_key_in to request the key for the
-#current block.
+#If enabled connects to the key server on address_key_in to request the raw corrected key
+#for the current block.
 #Warning: The server has to be on the same computer as the key gets transmitted insecurely
 #If disabled the key will be read from the path specified in keyfile_path however this
 #only makes sense for testcases as only one block worth of data will be ever read from

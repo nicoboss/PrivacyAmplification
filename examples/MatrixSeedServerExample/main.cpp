@@ -13,14 +13,31 @@ using namespace std;
 
 #define TRUE 1
 #define FALSE 0
+
+/*Specifies if one or two clients should be served*/
 #define TWO_CLIENTS FALSE
+
+/*Prints a stream in a thread safe way and adds a newline at the end.
+  Example: println("Hallo " << name)*/
 #define println(TEXT) printlnStream(ostringstream().flush() << TEXT);
+
+/*Prints an error then terminates with error code 01.
+  fatal("Can't open file \"" << filepath << "\" => terminating!");*/
 #define fatal(TEXT) fatalPrint(ostringstream().flush() << TEXT);
+
+/*Address where the Server for the first client should bind to.*/
 const char* address_alice = "tcp://127.0.0.1:45555";
+
+/*Address where the Server for the second client should bind to.*/
 const char* address_bob = "tcp://127.0.0.1:46666";
+
+/*Privacy Amplification input size in bits
+  Has to be 2^x and 2^27 is the maximum
+  Needs to match with the one specified in other components*/
 #define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
+
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
 constexpr uint32_t horizontal_len = sample_size / 2 + sample_size / 8;
 constexpr uint32_t key_len = sample_size + 1;
@@ -36,6 +53,12 @@ atomic<int> bobReady = 1;
 mutex printlock;
 
 
+/// @brief Prints a stream in a thread safe way and adds a newline at the end.
+/// @param[in] std::ostringstream().flush() << TEXT but used like println(TEXT) with macros
+/// Aquires the printlock, prints the provided key, adds a std::endl and
+/// releases the printlock. It flushes with the std::endl.
+/// Note: This function is supposed to always be called using the println macro.
+/// Example: println("Hallo " << name);
 void printlnStream(ostream& os) {
 	ostringstream& ss = dynamic_cast<ostringstream&>(os);
 	printlock.lock();
@@ -43,6 +66,11 @@ void printlnStream(ostream& os) {
 	printlock.unlock();
 }
 
+
+/// @brief Prints an error then terminates with error code 01.
+/// @param[in] std::ostringstream().flush() << TEXT but used like fatal(TEXT) with macros
+/// Note: This function is supossed to always be called using the fatal macro.
+/// Example: fatal("Can't open file \"" << filepath << "\" => terminating!");*/
 void fatalPrint(ostream& os) {
 	cout << dynamic_cast<ostringstream&>(os).str() << endl;
 	exit(1);
@@ -50,6 +78,9 @@ void fatalPrint(ostream& os) {
 }
 
 
+/// @brief Gets the file size from a input file stream
+/// @param[in] Input file stream from which the size should get determinated
+/// @return size of provided input file stream
 size_t getFileSize(ifstream& file) {
 	int pos = file.tellg();
 	file.seekg(0, ios::end);
@@ -59,6 +90,11 @@ size_t getFileSize(ifstream& file) {
 }
 
 
+/// @brief Gets one toeplitz matrix seed from a file
+/// @param[in] Input file path
+/// @param[out] Buffer where to store the toeplitz matrix seed
+/// Note: In a real environment this should be connected with
+/// a Cryptograpicaly secure random number generator.
 void fromFile(const char* filepath, unsigned int* recv_seed) {
 	ifstream seedfile(filepath, ios::binary);
 
@@ -79,6 +115,8 @@ void fromFile(const char* filepath, unsigned int* recv_seed) {
 	seedfile.close();
 }
 
+
+/// @brief Send data to the first Client connected to the matrix seed server.
 void send_alice() {
 	void* context_alice = zmq_ctx_new();
 	void* MatrixSeedServer_socket_alice = zmq_socket(context_alice, ZMQ_REP);
@@ -114,6 +152,8 @@ void send_alice() {
 	zmq_ctx_destroy(MatrixSeedServer_socket_alice);
 }
 
+
+/// @brief Send data to the second Client connected to the matrix seed server.
 void send_bob() {
 	void* context_bob = zmq_ctx_new();
 	void* MatrixSeedServer_socket_bob = zmq_socket(context_bob, ZMQ_REP);
@@ -150,6 +190,9 @@ void send_bob() {
 }
 
 
+/// @brief The main function cordinates all servers
+/// Ensures that all servers have serverd thair data to its clients 
+/// before switching to the next toeplitz matrix seed
 int main(int argc, char* argv[])
 {
 	thread threadReciveObjAlice(send_alice);

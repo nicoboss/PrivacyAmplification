@@ -8,11 +8,20 @@
 #include <zmq.h>
 using namespace std;
 
+/*Prints an error then terminates with error code 01.
+  fatal("Can't open file \"" << filepath << "\" => terminating!");*/
 #define fatal(TEXT) fatalPrint(std::ostringstream().flush() << TEXT);
+
+/*Address where the key server should bind to.*/
 const char* address = "tcp://127.0.0.1:47777";
+
+/*Privacy Amplification input size in bits
+  Has to be 2^x and 2^27 is the maximum
+  Needs to match with the one specified in other components*/
 #define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
+
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
 constexpr uint32_t horizontal_len = sample_size / 2 + sample_size / 8;
 constexpr uint32_t key_len = sample_size + 1;
@@ -24,6 +33,10 @@ constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* key_data_alice = new unsigned int[key_blocks];
 
 
+/// @brief Prints an error then terminates with error code 01.
+/// @param[in] std::ostringstream().flush() << TEXT but used like fatal(TEXT) with macros
+/// Note: This function is supossed to always be called using the fatal macro.
+/// Example: fatal("Can't open file \"" << filepath << "\" => terminating!");*/
 void fatalPrint(ostream& os) {
 	cout << dynamic_cast<ostringstream&>(os).str() << endl;
 	exit(1);
@@ -31,6 +44,9 @@ void fatalPrint(ostream& os) {
 }
 
 
+/// @brief Gets the file size from a input file stream
+/// @param[in] Input file stream from which the size should get determinated
+/// @return size of provided input file stream
 size_t getFileSize(ifstream& file) {
 	int pos = file.tellg();
 	file.seekg(0, ios::end);
@@ -40,6 +56,11 @@ size_t getFileSize(ifstream& file) {
 }
 
 
+/// @brief Gets the raw corrected key from a file
+/// @param[in] Input file path
+/// @param[out] Buffer where to store the raw corrected key
+/// Note: In a real environment this should be connected with
+/// the FPGA board receiving and correcting the raw keys.
 void fromFile(const char* filepath, unsigned int* recv_key) {
 	ifstream keyfile(filepath, ios::binary);
 
@@ -61,6 +82,7 @@ void fromFile(const char* filepath, unsigned int* recv_key) {
 }
 
 
+/// @brief Sends the raw corrected keydata to its client
 int main(int argc, char* argv[])
 {
 	void* context = zmq_ctx_new();
@@ -77,7 +99,7 @@ int main(int argc, char* argv[])
 	while (true) {
 
 		//4 time 0x00 bytes at the end for conversion to unsigned int array
-		//Key data alice in liddle endians
+		//Key data alice in little endians
 		fromFile("keyfile.bin", key_data_alice);
 
 		rc = zmq_recv(SendKeys_socket, syn, 3, 0);
