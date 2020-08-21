@@ -9,7 +9,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define VERSION "1.0"
+#define VERSION "1.1.0"
 //Return the minimum of two values
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -67,10 +67,13 @@ uint32_t output_blocks_to_cache;
   I highly recommend to leave this enabled if security matters.*/
 bool dynamic_toeplitz_matrix_seed;
 
-/*Displays Blocktime, Mbit/s input throughput and the first 4 bytes of the final
-  Privacy Amplification result to the screen and only has a very little
-  impact on performance. I would leave it on but feel free to disable that.*/
-bool show_ampout;
+/*Displays the first n bytes of the final Privacy Amplification result
+to the console.n > 0 has a little performance impact.
+Set this to - 1 to also disable displaying Blocktime and input throughput in Mbit/s*/
+int32_t show_ampout;
+
+/*Displays ZeroMQ status messages which could have a very little performance impact.*/
+bool show_zeromq_status;
 
 /*If enabled connects to the matrix seed server on address_seed_in to request the toeplitz
   matrix seed for the current block. If dynamic_toeplitz_matrix_seed is disabled and this 

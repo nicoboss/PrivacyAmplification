@@ -1,8 +1,9 @@
+!define /date BuildTime "%Y-%m-%d"
 Name "PrivacyAmplification"
-Caption "PrivacyAmplification - Nico Bosshard"
+Caption "PrivacyAmplification v1.1.0 by Nico Bosshard from ${BuildTime}"
 Icon "Icon.ico"
 OutFile "PrivacyAmplificationSetup.exe"
-;SetCompress off
+SetCompress auto
 SetCompressor LZMA
 
 SetDateSave on
@@ -56,7 +57,14 @@ Section "PrivacyAmplification"
   SectionIn 1
   CreateDirectory "$INSTDIR\PrivacyAmplification"
   SetOutPath "$INSTDIR\PrivacyAmplification"
-  File /r /x *.exp /x *.lib /x *.pdb /x *.iobj /x *.ipdb "PrivacyAmplification\bin\Release\"
+  File "PrivacyAmplification\bin\Release\config.yaml"
+  File "PrivacyAmplification\bin\Release\PrivacyAmplification.exe"
+  File "PrivacyAmplification\bin\Release\cufft64_10.dll"
+  File "PrivacyAmplification\bin\Release\libzmq-v142-mt-4_3_3.dll"
+  SetCompress off
+  File "PrivacyAmplification\bin\Release\toeplitz_seed.bin"
+  File "PrivacyAmplification\bin\Release\keyfile.bin"
+  SetCompress auto
   CreateShortcut "$DESKTOP\PrivacyAmplification.lnk" "$INSTDIR\PrivacyAmplification\PrivacyAmplification.exe" "" "$INSTDIR\Icon.ico"
   CreateShortcut "$SMPROGRAMS\PrivacyAmplification\PrivacyAmplification.lnk" "$INSTDIR\PrivacyAmplification\PrivacyAmplification.exe" "" "$INSTDIR\Icon.ico"
 SectionEnd
@@ -65,7 +73,11 @@ Section "MatrixSeedServerExample"
   SectionIn 1
   CreateDirectory "$INSTDIR\MatrixSeedServerExample"
   SetOutPath "$INSTDIR\MatrixSeedServerExample"
-  File /r /x *.exp /x *.lib /x *.pdb /x *.iobj /x *.ipdb "MatrixSeedServerExample\x64\Release\"
+  File "examples\MatrixSeedServerExample\x64\Release\MatrixSeedServerExample.exe"
+  File "examples\MatrixSeedServerExample\x64\Release\libzmq-v142-mt-4_3_3.dll"
+  SetCompress off
+  File "examples\MatrixSeedServerExample\x64\Release\toeplitz_seed.bin"
+  SetCompress auto
   CreateShortcut "$DESKTOP\MatrixSeedServerExample.lnk" "$INSTDIR\MatrixSeedServerExample\MatrixSeedServerExample.exe" "" "$INSTDIR\Icon.ico"
   CreateShortcut "$SMPROGRAMS\PrivacyAmplification\MatrixSeedServerExample.lnk" "$INSTDIR\MatrixSeedServerExample\MatrixSeedServerExample.exe" "" "$INSTDIR\Icon.ico"
 SectionEnd
@@ -74,7 +86,11 @@ Section "SendKeysExample"
   SectionIn 1
   CreateDirectory "$INSTDIR\SendKeysExample"
   SetOutPath "$INSTDIR\SendKeysExample"
-  File /r /x *.exp /x *.lib /x *.pdb /x *.iobj /x *.ipdb "SendKeysExample\x64\Release\"
+  File "examples\SendKeysExample\x64\Release\SendKeysExample.exe"
+  File "examples\SendKeysExample\x64\Release\libzmq-v142-mt-4_3_3.dll"
+  SetCompress off
+  File "examples\SendKeysExample\x64\Release\keyfile.bin"
+  SetCompress auto
   CreateShortcut "$DESKTOP\SendKeysExample.lnk" "$INSTDIR\SendKeysExample\SendKeysExample.exe" "" "$INSTDIR\Icon.ico"
   CreateShortcut "$SMPROGRAMS\PrivacyAmplification\SendKeysExample.lnk" "$INSTDIR\SendKeysExample\SendKeysExample.exe" "" "$INSTDIR\Icon.ico"
 SectionEnd
@@ -83,7 +99,8 @@ Section "ReceiveAmpOutExample"
   SectionIn 1
   CreateDirectory "$INSTDIR\ReceiveAmpOutExample"
   SetOutPath "$INSTDIR\ReceiveAmpOutExample"
-  File /r /x *.exp /x *.lib /x *.pdb /x *.iobj /x *.ipdb "ReceiveAmpOutExample\x64\Release\"
+  File "examples\ReceiveAmpOutExample\x64\Release\ReceiveAmpOutExample.exe"
+  File "examples\ReceiveAmpOutExample\x64\Release\libzmq-v142-mt-4_3_3.dll"
   CreateShortcut "$DESKTOP\ReceiveAmpOutExample.lnk" "$INSTDIR\ReceiveAmpOutExample\ReceiveAmpOutExample.exe" "" "$INSTDIR\Icon.ico"
   CreateShortcut "$SMPROGRAMS\PrivacyAmplification\ReceiveAmpOutExample.lnk" "$INSTDIR\ReceiveAmpOutExample\ReceiveAmpOutExample.exe" "" "$INSTDIR\Icon.ico"
 SectionEnd

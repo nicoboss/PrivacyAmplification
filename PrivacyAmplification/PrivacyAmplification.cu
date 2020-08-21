@@ -452,7 +452,9 @@ void reciveData() {
 				zmq_connect(socket_seed_in, address_seed_in.c_str());
 				goto retry_receiving_seed;
 			}
-			println("Seed Block recived");
+			if (show_zeromq_status) {
+				println("Seed Block recived");
+			}
 
 			if (!dynamic_toeplitz_matrix_seed)
 			{
@@ -493,7 +495,9 @@ void reciveData() {
 				zmq_connect(socket_key_in, address_key_in.c_str());
 				goto retry_receiving_key;
 			}
-			println("Key Block recived");
+			if (show_zeromq_status) {
+				println("Key Block recived");
+			}
 			key2StartRest();
 		}
 
@@ -615,7 +619,9 @@ void sendData() {
 				println("Error sending data to AMPOUT client! Retrying...");
 				goto retry_sending_amp_out;
 			}
-			println("Block sent to AMPOUT Client");
+			if (show_zeromq_status) {
+				println("Block sent to AMPOUT Client");
+			}
 		}
 
 		#if SHOW_DEBUG_OUTPUT == TRUE
@@ -631,13 +637,16 @@ void sendData() {
 		auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
 		start = chrono::high_resolution_clock::now();
 
-		if (show_ampout)
+		if (show_ampout >= 0)
 		{
 			printlock.lock();
 			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (sample_size / 1000000.0) << " Mbit/s" << endl;
-			for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), 4); ++i)
+			if (show_ampout > 0)
 			{
-				printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
+				for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), show_ampout); ++i)
+				{
+					printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
+				}
 			}
 			fflush(stdout);
 			printlock.unlock();
@@ -673,7 +682,8 @@ void readConfig() {
 	output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 
 	dynamic_toeplitz_matrix_seed = root["dynamic_toeplitz_matrix_seed"].As<bool>(true);
-	show_ampout = root["show_ampout"].As<bool>(true);
+	show_ampout = root["show_ampout"].As<int32_t>(0);
+	show_zeromq_status = root["show_zeromq_status"].As<bool>(true);
 	use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(true);
 	use_key_server = root["use_key_server"].As<bool>(true);
 	host_ampout_server = root["host_ampout_server"].As<bool>(true);
@@ -723,9 +733,7 @@ int main(int argc, char* argv[])
 	//About
 	string about = streamToString("# PrivacyAmplification v" << VERSION << " by Nico Bosshard from " << __DATE__ << " #");
 	string border(about.length(), '#');
-	cout << border << endl;
-	cout << "# PrivacyAmplification v1.0 by Nico Bosshard from " << __DATE__ << " #" << endl;
-	cout << border << endl << endl;
+	cout << border << endl << about << endl << border << endl << endl;
 
 	readConfig();
 
@@ -883,7 +891,7 @@ int main(int argc, char* argv[])
 			if (!dynamic_toeplitz_matrix_seed)
 			{
 				recalculate_toeplitz_matrix_seed = false;
-				invOut = reinterpret_cast<Real*>(do1); //invOut and do1 share together the same memory region
+				invOut = reinterpret_cast<Real*>(di2); //invOut and do1 share together the same memory region
 			}
 		}
 		cudaStreamSynchronize(FFTStream);

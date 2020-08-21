@@ -25,7 +25,7 @@ unsigned char* ampOutInData = (unsigned char*)malloc(vertical_bytes);
 /// @brief Receives data from the Privacy Amplification Sevrer
 /// Contains all the comunication and error handling required
 /// to receive the privacy amplification results from the Privacy Amplification Server.
-/// Currently it prints the first 16 bytes of the result on the screen.
+/// Currently it prints the first 4 bytes of the result on the screen.
 /// Note: In a real environment this code should be integrated in whatever
 /// tool makes use of the Privacy Amplification result.
 int main(int argc, char* argv[])
@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 		time(&currentTime);
 		cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl;
 
-		for (size_t i = 0; i < min(vertical_bytes, 16); ++i)
+		for (size_t i = 0; i < min(vertical_bytes, 4); ++i)
 		{
 			printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str());
 		}
