@@ -28,6 +28,8 @@
 
 using namespace std;
 
+#define TEST
+
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
 #define KERNEL_ARG3(grid, block, sh_mem) <<< grid, block, sh_mem >>>
@@ -45,6 +47,12 @@ int __float2int_rn(float in);
 unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
 #endif
+
+#define CUDA_ASSERT_ZERO(data, data_len) \
+cudaDeviceSynchronize(); \
+cudaAssertZero KERNEL_ARG3(max(data_len/1024, 1), data_len, 0) (data); \
+cudaError_t error = cudaDeviceSynchronize(); \
+assert(error == cudaSuccess);
 
 string address_seed_in;
 string address_key_in;
@@ -151,6 +159,10 @@ string convertStreamToString(ostream& os) {
 	return ss.str();
 }
 
+__global__ void cudaAssertZero(uint32_t* data) {
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	assert(data[i] == 0);
+}
 
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev)
@@ -534,20 +546,35 @@ void reciveData() {
 	}
 }
 
+string toHexString(const unsigned char* data, uint32_t data_length) {
+	std::stringstream ss;
+	ss << "{";
+	for (int i = 0; i < data_length; ++i) {
+		ss << std::uppercase << std::hex << "0x" << (int)data[i] << ", ";
+	}
+	ss.seekp(-2, std::ios_base::end);
+	ss << "};";
+	return ss.str();
+}
 
-void verifyData(const unsigned char* dataToVerify) {
+bool isSha3(const unsigned char* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
 	sha3_ctx sha3;
 	rhash_sha3_256_init(&sha3);
-	rhash_sha3_update(&sha3, dataToVerify, vertical_len / 8);
-	unsigned char* hash = (unsigned char*)malloc(32);
-	rhash_sha3_final(&sha3, hash);
-	if (memcmp(hash, ampout_sha3, 32) == 0) {
-		println("VERIFIED!")
+	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
+	unsigned char* calculatedHash = (unsigned char*)malloc(32);
+	rhash_sha3_final(&sha3, calculatedHash);
+	println(toHexString(calculatedHash, 32));
+	return memcmp(calculatedHash, expectedHash, 32) == 0;
+}
+
+void verifyData(const unsigned char* dataToVerify) {
+	if (isSha3(dataToVerify, vertical_len / 8, ampout_sha3)) {
+		println("VERIFIED!");
 	}
 	else
 	{
-		println("VERIFICATION FAILED!")
-			exit(101);
+		println("VERIFICATION FAILED!");
+		exit(101);
 	}
 }
 
@@ -873,7 +900,12 @@ int main(int argc, char* argv[])
 			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
 		}
 
-		cudaMemset(count_one_of_global_key, 0x00, sizeof(uint32_t));
+		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
+
+		#ifdef TEST
+		CUDA_ASSERT_ZERO(count_one_of_global_key, 1)
+		assert(isSha3(reinterpret_cast<unsigned char*>(key_start + input_cache_block_size * input_cache_read_pos), input_cache_block_size, binInt2float_binIn_hash));
+		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		if (recalculate_toeplitz_matrix_seed) {

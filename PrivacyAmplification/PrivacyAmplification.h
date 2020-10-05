@@ -153,6 +153,10 @@ const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
                                0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
                                0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
 
+const uint8_t binInt2float_binIn_hash[] = {0xD2, 0xB2, 0x3F, 0x57, 0x19, 0x4A, 0xE2, 0x26,
+                                           0x1E, 0xE7, 0xC8, 0x21, 0x85, 0x87, 0x35, 0xF3,
+                                           0x13, 0x29, 0x43, 0x6E, 0xA0, 0x5E, 0x5B, 0xEA,
+                                           0x59, 0xDB, 0x6E, 0xE0, 0xE4, 0x6E, 0xAA, 0x89};
 
 /// @brief Prints a stream in a thread save way.
 /// @param[in] std::ostringstream().flush() << TEXT but used like print(TEXT) with macros
@@ -182,6 +186,8 @@ std::string convertStreamToString(std::ostream& os);
 //  CUDA KERNELS!  //
 //   __global__    //
 //#################//
+
+__global__ void cudaAssertZero(uint32_t * data);
 
 /// @brief Calculates how much the IFFT output needs to be Y-shifted
 /// @param[in] Hamming weight (amount of 1-bits) of toeplitz matrix seed
@@ -288,6 +294,11 @@ void readKeyFromFile();
 /// Receive: vertical_block   4                               4 byte little
 /// Receive: recv_key         ((sample_size / 32) + 1) * 4    4 byte little
 void reciveData();
+
+std::string toHexString(const unsigned char* data, uint32_t data_length);
+
+bool isSha3(const unsigned char* dataToVerify, uint32_t dataToVerifySize, const uint8_t expectedHash[]);
+
 
 /// @brief Prints binary byte data.
 /// @param Data containing the Privacy Amplification result to verify
