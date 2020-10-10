@@ -28,6 +28,7 @@
 
 using namespace std;
 
+//Little endian only!
 #define TEST
 
 #ifdef __CUDACC__
@@ -73,6 +74,7 @@ uint32_t* key_start_zero_pos;
 uint32_t* key_rest;
 uint32_t* key_rest_zero_pos;
 uint8_t* Output;
+uint8_t* testMemoryHost;
 
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
@@ -546,28 +548,31 @@ void reciveData() {
 	}
 }
 
-string toHexString(const unsigned char* data, uint32_t data_length) {
+string toHexString(const uint8_t* data, uint32_t data_length) {
 	std::stringstream ss;
-	ss << "{";
+	ss << "{ ";
 	for (int i = 0; i < data_length; ++i) {
-		ss << std::uppercase << std::hex << "0x" << (int)data[i] << ", ";
+		ss << std::uppercase << std::hex  << "0x" << std::setw(2) << std::setfill('0') << (int)data[i];
+		(i % 8 == 7 && i+1 < data_length)
+			? ss << "," << std::endl << "  "
+			: ss << ", ";
 	}
 	ss.seekp(-2, std::ios_base::end);
-	ss << "};";
+	ss << " };";
 	return ss.str();
 }
 
-bool isSha3(const unsigned char* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
+bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
 	sha3_ctx sha3;
 	rhash_sha3_256_init(&sha3);
 	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
-	unsigned char* calculatedHash = (unsigned char*)malloc(32);
+	uint8_t* calculatedHash = (uint8_t*)malloc(32);
 	rhash_sha3_final(&sha3, calculatedHash);
 	println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
-void verifyData(const unsigned char* dataToVerify) {
+void verifyData(const uint8_t* dataToVerify) {
 	if (isSha3(dataToVerify, vertical_len / 8, ampout_sha3)) {
 		println("VERIFIED!");
 	}
@@ -807,6 +812,9 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
 	cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
 	cudaMallocHost((void**)&Output, output_cache_block_size * output_blocks_to_cache);
+	#ifdef TEST
+	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
+	#endif
 	#if SHOW_DEBUG_OUTPUT == TRUE
 	cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache);
 	#endif
@@ -904,17 +912,32 @@ int main(int argc, char* argv[])
 
 		#ifdef TEST
 		CUDA_ASSERT_ZERO(count_one_of_global_key, 1)
-		assert(isSha3(reinterpret_cast<unsigned char*>(key_start + input_cache_block_size * input_cache_read_pos), input_cache_block_size, binInt2float_binIn_hash));
+		assert(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
+		#ifdef TEST
+		cudaStreamSynchronize(BinInt2floatKeyStream);
+		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
+			#ifdef TEST
+			CUDA_ASSERT_ZERO(count_one_of_global_seed, 1)
+			assert(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), sample_size * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			cudaStreamSynchronize(BinInt2floatSeedStream);
+			#ifdef TEST
+			cudaMemcpy(testMemoryHost, di1, sample_size * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * 32 * sizeof(Real), binInt2float_seed_floatOut_hash));
+			#endif
 		}
+		#ifndef TEST
 		cudaStreamSynchronize(BinInt2floatKeyStream);
+		#endif
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
 		cufftExecR2C(plan_forward_R2C, di1, do1);
