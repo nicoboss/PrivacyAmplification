@@ -918,12 +918,6 @@ int main(int argc, char* argv[])
 		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
-		#ifdef TEST
-		cudaStreamSynchronize(BinInt2floatKeyStream);
-		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
-		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
@@ -933,19 +927,24 @@ int main(int argc, char* argv[])
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			cudaStreamSynchronize(BinInt2floatSeedStream);
-			#ifdef TEST
-			cudaMemcpy(testMemoryHost, di1, sample_size * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * 32 * sizeof(Real), binInt2float_seed_floatOut_hash));
-			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
-			#endif
 		}
-		#ifndef TEST
 		cudaStreamSynchronize(BinInt2floatKeyStream);
+		#ifdef TEST
+		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
+		CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
 		#endif
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
+		#ifdef TEST
+		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		#endif
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
+			#ifdef TEST
+			cudaMemcpy(testMemoryHost, di1, sample_size * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * 32 * sizeof(Real), binInt2float_seed_floatOut_hash));
+			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
