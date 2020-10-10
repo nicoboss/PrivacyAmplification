@@ -49,11 +49,13 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
 #endif
 
-#define CUDA_ASSERT_ZERO(data, data_len) \
+#define CUDA_ASSERT_VALUE(data, data_len, value) \
 cudaDeviceSynchronize(); \
-cudaAssertZero KERNEL_ARG3(max(data_len/1024, 1), data_len, 0) (data); \
+cudaAssertValue KERNEL_ARG3(max(data_len/1024, 1), data_len, 0) (data, value); \
+{ \
 cudaError_t error = cudaDeviceSynchronize(); \
-assert(error == cudaSuccess);
+assert(error == cudaSuccess); \
+}
 
 string address_seed_in;
 string address_key_in;
@@ -161,9 +163,9 @@ string convertStreamToString(ostream& os) {
 	return ss.str();
 }
 
-__global__ void cudaAssertZero(uint32_t* data) {
+__global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
-	assert(data[i] == 0);
+	assert(data[i] == value);
 }
 
 __global__
@@ -770,7 +772,7 @@ int main(int argc, char* argv[])
 	readConfig();
 
 	cout << "PrivacyAmplification with " << sample_size << " bits" << endl << endl;
-	cudaSetDevice(cuda_device_id_to_use);
+	//cudaSetDevice(cuda_device_id_to_use);
 	setConsoleDesign();
 
 	uint32_t dist_freq = sample_size / 2 + 1;
@@ -911,7 +913,7 @@ int main(int argc, char* argv[])
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 
 		#ifdef TEST
-		CUDA_ASSERT_ZERO(count_one_of_global_key, 1)
+		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
 		assert(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
@@ -919,12 +921,13 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
 		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
-			CUDA_ASSERT_ZERO(count_one_of_global_seed, 1)
+			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
 			assert(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), sample_size * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
@@ -933,6 +936,7 @@ int main(int argc, char* argv[])
 			#ifdef TEST
 			cudaMemcpy(testMemoryHost, di1, sample_size * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
 			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * 32 * sizeof(Real), binInt2float_seed_floatOut_hash));
+			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
 			#endif
 		}
 		#ifndef TEST

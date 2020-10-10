@@ -202,7 +202,7 @@ std::string convertStreamToString(std::ostream& os);
 //   __global__    //
 //#################//
 
-__global__ void cudaAssertZero(uint32_t * data);
+__global__ void cudaAssertValue(uint32_t * data);
 
 /// @brief Calculates how much the IFFT output needs to be Y-shifted
 /// @param[in] Hamming weight (amount of 1-bits) of toeplitz matrix seed
