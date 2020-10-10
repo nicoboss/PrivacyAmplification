@@ -942,8 +942,8 @@ int main(int argc, char* argv[])
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
-			cudaMemcpy(testMemoryHost, di1, sample_size * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * 32 * sizeof(Real), binInt2float_seed_floatOut_hash));
+			cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
