@@ -922,7 +922,7 @@ int main(int argc, char* argv[])
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
 			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
-			assert(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), sample_size * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			assert(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -942,7 +942,7 @@ int main(int argc, char* argv[])
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
-			cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
 			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
@@ -954,10 +954,26 @@ int main(int argc, char* argv[])
 		}
 		cudaStreamSynchronize(FFTStream);
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
+		#ifdef TEST
+		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_key_hash));
+		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_seed_hash));
+		#endif
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
+		#ifdef TEST
+		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_key_hash_first_zero));
+		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_seed_hash_first_zero));
+		#endif
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
+		#ifdef TEST
+		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecC2R_input_hash));
+		#endif
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 
@@ -968,9 +984,18 @@ int main(int argc, char* argv[])
 
 		/*Calculates where in the host pinned output memory the Privacy Amplification result will be stored*/
 		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
+		#ifdef TEST
+		cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), cufftExecC2R_output_hash));
+		assert(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
+		CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723					
+		#endif
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		cudaStreamSynchronize(ToBinaryArrayStream);
+		#ifdef TEST
+		assert(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+		#endif
 
 		#if SHOW_DEBUG_OUTPUT == TRUE
 		cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
