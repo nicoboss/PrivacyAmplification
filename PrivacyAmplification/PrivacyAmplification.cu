@@ -305,6 +305,32 @@ void printBin(const uint32_t* position, const uint32_t* end) {
 	cout << endl;
 }
 
+void memdump(string const& filename, void* data, size_t const bytes)
+{
+	fstream myfile = fstream(filename.c_str(), std::ios::out | std::ios::binary);
+	myfile.write(reinterpret_cast<char const*>(data), bytes);
+	myfile.close();
+}
+
+pair<long double, long double> FletcherFloat(float* data, int count)
+{
+	long double sum1 = 0.0;
+	long double sum2 = 0.0;
+
+	for (int index = 0; index < count; ++index)
+	{
+		sum1 = fmod(sum1 + (double)data[index], 65536.0);
+		sum2 = fmod(sum2 + sum1, 65536.0);
+	}
+
+	return make_pair(sum1, sum2);
+}
+
+bool isFletcherFloat(float* data, int count, const long double expectedSum1, const long double expectedSum2) {
+	pair<long double, long double> result = FletcherFloat(data, count);
+	println(std::fixed << std::setprecision(8) << result.first << " | " << result.second);
+	return abs(result.first - expectedSum1)<0.0001 && abs(result.second - expectedSum2) < 0.0001;
+}
 
 inline void key2StartRest() {
 	uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
@@ -956,23 +982,25 @@ int main(int argc, char* argv[])
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_key_hash));
+		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, -31676.52365875, -41748.42569003));
 		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_seed_hash));
+		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 42377.92419996, 60165.17475747));
 		#endif
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_key_hash_first_zero));
+		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, -52158.57834625, -41748.42569003));
 		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecR2C_seed_hash_first_zero));
+		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 9607.68201246, 60165.17475747));
 		#endif
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Complex), cufftExecC2R_input_hash));
+		//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
+		//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
+		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, -65.74099793, -41469.51344165));
 		#endif
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
