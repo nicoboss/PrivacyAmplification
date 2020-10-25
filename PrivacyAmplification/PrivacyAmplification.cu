@@ -168,6 +168,35 @@ __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 	assert(data[i] == value);
 }
 
+
+void unitTestCalculateCorrectionFloat() {
+	cudaStream_t CalculateCorrectionFloatTestStream;
+	cudaStreamCreate(&CalculateCorrectionFloatTestStream);
+	uint32_t sample_size_test = pow(2, 10);
+	uint32_t* count_one_of_global_seed_test;
+	uint32_t* count_one_of_global_key_test;
+	float* correction_float_dev_test;
+	cudaMallocHost((void**)&count_one_of_global_seed_test, sizeof(uint32_t));
+	cudaMallocHost((void**)&count_one_of_global_key_test, sizeof(uint32_t));
+	cudaMallocHost((void**)&correction_float_dev_test, sizeof(float));
+	cudaMemcpyToSymbol(sample_size_dev, &sample_size_test, sizeof(uint32_t));
+	for (uint32_t i = 0; i < sample_size_test; ++i) {
+		for (uint32_t j = 0; j < sample_size_test; ++j) {
+			*count_one_of_global_seed_test = i;
+			*count_one_of_global_key_test = j;
+			calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)
+				(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
+			cudaStreamSynchronize(CalculateCorrectionFloatTestStream);
+			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
+			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)sample_size_test;
+			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
+			//println(*correction_float_dev_test << "    " << count_multiplied_normalized_modulo);
+			assert(abs(*correction_float_dev_test-count_multiplied_normalized_modulo) < 0.0001);
+		}
+	}
+	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+}
+
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev)
 {
