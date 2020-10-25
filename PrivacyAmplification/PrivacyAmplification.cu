@@ -208,6 +208,29 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 }
 
 
+void unitTestSetFirstElementToZero() {
+	cudaStream_t SetFirstElementToZeroStreamTest;
+	cudaStreamCreate(&SetFirstElementToZeroStreamTest);
+	float* do1_test;
+	float* do2_test;
+	cudaMallocHost((void**)&do1_test, pow(2, 10) * 2 * sizeof(float));
+	cudaMallocHost((void**)&do2_test, pow(2, 10) * 2 * sizeof(float));
+	for (int i = 0; i < pow(2, 10) * 2; ++i) {
+		do1_test[i] = i + 0.77;
+		do2_test[i] = i + 0.88;
+	}
+	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest) (reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
+	assert(abs(do1_test[0]) < 0.00001);
+	assert(abs(do1_test[1]) < 0.00001);
+	assert(abs(do2_test[0]) < 0.00001);
+	assert(abs(do2_test[1]) < 0.00001);
+	for (int i = 2; i < pow(2, 10) * 2; ++i) {
+		assert(abs(do1_test[i] - (i + 0.77)) < 0.0001);
+		assert(abs(do2_test[i] - (i + 0.88)) < 0.0001);
+	}
+}
+
 __global__
 void setFirstElementToZero(Complex* do1, Complex* do2)
 {
