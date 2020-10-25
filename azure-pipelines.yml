@@ -3,7 +3,7 @@ jobs:
 - job: Build_PrivacyAmplification_On_Self_Hosted_Agent
   timeoutInMinutes: 30
   pool:
-    name: PrivacyAmplification
+    name: PrivacyAmplificationPool
 
   steps:
   - task: VSBuild@1
