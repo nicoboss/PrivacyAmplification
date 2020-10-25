@@ -8,13 +8,14 @@ jobs:
   pool:
     name: PrivacyAmplificationPool
 
-- script: |
+  steps:
+  
+  - script: |
    @echo off
    set gitHash = $(Build.SourceVersion)
    set shortHash = %gitHash:~0,7%
    echo ##vso[task.setvariable variable=ShortGitHash;]%shortHash%
-
-  steps:
+  
   - task: VSBuild@1
     displayName: 'Build PrivacyAmplification'
     inputs:
