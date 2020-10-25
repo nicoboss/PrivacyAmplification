@@ -203,7 +203,7 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 	uint64_t count_multiplied = *count_one_of_global_seed * *count_one_of_global_key;
 	double count_multiplied_normalized = count_multiplied / (double)sample_size_dev;
 	double two = 2.0;
-	Real count_multiplied_normalized_modulo = (float)modf(count_multiplied_normalized, &two);
+	Real count_multiplied_normalized_modulo = (float)fmod(count_multiplied_normalized, two);
 	*correction_float_dev = count_multiplied_normalized_modulo;
 }
 
@@ -995,6 +995,15 @@ int main(int argc, char* argv[])
 
 	bool recalculate_toeplitz_matrix_seed = true;
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
+
+
+
+	unitTestCalculateCorrectionFloat();
+	unitTestSetFirstElementToZero();
+	unitTestElementWiseProduct();
+	exit(7);
+
+
 
 	//##########################
 	// Mainloop of main thread #
