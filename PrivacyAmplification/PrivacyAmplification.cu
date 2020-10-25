@@ -244,6 +244,33 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 }
 
 
+void unitTestElementWiseProduct() {
+	cudaStream_t ElementWiseProductStreamTest;
+	cudaStreamCreate(&ElementWiseProductStreamTest);
+	uint32_t r = pow(2, 5);
+	float* do1_test;
+	float* do2_test;
+	cudaMemcpyToSymbol(pre_mul_reduction_dev, &r, sizeof(uint32_t));
+	cudaMallocHost((void**)&do1_test, pow(2, 10) * 2 * sizeof(float));
+	cudaMallocHost((void**)&do2_test, pow(2, 10) * 2 * sizeof(float));
+	for (int i = 0; i < pow(2, 10) * 2; ++i) {
+		do1_test[i] = i + 0.77;
+		do2_test[i] = i + 0.88;
+	}
+	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest) (reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	cudaStreamSynchronize(ElementWiseProductStreamTest);
+	for (int i = 0; i < pow(2, 10) * 2; i+=2) {
+		float real = ((i + 0.77) / r) * ((i + 0.88) / r) - (((i + 1) + 0.77) / r) * (((i + 1) + 0.88) / r);
+		float imag = ((i + 0.77) / r) * (((i + 1) + 0.88) / r) + (((i + 1) + 0.77) / r) * ((i + 0.88) / r);
+		//println(do1_test[i] << "    " << real);
+		//println(do1_test[i + 1] << "    " << imag);
+		assert(abs(do1_test[i] - real) < 0.001);
+		assert(abs(do1_test[i + 1] - imag) < 0.001);
+	}
+	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+}
+
+
 __global__
 void ElementWiseProduct(Complex* do1, Complex* do2)
 {
