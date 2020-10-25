@@ -1,0 +1,20 @@
+jobs:
+
+- job: Build_PrivacyAmplification_On_Self_Hosted_Agent
+  timeoutInMinutes: 30
+  pool:
+    name: PrivacyAmplification
+
+  steps:
+  - task: VSBuild@1
+    displayName: 'Build PrivacyAmplification'
+    inputs:
+      solution: 'PrivacyAmplification/PrivacyAmplification.sln'
+      platform: 'x64'
+      configuration: 'Release'
+      
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: 'PrivacyAmplification/'
+      artifact: 'PrivacyAmplification_$(GIT_COMMIT)'
+      publishLocation: 'pipeline'
