@@ -11,10 +11,10 @@ jobs:
   steps:
   
   - script: |
-   set gitHash = $(Build.SourceVersion)
-   set shortHash = %gitHash:~0,7%
-   echo ##vso[task.setvariable variable=ShortGitHash;]%shortHash%
-  displayName: 'Get ShortGitHash Script'
+      set gitHash = $(Build.SourceVersion)
+      set shortHash = %gitHash:~0,7%
+      echo ##vso[task.setvariable variable=ShortGitHash;]%shortHash%
+    displayName: 'Get ShortGitHash Script'
   
   - task: VSBuild@1
     displayName: 'Build PrivacyAmplification'
