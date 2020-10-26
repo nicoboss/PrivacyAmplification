@@ -59,10 +59,11 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 	#define BREAK
 #endif
 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define assertThreshold(actual, threshold, testCaseNr) \
-if (abs(actual) < threshold) { \
-	std::cerr << "AssertionError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << " on test case " << testCaseNr \
-			  << "!\n Expected abs(" << actual << ") to be smaller then " << threshold << "." << endl; \
+if (abs(actual) > threshold) { \
+	std::cerr << "AssertionError in function " << __func__ << " in " << __FILENAME__ << ":" << __LINE__ << " on test case " << testCaseNr \
+			  << ": Expected abs(" << actual << ") < " << threshold << endl; \
 	unitTestsFailed = true;  \
 	BREAK \
 }
@@ -196,6 +197,7 @@ __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 
 
 void unitTestCalculateCorrectionFloat() {
+	println("Started CalculateCorrectionFloat Unit Test...");
 	cudaStream_t CalculateCorrectionFloatTestStream;
 	cudaStreamCreate(&CalculateCorrectionFloatTestStream);
 	uint32_t sample_size_test = pow(2, 10);
@@ -221,6 +223,7 @@ void unitTestCalculateCorrectionFloat() {
 		}
 	}
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+	println("Completed CalculateCorrectionFloat Unit Test");
 }
 
 __global__
@@ -235,6 +238,7 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 
 
 void unitTestSetFirstElementToZero() {
+	println("Started SetFirstElementToZero Unit Test...");
 	cudaStream_t SetFirstElementToZeroStreamTest;
 	cudaStreamCreate(&SetFirstElementToZeroStreamTest);
 	float* do1_test;
@@ -255,6 +259,7 @@ void unitTestSetFirstElementToZero() {
 		assertThreshold(do1_test[i] - (i + 0.77), 0.0001, i * 2);
 		assertThreshold(do2_test[i] - (i + 0.88), 0.0001, i * 2 + 1);
 	}
+	println("Completed SetFirstElementToZero Unit Test");
 }
 
 __global__
@@ -271,6 +276,7 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 
 
 void unitTestElementWiseProduct() {
+	println("Started ElementWiseProduct Unit Test...");
 	cudaStream_t ElementWiseProductStreamTest;
 	cudaStreamCreate(&ElementWiseProductStreamTest);
 	uint32_t r = pow(2, 5);
@@ -294,6 +300,7 @@ void unitTestElementWiseProduct() {
 		assertThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
 	}
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+	println("Completed ElementWiseProduct Unit Test");
 }
 
 
