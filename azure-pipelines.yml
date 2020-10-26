@@ -27,19 +27,25 @@ jobs:
       
   - task: CmdLine@2
     inputs:
-      script: PrivacyAmplification/bin/Release/PrivacyAmplification.exe unitTestCalculateCorrectionFloat
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplification.exe unitTestCalculateCorrectionFloat
       failOnStderr: true
     displayName: 'CalculateCorrectionFloat Unit Test'
     
   - task: CmdLine@2
     inputs:
-      script: PrivacyAmplification/bin/Release/PrivacyAmplification.exe unitTestSetFirstElementToZero
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplification.exe unitTestSetFirstElementToZero
       failOnStderr: true
     displayName: 'SetFirstElementToZero Unit Test'
     
   - task: CmdLine@2
     inputs:
-      script: PrivacyAmplification/bin/Release/PrivacyAmplification.exe unitTestElementWiseProduct
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplification.exe unitTestElementWiseProduct
       failOnStderr: true
     displayName: 'ElementWiseProduct Unit Test'
     
