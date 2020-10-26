@@ -115,7 +115,8 @@
 xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"</Command>
+xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -143,7 +144,8 @@ xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"</Command>
 xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"</Command>
+xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

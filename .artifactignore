@@ -1,0 +1,7 @@
+**/*
+!PrivacyAmplification/bin/Release/PrivacyAmplification.exe
+!PrivacyAmplification/bin/Release/PrivacyAmplification.exp
+!PrivacyAmplification/bin/Release/PrivacyAmplification.lib
+!PrivacyAmplification/bin/Release/PrivacyAmplification.pdb
+!PrivacyAmplification/bin/Release/config.yaml
+!PrivacyAmplification/bin/Release/downloadAssets.cmd
