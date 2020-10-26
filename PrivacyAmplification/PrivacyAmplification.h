@@ -226,6 +226,7 @@ __global__ void cudaAssertValue(uint32_t * data);
 /// element after FFT and correct with correction_float_dev after normalized IFFT
 /// Simplified Calculation: arg3 = ((arg1 * arg2) / sample_size) % 2
 __global__ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev);
+bool unitTestCalculateCorrectionFloat();
 
 /// @brief Sets the first Element of both input arrays to Zero.
 /// @param[in,out] Output of key FFT
@@ -235,6 +236,7 @@ __global__ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uin
 /// then acccessing that data from CPU as that way no PCIe datatransfer is needed.
 /// This is done so for precision. See calculateCorrectionFloat for more information.
 __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
+bool unitTestSetFirstElementToZero();
 
 /// @brief Calculates the element wise product of two Complex arrays
 /// @param[in,out] Output of key FFT
@@ -246,6 +248,11 @@ __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
 /// and as precalculated FFT result if toeplitz matrix doesn't have to be recalulated
 /// for the next block in which case the result of the IFFT is stored in di2.
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
+bool unitTestElementWiseProduct();
+
+std::pair<double, double> FletcherFloat(float* data, int count);
+
+bool isFletcherFloat(float* data, int count, const double expectedSum1, const double allowedAbsDeltaSum1, const double expectedSum2, const double allowedAbsDeltaSum2);
 
 /// @brief Converts binary data to a float array where every bit represents one float
 /// @param[in] Binary Input

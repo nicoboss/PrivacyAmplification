@@ -65,11 +65,12 @@ if (abs(actual) > threshold) { \
 	std::cerr << "AssertionError in function " << __func__ << " in " << __FILENAME__ << ":" << __LINE__ << " on test case " << testCaseNr \
 			  << ": Expected abs(" << actual << ") < " << threshold << endl; \
 	unitTestsFailed = true;  \
+	unitTestsFailedLocal = true; \
 	BREAK \
 }
 
 #define assertTrue(actual) \
-if (actual) { \
+if (!actual) { \
 	std::cerr << "AssertionTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
 	BREAK \
 	exit(101); \
@@ -196,8 +197,9 @@ __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 }
 
 
-void unitTestCalculateCorrectionFloat() {
+bool unitTestCalculateCorrectionFloat() {
 	println("Started CalculateCorrectionFloat Unit Test...");
+	bool unitTestsFailedLocal = false;
 	cudaStream_t CalculateCorrectionFloatTestStream;
 	cudaStreamCreate(&CalculateCorrectionFloatTestStream);
 	uint32_t sample_size_test = pow(2, 10);
@@ -224,6 +226,7 @@ void unitTestCalculateCorrectionFloat() {
 	}
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
 	println("Completed CalculateCorrectionFloat Unit Test");
+	return unitTestsFailedLocal ? 100 : 0;
 }
 
 __global__
@@ -237,8 +240,9 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 }
 
 
-void unitTestSetFirstElementToZero() {
+bool unitTestSetFirstElementToZero() {
 	println("Started SetFirstElementToZero Unit Test...");
+	bool unitTestsFailedLocal = false;
 	cudaStream_t SetFirstElementToZeroStreamTest;
 	cudaStreamCreate(&SetFirstElementToZeroStreamTest);
 	float* do1_test;
@@ -260,6 +264,7 @@ void unitTestSetFirstElementToZero() {
 		assertThreshold(do2_test[i] - (i + 0.88), 0.0001, i * 2 + 1);
 	}
 	println("Completed SetFirstElementToZero Unit Test");
+	return unitTestsFailedLocal ? 100 : 0;
 }
 
 __global__
@@ -275,8 +280,9 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 }
 
 
-void unitTestElementWiseProduct() {
+bool unitTestElementWiseProduct() {
 	println("Started ElementWiseProduct Unit Test...");
+	bool unitTestsFailedLocal = false;
 	cudaStream_t ElementWiseProductStreamTest;
 	cudaStreamCreate(&ElementWiseProductStreamTest);
 	uint32_t r = pow(2, 5);
@@ -301,6 +307,7 @@ void unitTestElementWiseProduct() {
 	}
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
 	println("Completed ElementWiseProduct Unit Test");
+	return unitTestsFailedLocal ? 100 : 0;
 }
 
 
@@ -1029,13 +1036,12 @@ int main(int argc, char* argv[])
 	bool recalculate_toeplitz_matrix_seed = true;
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
-
-
-	unitTestCalculateCorrectionFloat();
-	unitTestSetFirstElementToZero();
-	unitTestElementWiseProduct();
-	exit(7);
-
+	for (char** arg = argv; *arg; ++arg) {
+		if (strncmp(*arg, "unitTest", 8) != 0) continue;
+		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
+		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
+		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
+	}
 
 
 	//##########################
