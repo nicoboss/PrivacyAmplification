@@ -49,12 +49,37 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
 #endif
 
+#ifdef DEBUG
+	#ifdef _WIN32
+		#define BREAK __debugbreak();
+	#else
+		#define BREAK __builtin_trap()
+	#endif
+#else
+	#define BREAK
+#endif
+
+#define assertThreshold(actual, threshold, testCaseNr) \
+if (abs(actual) < threshold) { \
+	std::cerr << "AssertionError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << " on test case " << testCaseNr \
+			  << "!\n Expected abs(" << actual << ") to be smaller then " << threshold << "." << endl; \
+	unitTestsFailed = true;  \
+	BREAK \
+}
+
+#define assertTrue(actual) \
+if (actual) { \
+	std::cerr << "AssertionTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
+	BREAK \
+	exit(101); \
+}
+
 #define CUDA_ASSERT_VALUE(data, data_len, value) \
 cudaDeviceSynchronize(); \
 cudaAssertValue KERNEL_ARG3(max(data_len/1024, 1), data_len, 0) (data, value); \
 { \
 cudaError_t error = cudaDeviceSynchronize(); \
-assert(error == cudaSuccess); \
+assertTrue(error == cudaSuccess); \
 }
 
 string address_seed_in;
@@ -86,6 +111,7 @@ atomic<uint32_t> input_cache_write_pos;
 atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
+atomic<bool> unitTestsFailed = false;
 
 
 __device__ __constant__ Complex c0_dev;
@@ -191,7 +217,7 @@ void unitTestCalculateCorrectionFloat() {
 			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)sample_size_test;
 			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
 			//println(*correction_float_dev_test << "    " << count_multiplied_normalized_modulo);
-			assert(abs(*correction_float_dev_test-count_multiplied_normalized_modulo) < 0.0001);
+			assertThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * sample_size_test + j);
 		}
 	}
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
@@ -221,13 +247,13 @@ void unitTestSetFirstElementToZero() {
 	}
 	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest) (reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
-	assert(abs(do1_test[0]) < 0.00001);
-	assert(abs(do1_test[1]) < 0.00001);
-	assert(abs(do2_test[0]) < 0.00001);
-	assert(abs(do2_test[1]) < 0.00001);
+	assertThreshold(do1_test[0], 0.00001, 0);
+	assertThreshold(do1_test[1], 0.00001, 1);
+	assertThreshold(do2_test[0], 0.00001, 2);
+	assertThreshold(do2_test[1], 0.00001, 3);
 	for (int i = 2; i < pow(2, 10) * 2; ++i) {
-		assert(abs(do1_test[i] - (i + 0.77)) < 0.0001);
-		assert(abs(do2_test[i] - (i + 0.88)) < 0.0001);
+		assertThreshold(do1_test[i] - (i + 0.77), 0.0001, i * 2);
+		assertThreshold(do2_test[i] - (i + 0.88), 0.0001, i * 2 + 1);
 	}
 }
 
@@ -264,8 +290,8 @@ void unitTestElementWiseProduct() {
 		float imag = ((i + 0.77) / r) * (((i + 1) + 0.88) / r) + (((i + 1) + 0.77) / r) * ((i + 0.88) / r);
 		//println(do1_test[i] << "    " << real);
 		//println(do1_test[i + 1] << "    " << imag);
-		assert(abs(do1_test[i] - real) < 0.001);
-		assert(abs(do1_test[i + 1] - imag) < 0.001);
+		assertThreshold(do1_test[i] - real, 0.001, i);
+		assertThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
 	}
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
 }
@@ -1028,7 +1054,7 @@ int main(int argc, char* argv[])
 
 		#ifdef TEST
 		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
-		assert(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+		assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
@@ -1036,7 +1062,7 @@ int main(int argc, char* argv[])
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
 			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
-			assert(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -1051,13 +1077,13 @@ int main(int argc, char* argv[])
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-		assert(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		#endif
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
 			cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-			assert(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
@@ -1070,17 +1096,17 @@ int main(int argc, char* argv[])
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
 		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
 		#endif
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
 		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
 		#endif
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
@@ -1088,7 +1114,7 @@ int main(int argc, char* argv[])
 		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
 		//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
 		//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
 		#endif
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
@@ -1102,15 +1128,15 @@ int main(int argc, char* argv[])
 		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
 		#ifdef TEST
 		cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-		assert(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
-		assert(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
+		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
+		assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 		CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723					
 		#endif
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
-		assert(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+		assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
 		#endif
 
 		#if SHOW_DEBUG_OUTPUT == TRUE
