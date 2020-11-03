@@ -49,6 +49,14 @@ jobs:
       failOnStderr: true
     displayName: 'ElementWiseProduct Unit Test'
     
+  - task: CmdLine@2
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplification.exe unitTestBinInt2float
+      failOnStderr: true
+    displayName: 'BinInt2float Unit Test'
+    
   - task: PublishPipelineArtifact@1
     inputs:
       targetPath: 'PrivacyAmplification/bin/Release'

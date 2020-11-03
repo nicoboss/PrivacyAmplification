@@ -53,7 +53,7 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 	#ifdef _WIN32
 		#define BREAK __debugbreak();
 	#else
-		#define BREAK __builtin_trap()
+		#define BREAK __builtin_trap();
 	#endif
 #else
 	#define BREAK
@@ -70,7 +70,7 @@ if (abs(actual) > threshold) { \
 }
 
 #define assertTrue(actual) \
-if (!actual) { \
+if (!(actual)) { \
 	std::cerr << "AssertionTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
 	BREAK \
 	exit(101); \
@@ -202,7 +202,7 @@ bool unitTestCalculateCorrectionFloat() {
 	bool unitTestsFailedLocal = false;
 	cudaStream_t CalculateCorrectionFloatTestStream;
 	cudaStreamCreate(&CalculateCorrectionFloatTestStream);
-	uint32_t sample_size_test = pow(2, 10);
+	uint32_t sample_size_test = pow(2, 8);
 	uint32_t* count_one_of_global_seed_test;
 	uint32_t* count_one_of_global_key_test;
 	float* correction_float_dev_test;
@@ -220,7 +220,6 @@ bool unitTestCalculateCorrectionFloat() {
 			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
 			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)sample_size_test;
 			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
-			//println(*correction_float_dev_test << "    " << count_multiplied_normalized_modulo);
 			assertThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * sample_size_test + j);
 		}
 	}
@@ -253,7 +252,8 @@ bool unitTestSetFirstElementToZero() {
 		do1_test[i] = i + 0.77;
 		do2_test[i] = i + 0.88;
 	}
-	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest) (reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)
+		(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
 	assertThreshold(do1_test[0], 0.00001, 0);
 	assertThreshold(do1_test[1], 0.00001, 1);
@@ -295,13 +295,13 @@ bool unitTestElementWiseProduct() {
 		do1_test[i] = i + 0.77;
 		do2_test[i] = i + 0.88;
 	}
-	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest) (reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024),
+		min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest)
+		(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	cudaStreamSynchronize(ElementWiseProductStreamTest);
 	for (int i = 0; i < pow(2, 10) * 2; i+=2) {
 		float real = ((i + 0.77) / r) * ((i + 0.88) / r) - (((i + 1) + 0.77) / r) * (((i + 1) + 0.88) / r);
 		float imag = ((i + 0.77) / r) * (((i + 1) + 0.88) / r) + (((i + 1) + 0.77) / r) * ((i + 0.88) / r);
-		//println(do1_test[i] << "    " << real);
-		//println(do1_test[i + 1] << "    " << imag);
 		assertThreshold(do1_test[i] - real, 0.001, i);
 		assertThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
 	}
@@ -324,6 +324,43 @@ void ElementWiseProduct(Complex* do1, Complex* do2)
 	do1[i].y = do1x * do2y + do1y * do2x;
 }
 
+//David W. Wilson: https://oeis.org/A000788/a000788.txt
+unsigned A000788(unsigned n)
+{
+	unsigned v = 0;
+	for (unsigned bit = 1; bit <= n; bit <<= 1)
+		v += ((n >> 1) & ~(bit - 1)) + ((n & bit) ? (n & ((bit << 1) - 1)) - (bit - 1) : 0);
+	return v;
+}
+
+bool unitTestBinInt2float() {
+	println("Started TestBinInt2float Unit Test...");
+	bool unitTestsFailedLocal = false;
+	cudaStream_t BinInt2floatStreamTest;
+	cudaStreamCreate(&BinInt2floatStreamTest);
+	uint32_t* binInTest;
+	float* floatOutTest;
+	cudaMallocHost((void**)&binInTest, (pow(2, 27) / 32) * sizeof(uint32_t));
+	cudaMallocHost((void**)&floatOutTest, pow(2, 27) * sizeof(float));
+	uint32_t* count_one_test;
+	cudaMallocHost(&count_one_test, sizeof(uint32_t));
+	for (int i = 0; i < pow(2, 27) / 32; ++i) {
+		binInTest[i] = i;
+	}
+	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent < 27; ++sample_size_test_exponent)
+	{
+		uint32_t sample_size_test = pow(2, sample_size_test_exponent);
+		uint32_t count_one_expected = A000788((sample_size_test/32)-1);
+		*count_one_test = 0;
+		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0,
+			BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
+		cudaStreamSynchronize(BinInt2floatStreamTest);
+		println(*count_one_test << "/" << count_one_expected);
+		assertTrue(*count_one_test == count_one_expected);
+	}
+	println("Completed TestBinInt2float Unit Test");
+	return unitTestsFailedLocal ? 100 : 0;
+}
 
 __global__
 void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
@@ -1041,6 +1078,7 @@ int main(int argc, char* argv[])
 		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
 		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
+		if (strcmp(*arg, "unitTestBinInt2float") == 0) exit(unitTestBinInt2float());
 	}
 
 

@@ -261,6 +261,9 @@ bool isFletcherFloat(float* data, int count, const double expectedSum1, const do
 /// This function also counts the Hamming weight (amount of 1-bits).
 /// binary => float: 0 => 0.0f and 1 => 1.0f/reduction
 __global__ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global);
+bool unitTestBinInt2float();
+//David W. Wilson: https://oeis.org/A000788/a000788.txt
+unsigned A000788(unsigned n);
 
 /// @brief Generates the Privacy amplification results from the IFFT result and key rest 
 /// @param[in] Raw IFFT output
