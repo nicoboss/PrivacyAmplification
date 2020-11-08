@@ -226,7 +226,7 @@ __global__ void cudaAssertValue(uint32_t * data);
 /// element after FFT and correct with correction_float_dev after normalized IFFT
 /// Simplified Calculation: arg3 = ((arg1 * arg2) / sample_size) % 2
 __global__ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev);
-bool unitTestCalculateCorrectionFloat();
+int unitTestCalculateCorrectionFloat();
 
 /// @brief Sets the first Element of both input arrays to Zero.
 /// @param[in,out] Output of key FFT
@@ -236,7 +236,7 @@ bool unitTestCalculateCorrectionFloat();
 /// then acccessing that data from CPU as that way no PCIe datatransfer is needed.
 /// This is done so for precision. See calculateCorrectionFloat for more information.
 __global__ void setFirstElementToZero(Complex* do1, Complex* do2);
-bool unitTestSetFirstElementToZero();
+int unitTestSetFirstElementToZero();
 
 /// @brief Calculates the element wise product of two Complex arrays
 /// @param[in,out] Output of key FFT
@@ -248,7 +248,7 @@ bool unitTestSetFirstElementToZero();
 /// and as precalculated FFT result if toeplitz matrix doesn't have to be recalulated
 /// for the next block in which case the result of the IFFT is stored in di2.
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
-bool unitTestElementWiseProduct();
+int unitTestElementWiseProduct();
 
 std::pair<double, double> FletcherFloat(float* data, int count);
 
@@ -261,7 +261,8 @@ bool isFletcherFloat(float* data, int count, const double expectedSum1, const do
 /// This function also counts the Hamming weight (amount of 1-bits).
 /// binary => float: 0 => 0.0f and 1 => 1.0f/reduction
 __global__ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global);
-bool unitTestBinInt2float();
+void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_max);
+int unitTestBinInt2float();
 //David W. Wilson: https://oeis.org/A000788/a000788.txt
 unsigned A000788(unsigned n);
 

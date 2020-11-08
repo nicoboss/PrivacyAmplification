@@ -123,7 +123,7 @@ atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
 atomic<bool> unitTestsFailed = false;
-
+atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
 
 __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
@@ -206,7 +206,7 @@ __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 }
 
 
-bool unitTestCalculateCorrectionFloat() {
+int unitTestCalculateCorrectionFloat() {
 	println("Started CalculateCorrectionFloat Unit Test...");
 	bool unitTestsFailedLocal = false;
 	cudaStream_t CalculateCorrectionFloatTestStream;
@@ -248,7 +248,7 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 }
 
 
-bool unitTestSetFirstElementToZero() {
+int unitTestSetFirstElementToZero() {
 	println("Started SetFirstElementToZero Unit Test...");
 	bool unitTestsFailedLocal = false;
 	cudaStream_t SetFirstElementToZeroStreamTest;
@@ -289,7 +289,7 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 }
 
 
-bool unitTestElementWiseProduct() {
+int unitTestElementWiseProduct() {
 	println("Started ElementWiseProduct Unit Test...");
 	bool unitTestsFailedLocal = false;
 	cudaStream_t ElementWiseProductStreamTest;
@@ -344,7 +344,7 @@ unsigned A000788(unsigned n)
 
 void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_max)
 {
-	bool unitTestsFailedLocal;
+	bool unitTestsFailedLocal = false;
 	register const Real float0 = 0.0f;
 	register const Real float1_reduced = 1.0f / reduction;
 	for (; i < i_max; ++i) {
@@ -357,9 +357,12 @@ void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_ma
 		}
 		floatOutTest[i] = i;
 	}
+	if (unitTestsFailedLocal) {
+		unitTestBinInt2floatVerifyResultThreadFailed = true;
+	}
 }
 
-bool unitTestBinInt2float() {
+int unitTestBinInt2float() {
 	println("Started TestBinInt2float Unit Test...");
 	atomic<bool> unitTestsFailedLocal = false;
 	cudaStream_t BinInt2floatStreamTest;
@@ -375,6 +378,7 @@ bool unitTestBinInt2float() {
 	for (int i = 0; i < pow(2, 27) / 32; ++i) {
 		binInTest[i] = i;
 	}
+	unitTestBinInt2floatVerifyResultThreadFailed = false;
 	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent <= 27; ++sample_size_test_exponent)
 	{
 		int elementsToCheck = pow(2, sample_size_test_exponent);
@@ -393,6 +397,9 @@ bool unitTestBinInt2float() {
 			unitTestBinInt2floatVerifyResultPool->enqueue(unitTestBinInt2floatVerifyResultThread, floatOutTest, i, min(i + 1000000, elementsToCheck));
 		}
 		unitTestBinInt2floatVerifyResultPool->~ThreadPool();
+	}
+	if (unitTestBinInt2floatVerifyResultThreadFailed) {
+		unitTestsFailedLocal = true;
 	}
 	println("Completed TestBinInt2float Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
