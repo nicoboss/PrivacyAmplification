@@ -60,7 +60,7 @@ unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #endif
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#define assertThreshold(actual, threshold, testCaseNr) \
+#define assertZeroThreshold(actual, threshold, testCaseNr) \
 if (abs(actual) > threshold) { \
 	std::cerr << "AssertionError in function " << __func__ << " in " << __FILENAME__ << ":" << __LINE__ << " on test case " << testCaseNr \
 			  << ": Expected abs(" << actual << ") < " << threshold << endl; \
@@ -69,9 +69,18 @@ if (abs(actual) > threshold) { \
 	BREAK \
 }
 
+#define assertEquals(actual, expected, testCaseNr) \
+if (actual != expected) { \
+	std::cerr << "AssertEqualsError in function " << __func__ << " in " << __FILENAME__ << ":" << __LINE__ << " on test case " << testCaseNr \
+			  << ": Expected " << expected << " but it was " << actual << endl; \
+	unitTestsFailed = true;  \
+	unitTestsFailedLocal = true; \
+	BREAK \
+}
+
 #define assertTrue(actual) \
 if (!(actual)) { \
-	std::cerr << "AssertionTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
+	std::cerr << "AssertTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
 	BREAK \
 	exit(101); \
 }
@@ -220,7 +229,7 @@ bool unitTestCalculateCorrectionFloat() {
 			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
 			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)sample_size_test;
 			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
-			assertThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * sample_size_test + j);
+			assertZeroThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * sample_size_test + j);
 		}
 	}
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
@@ -255,13 +264,13 @@ bool unitTestSetFirstElementToZero() {
 	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)
 		(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
-	assertThreshold(do1_test[0], 0.00001, 0);
-	assertThreshold(do1_test[1], 0.00001, 1);
-	assertThreshold(do2_test[0], 0.00001, 2);
-	assertThreshold(do2_test[1], 0.00001, 3);
+	assertZeroThreshold(do1_test[0], 0.00001, 0);
+	assertZeroThreshold(do1_test[1], 0.00001, 1);
+	assertZeroThreshold(do2_test[0], 0.00001, 2);
+	assertZeroThreshold(do2_test[1], 0.00001, 3);
 	for (int i = 2; i < pow(2, 10) * 2; ++i) {
-		assertThreshold(do1_test[i] - (i + 0.77), 0.0001, i * 2);
-		assertThreshold(do2_test[i] - (i + 0.88), 0.0001, i * 2 + 1);
+		assertZeroThreshold(do1_test[i] - (i + 0.77), 0.0001, i * 2);
+		assertZeroThreshold(do2_test[i] - (i + 0.88), 0.0001, i * 2 + 1);
 	}
 	println("Completed SetFirstElementToZero Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
@@ -302,8 +311,8 @@ bool unitTestElementWiseProduct() {
 	for (int i = 0; i < pow(2, 10) * 2; i+=2) {
 		float real = ((i + 0.77) / r) * ((i + 0.88) / r) - (((i + 1) + 0.77) / r) * (((i + 1) + 0.88) / r);
 		float imag = ((i + 0.77) / r) * (((i + 1) + 0.88) / r) + (((i + 1) + 0.77) / r) * ((i + 0.88) / r);
-		assertThreshold(do1_test[i] - real, 0.001, i);
-		assertThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
+		assertZeroThreshold(do1_test[i] - real, 0.001, i);
+		assertZeroThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
 	}
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
 	println("Completed ElementWiseProduct Unit Test");
@@ -333,9 +342,26 @@ unsigned A000788(unsigned n)
 	return v;
 }
 
+void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_max)
+{
+	bool unitTestsFailedLocal;
+	register const Real float0 = 0.0f;
+	register const Real float1_reduced = 1.0f / reduction;
+	for (; i < i_max; ++i) {
+		if (((i / 32) & (1 << (31 - (i % 32)))) == 0) {
+			assertEquals(floatOutTest[i], float0, i)
+		}
+		else
+		{
+			assertEquals(floatOutTest[i], float1_reduced, i)
+		}
+		floatOutTest[i] = i;
+	}
+}
+
 bool unitTestBinInt2float() {
 	println("Started TestBinInt2float Unit Test...");
-	bool unitTestsFailedLocal = false;
+	atomic<bool> unitTestsFailedLocal = false;
 	cudaStream_t BinInt2floatStreamTest;
 	cudaStreamCreate(&BinInt2floatStreamTest);
 	uint32_t* binInTest;
@@ -344,19 +370,29 @@ bool unitTestBinInt2float() {
 	cudaMallocHost((void**)&floatOutTest, pow(2, 27) * sizeof(float));
 	uint32_t* count_one_test;
 	cudaMallocHost(&count_one_test, sizeof(uint32_t));
+
+	const auto processor_count = std::thread::hardware_concurrency();
 	for (int i = 0; i < pow(2, 27) / 32; ++i) {
 		binInTest[i] = i;
 	}
-	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent < 27; ++sample_size_test_exponent)
+	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent <= 27; ++sample_size_test_exponent)
 	{
-		uint32_t sample_size_test = pow(2, sample_size_test_exponent);
+		int elementsToCheck = pow(2, sample_size_test_exponent);
+		println("TestBinInt2float Unit Test with 2^" << sample_size_test_exponent << " samples...");
+		uint32_t sample_size_test = elementsToCheck;
 		uint32_t count_one_expected = A000788((sample_size_test/32)-1);
 		*count_one_test = 0;
+		memset(floatOutTest, 0xFF, pow(2, 27) * sizeof(float));
 		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0,
 			BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
 		cudaStreamSynchronize(BinInt2floatStreamTest);
-		println(*count_one_test << "/" << count_one_expected);
-		assertTrue(*count_one_test == count_one_expected);
+		assertEquals(*count_one_test, count_one_expected, -1);
+		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
+		ThreadPool* unitTestBinInt2floatVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
+		for (int i = 0; i < elementsToCheck; i += 1000000) {
+			unitTestBinInt2floatVerifyResultPool->enqueue(unitTestBinInt2floatVerifyResultThread, floatOutTest, i, min(i + 1000000, elementsToCheck));
+		}
+		unitTestBinInt2floatVerifyResultPool->~ThreadPool();
 	}
 	println("Completed TestBinInt2float Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
