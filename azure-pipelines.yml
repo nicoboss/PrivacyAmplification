@@ -57,6 +57,14 @@ jobs:
       failOnStderr: true
     displayName: 'BinInt2float Unit Test'
     
+  - task: CmdLine@2
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplification.exe unitTestToBinaryArray
+      failOnStderr: true
+    displayName: 'BinInt2float Unit Test'
+    
   - task: PublishPipelineArtifact@1
     inputs:
       targetPath: 'PrivacyAmplification/bin/Release'

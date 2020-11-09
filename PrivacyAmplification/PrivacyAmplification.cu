@@ -122,8 +122,10 @@ atomic<uint32_t> input_cache_write_pos;
 atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
+float normalisation_float;
 atomic<bool> unitTestsFailed = false;
 atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
+atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = false;
 
 __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
@@ -355,7 +357,6 @@ void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_ma
 		{
 			assertEquals(floatOutTest[i], float1_reduced, i)
 		}
-		floatOutTest[i] = i;
 	}
 	if (unitTestsFailedLocal) {
 		unitTestBinInt2floatVerifyResultThreadFailed = true;
@@ -437,6 +438,97 @@ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 	}
 }
 
+void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_test, int i, int i_max)
+{
+	bool unitTestsFailedLocal = false;
+	uint32_t mask;
+	uint32_t data;
+	uint32_t key_rest_little;
+	uint32_t key_rest_xor;
+	uint32_t actualBit;
+	uint32_t expectedBit;
+	uint32_t xorBit;
+	for (; i < i_max; ++i) {
+		mask = 1 << (31 - (i % 32));
+		data = binOutTest[i / 32];
+		#if AMPOUT_REVERSE_ENDIAN == TRUE
+		data = ((((data) & 0xff000000) >> 24) |
+				(((data) & 0x00ff0000) >> 8) |
+				(((data) & 0x0000ff00) << 8) |
+				(((data) & 0x000000ff) << 24));
+		#endif
+		#if XOR_WITH_KEY_REST == TRUE
+		#if AMPOUT_REVERSE_ENDIAN == TRUE
+		key_rest_little = key_rest_test[i / 32];
+		key_rest_xor = ((((key_rest_little) & 0xff000000) >> 24) |
+						(((key_rest_little) & 0x00ff0000) >> 8) |
+						(((key_rest_little) & 0x0000ff00) << 8) |
+						(((key_rest_little) & 0x000000ff) << 24));
+		#else
+		uint32_t key_rest_xor = key_rest_test[i / 32];
+		#endif
+		#endif
+		actualBit = (data & mask) > 0;
+		expectedBit = ((i / 32) & mask) > 0;
+		xorBit = (key_rest_xor & mask) > 0;
+		#if XOR_WITH_KEY_REST
+		expectedBit ^= xorBit;
+		#endif
+		assertEquals(actualBit, expectedBit, i)
+	}
+	if (unitTestsFailedLocal) {
+		unitTestToBinaryArrayVerifyResultThreadFailed = true;
+	}
+}
+
+int unitTestToBinaryArray() {
+	println("Started ToBinaryArray Unit Test...");
+	atomic<bool> unitTestsFailedLocal = false;
+	cudaStream_t ToBinaryArrayStreamTest;
+	cudaStreamCreate(&ToBinaryArrayStreamTest);
+	register const Real float0 = 0.0f;
+	register const Real float1 = 1.0f;
+	float* invOutTest;
+	uint32_t* binOutTest;
+	uint32_t* key_rest_test;
+	Real* correction_float_dev_test;
+	cudaMallocHost((void**)&invOutTest, pow(2, 27) * sizeof(float));
+	cudaMallocHost((void**)&binOutTest, (pow(2, 27) / 32) * sizeof(uint32_t));
+	cudaMallocHost((void**)&key_rest_test, (pow(2, 27) / 32) * sizeof(uint32_t));
+	cudaMallocHost((void**)&correction_float_dev_test, sizeof(Real));
+	memset(key_rest_test, 0b10101010, (pow(2, 27) / 32) * sizeof(uint32_t));
+	*correction_float_dev_test = 1.9f;
+	uint32_t normalisation_float_test = 1.0f;
+	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float_test, sizeof(uint32_t));
+	const auto processor_count = std::thread::hardware_concurrency();
+	for (int i = 0; i < pow(2, 27); ++i) {
+		invOutTest[i] = (((i / 32) & (1 << (31 - (i % 32)))) == 0) ? float0 : float1;
+	}
+	unitTestToBinaryArrayVerifyResultThreadFailed = false;
+	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent <= 27; ++sample_size_test_exponent)
+	{
+		uint32_t sample_size_test = pow(2, sample_size_test_exponent);
+		uint32_t vertical_len_test = sample_size_test / 4 + sample_size_test / 8;
+		uint32_t elementsToCheck = vertical_len_test;
+		uint32_t vertical_block_test = vertical_len_test / 32;
+		println("ToBinaryArray Unit Test with 2^" << sample_size_test_exponent << " samples...");
+		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
+		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
+		cudaStreamSynchronize(ToBinaryArrayStreamTest);
+		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
+		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
+		for (int i = 0; i < elementsToCheck; i += 1000000) {
+			unitTestToBinaryArrayVerifyResultPool->enqueue(unitTestToBinaryArrayVerifyResultThread, binOutTest, key_rest_test, i, min(i + 1000000, elementsToCheck));
+		}
+		unitTestToBinaryArrayVerifyResultPool->~ThreadPool();
+	}
+	if (unitTestToBinaryArrayVerifyResultThreadFailed) {
+		unitTestsFailedLocal = true;
+	}
+	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(uint32_t));
+	println("Completed ToBinaryArray Unit Test");
+	return unitTestsFailedLocal ? 100 : 0;
+}
 
 __global__
 void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
@@ -454,6 +546,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 	}
 	else if (idx < 1023)
 	{
+		#if XOR_WITH_KEY_REST == TRUE
 		#if AMPOUT_REVERSE_ENDIAN == TRUE
 		uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
 		key_rest_xor[idx - 992] =
@@ -463,6 +556,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 				(((key_rest_little) & 0x000000ff) << 24));
 		#else
 		key_rest_xor[idx - 992] = key_rest_local[block * 31 + idx - 992];
+		#endif
 		#endif
 	}
 	__syncthreads();
@@ -1071,7 +1165,7 @@ int main(int argc, char* argv[])
 	register const Real float0 = 0.0f;
 	register const Real float1_reduced = 1.0f / reduction;
 	const uint32_t total_reduction = reduction * pre_mul_reduction;
-	const float normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
 
 	/*Copy constant variables from RAM to GPUs constant memory*/
 	cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
@@ -1122,6 +1216,7 @@ int main(int argc, char* argv[])
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
 		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
 		if (strcmp(*arg, "unitTestBinInt2float") == 0) exit(unitTestBinInt2float());
+		if (strcmp(*arg, "unitTestToBinaryArray") == 0) exit(unitTestToBinaryArray());
 	}
 
 
