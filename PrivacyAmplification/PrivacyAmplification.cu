@@ -940,9 +940,6 @@ void sendData() {
 		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
 		uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
-		#if SHOW_DEBUG_OUTPUT == TRUE
-		uint8_t* outputFloat_block = OutputFloat + output_cache_block_size * output_cache_read_pos;
-		#endif
 
 		if (verify_ampout)
 		{
@@ -977,15 +974,6 @@ void sendData() {
 			}
 		}
 
-		#if SHOW_DEBUG_OUTPUT == TRUE
-		printlock.lock();
-		for (size_t i = 0; i < min_template(dist_freq, 64); ++i)
-		{
-			printf("%f\n", outputFloat_block[i]);
-		}
-		printlock.unlock();
-		#endif
-
 		stop = chrono::high_resolution_clock::now();
 		auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
 		start = chrono::high_resolution_clock::now();
@@ -1010,7 +998,7 @@ void sendData() {
 
 void readConfig() {
 	Yaml::Node root;
-	cout << "Reading config.yaml..." << endl;
+	cout << "#Reading config.yaml..." << endl;
 	try
 	{
 		Yaml::Parse(root, "config.yaml");
@@ -1090,11 +1078,10 @@ int main(int argc, char* argv[])
 
 	readConfig();
 
-	cout << "PrivacyAmplification with " << sample_size << " bits" << endl << endl;
+	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	//cudaSetDevice(cuda_device_id_to_use);
 	setConsoleDesign();
 
-	uint32_t dist_freq = sample_size / 2 + 1;
 	input_cache_read_pos = input_blocks_to_cache - 1;
 	input_cache_write_pos = 0;
 	output_cache_read_pos = input_blocks_to_cache - 1;
@@ -1208,9 +1195,52 @@ int main(int argc, char* argv[])
 	uint32_t relevant_keyBlocks_old = 0;
 
 	bool recalculate_toeplitz_matrix_seed = true;
+	bool speedtest = false;
+	bool doTest = true;
+	uint32_t dist_freq = sample_size / 2 + 1;
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
 	for (char** arg = argv; *arg; ++arg) {
+		if (strcmp(*arg, "speedtest") == 0 || true) {
+			speedtest = true;
+			doTest = false;
+			verify_ampout = false;
+			host_ampout_server = false;
+			auto start = chrono::high_resolution_clock::now();
+			auto stop = chrono::high_resolution_clock::now();
+
+			for (int i = 0; i < 2; ++i) {
+				switch (i) {
+					case 0: dynamic_toeplitz_matrix_seed = true; break;
+					case 1: dynamic_toeplitz_matrix_seed = false; break;
+				}
+				for (int j = 10; j < 28; ++j) {
+					sample_size = pow(2, j);
+					vertical_len = sample_size / 4 + sample_size / 8;
+					horizontal_len = sample_size / 2 + sample_size / 8;
+					vertical_block = vertical_len / 32;
+					horizontal_block = horizontal_len / 32;
+					desired_block = sample_size / 32;
+					key_blocks = desired_block + 1;
+					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+					cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
+					cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+					dist_freq = sample_size / 2 + 1;
+					for (int k = 0; k < 10; ++k) {
+						//GOSUB reimplementation - Function call in same stackframe
+						goto mainloop;
+						return_speedtest:;
+
+						stop = chrono::high_resolution_clock::now();
+						auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
+						start = chrono::high_resolution_clock::now();
+						println("d[" << i << "," << j << "," << k << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
+					}
+				}
+			}
+			
+			exit(0);
+		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;
 		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
@@ -1224,7 +1254,7 @@ int main(int argc, char* argv[])
 	// Mainloop of main thread #
 	//##########################
 	while (true) {
-
+		mainloop:;
 		/*Spinlock waiting for data provider*/
 		while ((input_cache_read_pos + 1) % input_blocks_to_cache == input_cache_write_pos) {
 			this_thread::yield();
@@ -1242,16 +1272,20 @@ int main(int argc, char* argv[])
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 
 		#ifdef TEST
-		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
-		assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+		if (doTest) {
+			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+		}
 		#endif
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
-			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			if (doTest) {
+				CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			}
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -1259,20 +1293,26 @@ int main(int argc, char* argv[])
 		}
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST
-		CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
-		CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
+		if (doTest) {
+			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
+			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
+		}
 		#endif
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
 		#ifdef TEST
-		cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-		assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		}
 		#endif
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
-			cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			if (doTest) {
+				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			}
 			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
@@ -1284,55 +1324,77 @@ int main(int argc, char* argv[])
 		cudaStreamSynchronize(FFTStream);
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#ifdef TEST
-		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
-		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
+			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
+		}
 		#endif
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
-		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
-		cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
+			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
+		}
 		#endif
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
-		cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
-		//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
+			//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
+		}
 		#endif
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 
 		/*Spinlock waiting for the data consumer*/
-		while (output_cache_write_pos % output_blocks_to_cache == output_cache_read_pos) {
-			this_thread::yield();
+		if (!speedtest) {
+			while (output_cache_write_pos % output_blocks_to_cache == output_cache_read_pos) {
+				this_thread::yield();
+			}
 		}
 
 		/*Calculates where in the host pinned output memory the Privacy Amplification result will be stored*/
 		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
 		#ifdef TEST
-		cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-		assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
-		assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
-		CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723					
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
+			CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723	
+		}		
 		#endif
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
-		assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+		if (doTest) {
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+		}
 		#endif
 
 		#if SHOW_DEBUG_OUTPUT == TRUE
-		cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
-		cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
+		if (!speedtest) {
+			cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
+			cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
+		}
 		#endif
 
+		
+		if (speedtest) {
+			goto return_speedtest;
+		}
+		else
+		{
+			output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
+		}
 		output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
 	}
 
