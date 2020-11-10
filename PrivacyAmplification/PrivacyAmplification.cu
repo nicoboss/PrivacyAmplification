@@ -1201,7 +1201,7 @@ int main(int argc, char* argv[])
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
 	for (char** arg = argv; *arg; ++arg) {
-		if (strcmp(*arg, "speedtest") == 0 || true) {
+		if (strcmp(*arg, "speedtest") == 0) {
 			speedtest = true;
 			doTest = false;
 			verify_ampout = false;
@@ -1238,7 +1238,6 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
-			
 			exit(0);
 		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;

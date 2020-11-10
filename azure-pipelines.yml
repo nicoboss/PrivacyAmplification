@@ -94,7 +94,7 @@ jobs:
                title='Privacy Ampification - RTX 3080 with static Toeplitz seed')
         ax.grid()
         fig.savefig("PrivacyAmpification_RTX_3080_static_seed.svg", format='svg', dpi=1200)
-      displayName: 'Generate Stats'
+    displayName: 'Generate Stats'
     
   - task: CmdLine@2
     inputs:
@@ -110,3 +110,4 @@ jobs:
       targetPath: 'PrivacyAmplification/bin/Release'
       artifact: 'PrivacyAmplification_$(ShortGitHash)'
       publishLocation: 'pipeline'
+    displayName: 'Publish Pipeline Artifact'
