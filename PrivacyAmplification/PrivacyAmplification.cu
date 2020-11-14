@@ -1069,6 +1069,27 @@ inline void setConsoleDesign() {
 }
 
 
+#define PLAN_FFT \
+/*Delete CUFFT Plans*/ \
+cufftDestroy(plan_forward_R2C); \
+cufftDestroy(plan_inverse_C2R); \
+\
+/*Plan of the forward real to complex fast fourier transformation*/ \
+cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
+if (result_forward_FFT != CUFFT_SUCCESS) \
+{ \
+	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
+	exit(0); \
+} \
+\
+/* Plan of the inverse complex to real fast fourier transformation */ \
+cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1); \
+if (result_inverse_FFT != CUFFT_SUCCESS) \
+{ \
+	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
+	exit(0); \
+}
+
 int main(int argc, char* argv[])
 {
 	//About
@@ -1170,25 +1191,10 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
-	/*Plan of the forward real to complex fast fourier transformation*/
+	/*Plan fast fourier transformations*/
 	cufftHandle plan_forward_R2C;
-	cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1);
-	if (result_forward_FFT != CUFFT_SUCCESS)
-	{
-		println("Failed to plan FFT 1! Error Code: " << result_forward_FFT);
-		exit(0);
-	}
-	cufftSetStream(plan_forward_R2C, FFTStream);
-
-	/*Plan of the inverse complex to real fast fourier transformation*/
 	cufftHandle plan_inverse_C2R;
-	cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1);
-	if (result_inverse_FFT != CUFFT_SUCCESS)
-	{
-		println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT);
-		exit(0);
-	}
-	cufftSetStream(plan_inverse_C2R, FFTStream);
+	PLAN_FFT;
 
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
@@ -1226,6 +1232,7 @@ int main(int argc, char* argv[])
 					cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 					cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
 					dist_freq = sample_size / 2 + 1;
+					PLAN_FFT;
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
 						goto mainloop;
