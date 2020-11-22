@@ -1081,7 +1081,7 @@ if (cuFFT_planned) \
 } \
 \
 /*Plan of the forward real to complex fast fourier transformation*/ \
-cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
+cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, blocks_in_bank); \
 if (result_forward_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
@@ -1089,7 +1089,7 @@ if (result_forward_FFT != CUFFT_SUCCESS) \
 } \
 \
 /* Plan of the inverse complex to real fast fourier transformation */ \
-cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1); \
+cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, blocks_in_bank); \
 if (result_inverse_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
