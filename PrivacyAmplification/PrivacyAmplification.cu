@@ -1406,7 +1406,7 @@ int main(int argc, char* argv[])
 		{
 			output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
 		}
-		output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
+
 	}
 
 
