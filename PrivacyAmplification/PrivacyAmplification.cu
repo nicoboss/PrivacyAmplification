@@ -29,7 +29,7 @@
 using namespace std;
 
 //Little endian only!
-#define TEST
+//#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -944,7 +944,7 @@ void sendData() {
 
 		uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
 
-		if (verify_ampout)
+		if (verify_ampout && false)
 		{
 			verifyDataPool->enqueue(verifyData, output_block);
 		}
@@ -984,7 +984,7 @@ void sendData() {
 		if (show_ampout >= 0)
 		{
 			printlock.lock();
-			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (sample_size / 1000000.0) << " Mbit/s" << endl;
+			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (BANK_SIZE / 1000000.0) << " Mbit/s" << endl;
 			if (show_ampout > 0)
 			{
 				for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), show_ampout); ++i)
@@ -1249,7 +1249,7 @@ int main(int argc, char* argv[])
 						stop = chrono::high_resolution_clock::now();
 						auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
 						start = chrono::high_resolution_clock::now();
-						println("d[" << i << "," << j << "," << k << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
+						println("d[" << i << "," << j << "," << k << "]=" << (1000000.0 / duration) * (BANK_SIZE / 1000000.0));
 					}
 				}
 			}
