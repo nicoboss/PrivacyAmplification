@@ -10,6 +10,9 @@ typedef float2   Complex;
 #define TRUE 1
 #define FALSE 0
 #define VERSION "1.1.0"
+
+#define BANK_SIZE pow(2, 27)
+
 //Return the minimum of two values
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -35,6 +38,7 @@ typedef float2   Complex;
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
 uint32_t sample_size;
+uint32_t blocks_in_bank;
 
 /*FFT input maps binary 0, 1 to 0 and 1/reduction which
   will be corrected during normalisation after IFFT
@@ -273,7 +277,7 @@ unsigned A000788(unsigned n);
 /// @param[in] Result from calculateCorrectionFloat
 /// This function normalizes the IFFT floating point ouput and converts it to binary
 /// while also XORing it with the key rest to optain the Privacy Amplification result.
-__global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
+__global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev, uint32_t block_index_divisor);
 void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_local, int i, int i_max);
 int unitTestToBinaryArray();
 

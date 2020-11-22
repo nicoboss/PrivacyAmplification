@@ -218,9 +218,9 @@ int unitTestCalculateCorrectionFloat() {
 	uint32_t* count_one_of_global_seed_test;
 	uint32_t* count_one_of_global_key_test;
 	float* correction_float_dev_test;
-	cudaMallocHost((void**)&count_one_of_global_seed_test, sizeof(uint32_t));
-	cudaMallocHost((void**)&count_one_of_global_key_test, sizeof(uint32_t));
-	cudaMallocHost((void**)&correction_float_dev_test, sizeof(float));
+	cudaMallocHost((void**)&count_one_of_global_seed_test, (BANK_SIZE / pow(2, 10)) * sizeof(uint32_t));
+	cudaMallocHost((void**)&count_one_of_global_key_test, (BANK_SIZE / pow(2, 10)) * sizeof(uint32_t));
+	cudaMallocHost((void**)&correction_float_dev_test, (BANK_SIZE / pow(2, 10)) * sizeof(float));
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size_test, sizeof(uint32_t));
 	for (uint32_t i = 0; i < sample_size_test; ++i) {
 		for (uint32_t j = 0; j < sample_size_test; ++j) {
@@ -243,11 +243,12 @@ int unitTestCalculateCorrectionFloat() {
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev)
 {
-	uint64_t count_multiplied = *count_one_of_global_seed * *count_one_of_global_key;
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	uint64_t count_multiplied = *(count_one_of_global_seed+i) * *(count_one_of_global_key+i);
 	double count_multiplied_normalized = count_multiplied / (double)sample_size_dev;
 	double two = 2.0;
 	Real count_multiplied_normalized_modulo = (float)fmod(count_multiplied_normalized, two);
-	*correction_float_dev = count_multiplied_normalized_modulo;
+	*(correction_float_dev+i) = count_multiplied_normalized_modulo;
 }
 
 
@@ -282,12 +283,13 @@ int unitTestSetFirstElementToZero() {
 __global__
 void setFirstElementToZero(Complex* do1, Complex* do2)
 {
-	if (threadIdx.x == 0) {
-		do1[0] = c0_dev;
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i % 2 == 0) {
+		do1[i / 2] = c0_dev;
 	}
 	else
 	{
-		do2[0] = c0_dev;
+		do2[i / 2] = c0_dev;
 	}
 }
 
@@ -434,7 +436,7 @@ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 	}
 	else
 	{
-		atomicAdd(count_one_global, 1);
+		atomicAdd(count_one_global + idx/sample_size_dev, 1);
 		realOut[outPos] = h1_reduced_local;
 	}
 }
@@ -496,7 +498,7 @@ int unitTestToBinaryArray() {
 	cudaMallocHost((void**)&invOutTest, pow(2, 27) * sizeof(float));
 	cudaMallocHost((void**)&binOutTest, (pow(2, 27) / 32) * sizeof(uint32_t));
 	cudaMallocHost((void**)&key_rest_test, (pow(2, 27) / 32) * sizeof(uint32_t));
-	cudaMallocHost((void**)&correction_float_dev_test, sizeof(Real));
+	cudaMallocHost((void**)&correction_float_dev_test, (BANK_SIZE / pow(2, 10)) * sizeof(Real));
 	memset(key_rest_test, 0b10101010, (pow(2, 27) / 32) * sizeof(uint32_t));
 	*correction_float_dev_test = 1.9f;
 	uint32_t normalisation_float_test = 1.0f;
@@ -514,7 +516,7 @@ int unitTestToBinaryArray() {
 		uint32_t vertical_block_test = vertical_len_test / 32;
 		println("ToBinaryArray Unit Test with 2^" << sample_size_test_exponent << " samples...");
 		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
-		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
+		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test, (int)((int)(vertical_block_test) / 31) + 1);
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
 		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
@@ -532,12 +534,12 @@ int unitTestToBinaryArray() {
 }
 
 __global__
-void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
+void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev, uint32_t block_index_divisor)
 {
 	const Real normalisation_float_local = normalisation_float_dev;
 	const uint32_t block = blockIdx.x;
 	const uint32_t idx = threadIdx.x;
-	const Real correction_float = *correction_float_dev;
+	const Real correction_float = *correction_float_dev+block/block_index_divisor;
 
 	__shared__ uint32_t key_rest_xor[31];
 	__shared__ uint32_t binOutRawBit[992];
@@ -1037,7 +1039,7 @@ void readConfig() {
 	verify_ampout = root["verify_ampout"].As<bool>(true);
 	verify_ampout_threads = root["verify_ampout_threads"].As<uint32_t>(8);
 
-
+	blocks_in_bank = BANK_SIZE / sample_size;
 	vertical_len = sample_size / 4 + sample_size / 8;
 	horizontal_len = sample_size / 2 + sample_size / 8;
 	vertical_block = vertical_len / 32;
@@ -1142,10 +1144,10 @@ int main(int argc, char* argv[])
 	cudaEventCreate(&stop);
 
 	// Allocate host pinned memory on RAM
-	cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
-	cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
-	cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
-	cudaMallocHost((void**)&Output, output_cache_block_size * output_blocks_to_cache);
+	cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * blocks_in_bank * sizeof(uint32_t) * input_blocks_to_cache);
+	cudaMallocHost((void**)&key_start, input_cache_block_size * blocks_in_bank * sizeof(uint32_t) * input_blocks_to_cache);
+	cudaMallocHost((void**)&key_rest, input_cache_block_size * blocks_in_bank * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
+	cudaMallocHost((void**)&Output, output_cache_block_size * blocks_in_bank * output_blocks_to_cache);
 	#ifdef TEST
 	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
 	#endif
@@ -1158,21 +1160,21 @@ int main(int argc, char* argv[])
 	fill(key_rest_zero_pos, key_rest_zero_pos + input_blocks_to_cache, desired_block);
 
 	// Allocate memory on GPU
-	cudaMalloc(&count_one_of_global_seed, sizeof(uint32_t));
-	cudaMalloc(&count_one_of_global_key, sizeof(uint32_t));
-	cudaMalloc(&correction_float_dev, sizeof(float));
-	cudaCalloc((void**)&di1, sample_size * sizeof(Real));
+	cudaMalloc(&count_one_of_global_seed, (BANK_SIZE / pow(2, 10)) * sizeof(uint32_t));
+	cudaMalloc(&count_one_of_global_key, (BANK_SIZE / pow(2, 10)) * sizeof(uint32_t));
+	cudaMalloc(&correction_float_dev, (BANK_SIZE / pow(2, 10)) * sizeof(float));
+	cudaCalloc((void**)&di1, BANK_SIZE * sizeof(Real));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
+	cudaMalloc((void**)&di2, (BANK_SIZE + 992) * sizeof(Real));
 
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
-	cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
+	cudaMalloc((void**)&do1, BANK_SIZE * sizeof(Complex));
 
 	/*Toeplitz Seed FFT output but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
-	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
+	cudaMalloc((void**)&do2, max(BANK_SIZE * sizeof(Complex), (BANK_SIZE + 992) * sizeof(Real)));
 
 	register const Complex complex0 = make_float2(0.0f, 0.0f);
 	register const Real float0 = 0.0f;
@@ -1227,6 +1229,7 @@ int main(int argc, char* argv[])
 				}
 				for (int j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
+					blocks_in_bank = BANK_SIZE / sample_size;
 					vertical_len = sample_size / 4 + sample_size / 8;
 					horizontal_len = sample_size / 2 + sample_size / 8;
 					vertical_block = vertical_len / 32;
@@ -1277,10 +1280,14 @@ int main(int argc, char* argv[])
 		relevant_keyBlocks = horizontal_block + 1;
 		if (relevant_keyBlocks_old > relevant_keyBlocks) {
 			/*Fill dirty memory regions parts with zeros*/
-			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
+			uint32_t amout_of_zeros_to_fill = (relevant_keyBlocks_old - relevant_keyBlocks);
+			uint32_t key_block_size = relevant_keyBlocks + amout_of_zeros_to_fill;
+			for (int i = 0; i < blocks_in_bank; ++i) {
+				cudaMemset(di1 + i*key_block_size + relevant_keyBlocks, 0b00000000, amout_of_zeros_to_fill * sizeof(Real));
+			}
 		}
 
-		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
+		cudaMemset(count_one_of_global_key, 0b00000000, blocks_in_bank * sizeof(uint32_t));
 
 		#ifdef TEST
 		if (doTest) {
@@ -1288,17 +1295,17 @@ int main(int argc, char* argv[])
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
-		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
+		binInt2float KERNEL_ARG4((int)((blocks_in_bank * relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		if (recalculate_toeplitz_matrix_seed) {
-			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
+			cudaMemset(count_one_of_global_seed, 0b00000000, blocks_in_bank * sizeof(uint32_t));
 			#ifdef TEST
 			if (doTest) {
 				CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
-			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
+			binInt2float KERNEL_ARG4((int)(((int)(BANK_SIZE)+1023) / 1024), min_template(BANK_SIZE, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 		}
@@ -1309,7 +1316,7 @@ int main(int argc, char* argv[])
 			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
 		}
 		#endif
-		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
+		calculateCorrectionFloat KERNEL_ARG4((int)(((int)(blocks_in_bank)+1023) / 1024), min_template(blocks_in_bank, 1024), 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
 		#ifdef TEST
 		if (doTest) {
@@ -1342,7 +1349,7 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
 		}
 		#endif
-		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
+		setFirstElementToZero KERNEL_ARG4((int)(((int)(blocks_in_bank*2)+1023) / 1024), min_template(blocks_in_bank*2, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1352,7 +1359,7 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
 		}
 		#endif
-		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
+		ElementWiseProduct KERNEL_ARG4((int)((dist_freq * blocks_in_bank + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1383,7 +1390,7 @@ int main(int argc, char* argv[])
 		}		
 		#endif
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
+			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, (vertical_block / 31) + 1);
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {
