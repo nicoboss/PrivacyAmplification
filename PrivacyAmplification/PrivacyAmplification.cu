@@ -126,6 +126,7 @@ float normalisation_float;
 atomic<bool> unitTestsFailed = false;
 atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
 atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = false;
+atomic<bool> cuFFT_planned = false;
 
 __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
@@ -1070,9 +1071,12 @@ inline void setConsoleDesign() {
 
 
 #define PLAN_FFT \
-/*Delete CUFFT Plans*/ \
-cufftDestroy(plan_forward_R2C); \
-cufftDestroy(plan_inverse_C2R); \
+if (cuFFT_planned) \
+{ \
+	/*Delete CUFFT Plans*/ \
+	cufftDestroy(plan_forward_R2C); \
+	cufftDestroy(plan_inverse_C2R); \
+} \
 \
 /*Plan of the forward real to complex fast fourier transformation*/ \
 cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
@@ -1088,7 +1092,8 @@ if (result_inverse_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
 	exit(0); \
-}
+} \
+cuFFT_planned = true;
 
 int main(int argc, char* argv[])
 {
