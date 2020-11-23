@@ -11,7 +11,11 @@ typedef float2   Complex;
 #define FALSE 0
 #define VERSION "1.1.0"
 
-#define BANK_SIZE pow(2, 27)
+#define BANK_SIZE_BITS 134217728 //2^27
+#define BANK_SIZE_BYTES 16777216 //2^27
+#define BANK_SIZE_UINT32 4194304 //2^27
+#define MIN_BLOCK_SIZE_BITS 1024 //2^10
+#define MAX_BLOCK_PER_BANK (BANK_SIZE_BITS / MIN_BLOCK_SIZE_BITS)
 
 //Return the minimum of two values
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
@@ -57,11 +61,13 @@ uint32_t cuda_device_id_to_use;
 /*Specifies how large the input cache should be. If Privacy Amplification is slower
   then the data input cache will fill up. Cache requires RAM.
   Its value must be 2 or larger while at 16 or higher is recommended.*/
+uint32_t input_banks_to_cache;
 uint32_t input_blocks_to_cache;
 
 /*Specifies how large the ouput cache should be. If the data reciever is slower
   then the Privacy Amplification this cache will fill up. Cache requires RAM.
   Its value must be 2 or larger while at 16 or higher is recommended.*/
+uint32_t output_banks_to_cache;
 uint32_t output_blocks_to_cache;
 
 /*Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
