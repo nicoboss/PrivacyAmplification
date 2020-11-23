@@ -12,8 +12,8 @@ typedef float2   Complex;
 #define VERSION "1.1.0"
 
 #define BANK_SIZE_BITS 134217728 //2^27
-#define BANK_SIZE_BYTES 16777216 //2^27
-#define BANK_SIZE_UINT32 4194304 //2^27
+#define BANK_SIZE_BYTES 16777216 //2^27/4
+#define BANK_SIZE_UINT32 8388608 //(2^27/4)/4
 #define MIN_BLOCK_SIZE_BITS 1024 //2^10
 #define MAX_BLOCK_PER_BANK (BANK_SIZE_BITS / MIN_BLOCK_SIZE_BITS)
 
@@ -154,7 +154,7 @@ println("Hallo " << name) which requires the following function-like macros*/
 
 /*Because cudaCalloc doesn't exist let's make our own one using §oc and cudaMemset*/
 #define cudaCalloc(a,b)  \
-checkCudaErrors(cudaMalloc(a, b)) \
+checkCudaErrors(cudaMalloc(a, b)); \
 checkCudaErrors(cudaMemset(*a, 0b00000000, b));
 
 /*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
@@ -405,7 +405,7 @@ void check(T result, char const* const func, const char* const file, int const l
 #ifdef _DEBUG
 #define checkCudaErrors(val) check ( (val), #val, __FILE__, __LINE__ )
 #else
-#define checkCudaErrors(val)
+#define checkCudaErrors(val) val
 #endif
 
 // cuFFT API errors

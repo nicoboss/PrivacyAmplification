@@ -1129,7 +1129,7 @@ int main(int argc, char* argv[])
 	// Allocate host pinned memory on RAM
 	checkCudaErrors(cudaMallocHost((void**)&toeplitz_seed, BANK_SIZE_BYTES * input_banks_to_cache));
 	checkCudaErrors(cudaMallocHost((void**)&key_start, BANK_SIZE_BYTES * input_banks_to_cache));
-	checkCudaErrors(cudaMallocHost((void**)&key_rest, BANK_SIZE_BYTES * input_banks_to_cache + 31 * sizeof(uint32_t)));
+	checkCudaErrors(cudaMallocHost((void**)&key_rest, BANK_SIZE_BYTES * (input_banks_to_cache+1)));
 	checkCudaErrors(cudaMallocHost((void**)&Output, BANK_SIZE_BYTES * output_banks_to_cache));
 	#ifdef TEST
 	checkCudaErrors(cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)))));
@@ -1146,18 +1146,18 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMalloc(&count_one_of_global_seed, MAX_BLOCK_PER_BANK * sizeof(uint32_t)));
 	checkCudaErrors(cudaMalloc(&count_one_of_global_key, MAX_BLOCK_PER_BANK * sizeof(uint32_t)));
 	checkCudaErrors(cudaMalloc(&correction_float_dev, MAX_BLOCK_PER_BANK * sizeof(float)));
-	cudaCalloc((void**)&di1, BANK_SIZE_BYTES * sizeof(Real));
+	cudaCalloc((void**)&di1, BANK_SIZE_BITS * sizeof(Real));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	checkCudaErrors(cudaMalloc((void**)&di2, (BANK_SIZE_BYTES + 992) * sizeof(Real)));
+	checkCudaErrors(cudaMalloc((void**)&di2, (BANK_SIZE_BITS + 992) * sizeof(Real)));
 
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
-	checkCudaErrors(cudaMalloc((void**)&do1, BANK_SIZE_BYTES * sizeof(Complex)));
+	checkCudaErrors(cudaMalloc((void**)&do1, BANK_SIZE_BITS * sizeof(Complex)));
 
 	/*Toeplitz Seed FFT output but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
-	checkCudaErrors(cudaMalloc((void**)&do2, max(BANK_SIZE_BYTES * sizeof(Complex), (BANK_SIZE_BYTES + 992) * sizeof(Real))));
+	checkCudaErrors(cudaMalloc((void**)&do2, max(BANK_SIZE_BITS * sizeof(Complex), (BANK_SIZE_BITS + 992) * sizeof(Real))));
 
 	register const Complex complex0 = make_float2(0.0f, 0.0f);
 	register const Real float0 = 0.0f;
