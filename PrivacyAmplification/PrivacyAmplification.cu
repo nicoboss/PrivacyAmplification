@@ -1188,7 +1188,7 @@ int main(int argc, char* argv[])
 	PLAN_FFT;
 
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
-	uint32_t relevant_keyBlocks = horizontal_block + 1;
+	uint32_t relevant_keyBlocks = 0;
 	uint32_t relevant_keyBlocks_old = 0;
 
 	bool recalculate_toeplitz_matrix_seed = true;
@@ -1214,18 +1214,19 @@ int main(int argc, char* argv[])
 				for (int j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
 					blocks_in_bank = BANK_SIZE_BITS / sample_size;
-					//vertical_len = sample_size / 4 + sample_size / 8;
-					//horizontal_len = sample_size / 2 + sample_size / 8;
-					//vertical_block = vertical_len / 32;
-					//horizontal_block = horizontal_len / 32;
-					//desired_block = sample_size / 32;
-					//key_blocks = desired_block + 1;
-					//input_blocks_to_cache = blocks_in_bank * input_banks_to_cache;
-					//output_blocks_to_cache = blocks_in_bank * output_banks_to_cache;
-					//normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
-					//checkCudaErrors(cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float)));
-					//checkCudaErrors(cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t)));
-					//dist_freq = sample_size / 2 + 1;
+					vertical_len = sample_size / 4 + sample_size / 8;
+					horizontal_len = sample_size / 2 + sample_size / 8;
+					vertical_block = vertical_len / 32;
+					horizontal_block = horizontal_len / 32;
+					desired_block = sample_size / 32;
+					key_blocks = desired_block + 1;
+					input_blocks_to_cache = blocks_in_bank * input_banks_to_cache;
+					output_blocks_to_cache = blocks_in_bank * output_banks_to_cache;
+					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+					checkCudaErrors(cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float)));
+					checkCudaErrors(cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t)));
+					dist_freq = sample_size / 2 + 1;
+					PLAN_FFT
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
 						goto mainloop;
@@ -1263,6 +1264,9 @@ int main(int argc, char* argv[])
 		input_cache_read_pos = 0;
 
 		/*Detect dirty memory regions parts*/
+		if (relevant_keyBlocks == 0) {
+			relevant_keyBlocks = horizontal_block + 1;
+		}
 		relevant_keyBlocks_old = relevant_keyBlocks;
 		relevant_keyBlocks = horizontal_block + 1;
 		if (relevant_keyBlocks_old > relevant_keyBlocks) {
