@@ -29,7 +29,9 @@
 using namespace std;
 
 //Little endian only!
-//#define TEST
+#ifdef _DEBUG
+#define TEST
+#endif
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -892,7 +894,6 @@ void verifyData(const uint8_t* dataToVerify) {
 
 
 void sendData() {
-	return;
 	int32_t rc;
 	char syn[3];
 	void* amp_out_socket = nullptr;
@@ -926,9 +927,9 @@ void sendData() {
 		}
 		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
-		uint8_t* output_block = Output + BANK_SIZE_BYTES * output_cache_read_pos;
+		uint8_t* output_block = Output + BANK_SIZE_UINT32 * output_cache_read_pos;
 
-		if (verify_ampout && false)
+		if (verify_ampout)
 		{
 			verifyDataPool->enqueue(verifyData, output_block);
 		}
@@ -1091,7 +1092,7 @@ int main(int argc, char* argv[])
 	readConfig();
 
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
-	//cudaSetDevice(cuda_device_id_to_use);
+	cudaSetDevice(cuda_device_id_to_use);
 	setConsoleDesign();
 
 	input_cache_read_pos = input_blocks_to_cache - 1;
@@ -1133,7 +1134,7 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMallocHost((void**)&key_rest, BANK_SIZE_BYTES * (input_banks_to_cache+1)));
 	checkCudaErrors(cudaMallocHost((void**)&Output, BANK_SIZE_BYTES * output_banks_to_cache));
 	#ifdef TEST
-	checkCudaErrors(cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)))));
+	checkCudaErrors(cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real))));
 	#endif
 	#if SHOW_DEBUG_OUTPUT == TRUE
 	checkCudaErrors(cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache)));
@@ -1281,7 +1282,7 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + BANK_SIZE_UINT32 * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
 		binInt2float KERNEL_ARG4((int)((blocks_in_bank * relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
@@ -1291,7 +1292,7 @@ int main(int argc, char* argv[])
 			#ifdef TEST
 			if (doTest) {
 				CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + BANK_SIZE_UINT32 * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(BANK_SIZE_BITS)+1023) / 1024), min_template(BANK_SIZE_BITS, 1024), 0,
@@ -1374,7 +1375,7 @@ int main(int argc, char* argv[])
 		if (doTest) {
 			checkCudaErrors(cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost));
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + BANK_SIZE_UINT32 * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723	
 		}		
 		#endif
@@ -1383,7 +1384,7 @@ int main(int argc, char* argv[])
 		checkCudaErrors(cudaStreamSynchronize(ToBinaryArrayStream));
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + BANK_SIZE_UINT32 * output_cache_write_pos), vertical_len / 8, ampout_sha3));
 		}
 		#endif
 

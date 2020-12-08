@@ -17,7 +17,7 @@ pre_mul_reduction_exp: 5
 
 #Specifies which GPU to use by setting this value to the CUDA device ID.
 #Which ID matches to which GPU can be seen using nvidia-smi (on Linux and Windows)
-cuda_device_id_to_use: 2
+cuda_device_id_to_use: 1
 
 #Specifies how large the input cache should be. If Privacy Amplification is slower
 #then the data input this cache will fill up. Cache requires RAM.
