@@ -62,13 +62,11 @@ uint32_t cuda_device_id_to_use;
   then the data input cache will fill up. Cache requires RAM.
   Its value must be 2 or larger while at 16 or higher is recommended.*/
 uint32_t input_banks_to_cache;
-uint32_t input_blocks_to_cache;
 
 /*Specifies how large the ouput cache should be. If the data reciever is slower
   then the Privacy Amplification this cache will fill up. Cache requires RAM.
   Its value must be 2 or larger while at 16 or higher is recommended.*/
 uint32_t output_banks_to_cache;
-uint32_t output_blocks_to_cache;
 
 /*Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
   This has a huge performance and security impact. Not changing it will make the algorithms

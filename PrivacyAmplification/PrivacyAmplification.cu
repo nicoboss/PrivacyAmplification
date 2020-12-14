@@ -30,7 +30,7 @@ using namespace std;
 
 //Little endian only!
 #ifdef _DEBUG
-#define TEST
+//#define TEST
 #endif
 
 #ifdef __CUDACC__
@@ -691,7 +691,7 @@ inline void readMatrixSeedFromFile() {
 
 	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + BANK_SIZE_BYTES * input_cache_write_pos);
 	seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
-	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+	for (uint32_t i = 0; i < input_banks_to_cache; ++i) {
 		uint32_t* toeplitz_seed_block = toeplitz_seed + desired_block * i;
 		memcpy(toeplitz_seed_block, toeplitz_seed, desired_block * sizeof(uint32_t));
 	}
@@ -726,7 +726,7 @@ inline void readKeyFromFile() {
 	char* recv_key_char = reinterpret_cast<char*>(recv_key);
 	keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
 	key2StartRest();
-	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+	for (uint32_t i = 0; i < input_banks_to_cache; ++i) {
 		uint32_t* key_start_block = key_start + desired_block * i;
 		uint32_t* key_rest_block = key_rest + desired_block * i;
 		uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
@@ -775,7 +775,7 @@ void reciveData() {
 	while (true)
 	{
 
-		while (input_cache_write_pos % input_blocks_to_cache == input_cache_read_pos) {
+		while (input_cache_write_pos % input_banks_to_cache == input_cache_read_pos) {
 			this_thread::yield();
 		}
 
@@ -801,7 +801,7 @@ void reciveData() {
 				zmq_disconnect(socket_seed_in, address_seed_in.c_str());
 				zmq_close(socket_seed_in);
 				zmq_ctx_destroy(socket_seed_in);
-				for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
+				for (uint32_t i = 0; i < input_banks_to_cache; ++i) {
 					uint32_t* toeplitz_seed_block = toeplitz_seed + BANK_SIZE_UINT32 * i;
 					memcpy(toeplitz_seed_block, toeplitz_seed, BANK_SIZE_UINT32);
 				}
@@ -840,7 +840,7 @@ void reciveData() {
 			key2StartRest();
 		}
 
-		input_cache_write_pos = (input_cache_write_pos + 1) % input_blocks_to_cache;
+		input_cache_write_pos = (input_cache_write_pos + 1) % input_banks_to_cache;
 	}
 
 	if (use_matrix_seed_server && recive_toeplitz_matrix_seed) {
@@ -877,18 +877,18 @@ bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uin
 	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
 	rhash_sha3_final(&sha3, calculatedHash);
-	println(toHexString(calculatedHash, 32));
+	//println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
 void verifyData(const uint8_t* dataToVerify) {
-	if (isSha3(dataToVerify, vertical_len / 8, ampout_sha3)) {
+	if (isSha3(dataToVerify, (vertical_len / 8) * blocks_in_bank, ampout_sha3)) {
 		println("VERIFIED!");
 	}
 	else
 	{
 		println("VERIFICATION FAILED!");
-		exit(101);
+		//exit(101);
 	}
 }
 
@@ -922,12 +922,12 @@ void sendData() {
 
 	while (true) {
 
-		while ((output_cache_read_pos + 1) % output_blocks_to_cache == output_cache_write_pos) {
+		while ((output_cache_read_pos + 1) % output_banks_to_cache == output_cache_write_pos) {
 			this_thread::yield();
 		}
-		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
+		output_cache_read_pos = (output_cache_read_pos + 1) % output_banks_to_cache;
 
-		uint8_t* output_block = Output + BANK_SIZE_UINT32 * output_cache_read_pos;
+		uint8_t* output_block = Output + BANK_SIZE_BYTES * output_cache_read_pos;
 
 		if (verify_ampout)
 		{
@@ -938,7 +938,7 @@ void sendData() {
 			if (ampOutsToStore > 0) {
 				--ampOutsToStore;
 			}
-			ampout_file.write((char*)&output_block[0], vertical_len / 8);
+			ampout_file.write((char*)&output_block[0], (vertical_len / 8) * blocks_in_bank);
 			ampout_file.flush();
 			if (ampOutsToStore == 0) {
 				ampout_file.close();
@@ -974,7 +974,7 @@ void sendData() {
 			{
 				for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), show_ampout); ++i)
 				{
-					printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
+					printf("q0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
 				}
 			}
 			fflush(stdout);
@@ -1031,11 +1031,9 @@ void readConfig() {
 	horizontal_block = horizontal_len / 32;
 	desired_block = sample_size / 32;
 	key_blocks = desired_block + 1;
-	input_blocks_to_cache = blocks_in_bank * input_banks_to_cache;
-	output_blocks_to_cache = blocks_in_bank * output_banks_to_cache;
 	recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
-	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
-	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+	key_start_zero_pos = (uint32_t*)malloc(input_banks_to_cache * sizeof(uint32_t));
+	key_rest_zero_pos = (uint32_t*)malloc(input_banks_to_cache * sizeof(uint32_t));
 }
 
 
@@ -1095,9 +1093,9 @@ int main(int argc, char* argv[])
 	cudaSetDevice(cuda_device_id_to_use);
 	setConsoleDesign();
 
-	input_cache_read_pos = input_blocks_to_cache - 1;
+	input_cache_read_pos = input_banks_to_cache - 1;
 	input_cache_write_pos = 0;
-	output_cache_read_pos = input_blocks_to_cache - 1;
+	output_cache_read_pos = input_banks_to_cache - 1;
 	output_cache_write_pos = 0;
 
 	uint32_t* count_one_of_global_seed;
@@ -1132,7 +1130,7 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMallocHost((void**)&toeplitz_seed, BANK_SIZE_BYTES * input_banks_to_cache));
 	checkCudaErrors(cudaMallocHost((void**)&key_start, BANK_SIZE_BYTES * input_banks_to_cache));
 	checkCudaErrors(cudaMallocHost((void**)&key_rest, BANK_SIZE_BYTES * (input_banks_to_cache+1)));
-	checkCudaErrors(cudaMallocHost((void**)&Output, BANK_SIZE_BYTES * output_banks_to_cache));
+	checkCudaErrors(cudaMallocHost((void**)&Output, BANK_SIZE_BYTES * output_banks_to_cache + 992));
 	#ifdef TEST
 	checkCudaErrors(cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real))));
 	#endif
@@ -1141,8 +1139,8 @@ int main(int argc, char* argv[])
 	#endif
 
 	//Set key_start_zero_pos and key_rest_zero_pos to their default values
-	fill(key_start_zero_pos, key_start_zero_pos + input_blocks_to_cache, desired_block);
-	fill(key_rest_zero_pos, key_rest_zero_pos + input_blocks_to_cache, desired_block);
+	fill(key_start_zero_pos, key_start_zero_pos + input_banks_to_cache, desired_block);
+	fill(key_rest_zero_pos, key_rest_zero_pos + input_banks_to_cache, desired_block);
 
 	// Allocate memory on GPU
 	checkCudaErrors(cudaMalloc(&count_one_of_global_seed, MAX_BLOCK_PER_BANK * sizeof(uint32_t)));
@@ -1222,8 +1220,6 @@ int main(int argc, char* argv[])
 					desired_block = sample_size / 32;
 					key_blocks = desired_block + 1;
 					relevant_keyBlocks = horizontal_block + 1;
-					input_blocks_to_cache = blocks_in_bank * input_banks_to_cache;
-					output_blocks_to_cache = blocks_in_bank * output_banks_to_cache;
 					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
 					checkCudaErrors(cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float)));
 					checkCudaErrors(cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t)));
@@ -1256,12 +1252,12 @@ int main(int argc, char* argv[])
 	// Mainloop of main thread #
 	//##########################
 	while (true) {
-		;
+
 		/*Spinlock waiting for data provider*/
-		while ((input_cache_read_pos + 1) % input_blocks_to_cache == input_cache_write_pos) {
+		while ((input_cache_read_pos + 1) % input_banks_to_cache == input_cache_write_pos) {
 			this_thread::yield();
 		}
-		input_cache_read_pos = (input_cache_read_pos + 1) % input_blocks_to_cache; //Switch read cache
+		input_cache_read_pos = (input_cache_read_pos + 1) % input_banks_to_cache; //Switch read cache
 		mainloop:
 		input_cache_read_pos = 0;
 
@@ -1364,13 +1360,13 @@ int main(int argc, char* argv[])
 
 		/*Spinlock waiting for the data consumer*/
 		if (!speedtest) {
-			while (output_cache_write_pos % output_blocks_to_cache == output_cache_read_pos) {
+			while (output_cache_write_pos % output_banks_to_cache == output_cache_read_pos) {
 				this_thread::yield();
 			}
 		}
 
 		/*Calculates where in the host pinned output memory the Privacy Amplification result will be stored*/
-		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + BANK_SIZE_UINT32 * output_cache_write_pos);
+		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + BANK_SIZE_BYTES * output_cache_write_pos);
 		#ifdef TEST
 		if (doTest) {
 			checkCudaErrors(cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost));
@@ -1384,7 +1380,7 @@ int main(int argc, char* argv[])
 		checkCudaErrors(cudaStreamSynchronize(ToBinaryArrayStream));
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + BANK_SIZE_UINT32 * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + BANK_SIZE_BYTES * output_cache_write_pos), vertical_len / 8, ampout_sha3));
 		}
 		#endif
 
@@ -1401,7 +1397,7 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
+			output_cache_write_pos = (output_cache_write_pos + 1) % output_banks_to_cache;
 		}
 
 	}
