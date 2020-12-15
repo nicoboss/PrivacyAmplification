@@ -681,19 +681,19 @@ inline void readMatrixSeedFromFile() {
 	size_t seedfile_length = seedfile.tellg();
 	seedfile.seekg(0, ios::beg);
 
-	if (seedfile_length < desired_block * sizeof(uint32_t))
+	if (seedfile_length < BANK_SIZE_BYTES)
 	{
 		cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << endl;
-		cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << endl;
+		cout << "it is required to be at least " << BANK_SIZE_BYTES << " bytes => terminating!" << endl;
 		exit(104);
 		abort();
 	}
 
 	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + BANK_SIZE_BYTES * input_cache_write_pos);
-	seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
+	seedfile.read(toeplitz_seed_char, BANK_SIZE_BYTES);
 	for (uint32_t i = 0; i < input_banks_to_cache; ++i) {
-		uint32_t* toeplitz_seed_block = toeplitz_seed + desired_block * i;
-		memcpy(toeplitz_seed_block, toeplitz_seed, desired_block * sizeof(uint32_t));
+		uint32_t* toeplitz_seed_block = toeplitz_seed + BANK_SIZE_BYTES * i;
+		memcpy(toeplitz_seed_block, toeplitz_seed, BANK_SIZE_BYTES);
 	}
 }
 
@@ -715,16 +715,16 @@ inline void readKeyFromFile() {
 	size_t keyfile_length = keyfile.tellg();
 	keyfile.seekg(0, ios::beg);
 
-	if (keyfile_length < key_blocks * sizeof(uint32_t))
+	if (keyfile_length < key_blocks * sizeof(uint32_t) * blocks_in_bank)
 	{
 		cout << "File \"" << keyfile_path << "\" is with " << keyfile_length << " bytes too short!" << endl;
-		cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!" << endl;
+		cout << "it is required to be at least " << key_blocks * sizeof(uint32_t) * blocks_in_bank << " bytes => terminating!" << endl;
 		exit(106);
 		abort();
 	}
 
 	char* recv_key_char = reinterpret_cast<char*>(recv_key);
-	keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
+	keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t) * blocks_in_bank);
 	key2StartRest();
 	for (uint32_t i = 0; i < input_banks_to_cache; ++i) {
 		uint32_t* key_start_block = key_start + desired_block * i;
@@ -783,7 +783,7 @@ void reciveData() {
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			zmq_send(socket_seed_in, "SYN", 3, 0);
-			if (zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0) != desired_block * sizeof(uint32_t)) {
+			if (zmq_recv(socket_seed_in, toeplitz_seed_block, BANK_SIZE_BYTES, 0) != BANK_SIZE_BYTES) {
 				println("Error receiving data from Seedserver! Retrying...");
 				zmq_close(context_seed_in);
 				socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
@@ -1288,7 +1288,7 @@ int main(int argc, char* argv[])
 			#ifdef TEST
 			if (doTest) {
 				CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + BANK_SIZE_UINT32 * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + BANK_SIZE_UINT32 * input_cache_read_pos), BANK_SIZE_BYTES, binInt2float_seed_binIn_hash));
 			}
 			#endif
 			binInt2float KERNEL_ARG4((int)(((int)(BANK_SIZE_BITS)+1023) / 1024), min_template(BANK_SIZE_BITS, 1024), 0,
