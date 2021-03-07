@@ -41,7 +41,7 @@
     <ProjectGuid>{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}</ProjectGuid>
     <RootNamespace>PrivacyAmplification</RootNamespace>
     <ProjectName>PrivacyAmplification</ProjectName>
-    <CudaToolkitCustomDir>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1</CudaToolkitCustomDir>
+    <CudaToolkitCustomDir>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.2</CudaToolkitCustomDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup>
@@ -58,7 +58,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.1.props" />
+    <Import Project="$(CUDAPropsPath)\CUDA 11.2.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
     <Import Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" />
@@ -112,7 +112,7 @@
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.2\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
@@ -142,7 +142,7 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_3.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.2\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
@@ -152,6 +152,6 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.1.targets" />
+    <Import Project="$(CUDAPropsPath)\CUDA 11.2.targets" />
   </ImportGroup>
 </Project>
