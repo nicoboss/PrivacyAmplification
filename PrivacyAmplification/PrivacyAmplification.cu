@@ -9,9 +9,6 @@
 #include <iterator>
 #include <math.h>
 #include <zmq.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 #include <thread>
 #include <atomic>
 #include <bitset>
@@ -33,33 +30,11 @@ using namespace std;
 //#define TEST
 #endif
 
-#ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
 #define KERNEL_ARG3(grid, block, sh_mem) <<< grid, block, sh_mem >>>
 #define KERNEL_ARG4(grid, block, sh_mem, stream) <<< grid, block, sh_mem, stream >>>
-#else
-#define KERNEL_ARG2(grid, block)
-#define KERNEL_ARG3(grid, block, sh_mem)
-#define KERNEL_ARG4(grid, block, sh_mem, stream)
-#endif
 
-#ifdef __INTELLISENSE__
-cudaError_t cudaMemcpyToSymbol(Complex symbol, const void* src, size_t count);
-cudaError_t cudaMemcpyToSymbol(Real symbol, const void* src, size_t count);
-int __float2int_rn(float in);
-unsigned int atomicAdd(unsigned int* address, unsigned int val);
-#define __syncthreads()
-#endif
-
-#ifdef DEBUG
-	#ifdef _WIN32
-		#define BREAK __debugbreak();
-	#else
-		#define BREAK __builtin_trap();
-	#endif
-#else
-	#define BREAK
-#endif
+#define BREAK
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define assertZeroThreshold(actual, threshold, testCaseNr) \
@@ -114,9 +89,6 @@ uint32_t* key_rest_zero_pos;
 uint8_t* Output;
 uint8_t* testMemoryHost;
 
-#if SHOW_DEBUG_OUTPUT == TRUE
-Real* OutputFloat;
-#endif
 atomic<uint32_t> input_cache_read_pos;
 atomic<uint32_t> input_cache_write_pos;
 atomic<uint32_t> output_cache_read_pos;
@@ -174,11 +146,7 @@ __device__ __constant__ uint32_t intTobinMask_dev[32] =
 
 __device__ __constant__ uint32_t ToBinaryBitShiftArray_dev[32] =
 {
-	#if AMPOUT_REVERSE_ENDIAN == TRUE
 	7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24
-	#else
-	31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-	#endif
 };
 
 
@@ -396,7 +364,7 @@ int unitTestBinInt2float() {
 		checkCudaErrors(cudaStreamSynchronize(BinInt2floatStreamTest));
 		assertEquals(*count_one_test, count_one_expected, -1);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
-		ThreadPool* unitTestBinInt2floatVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
+		ThreadPool* unitTestBinInt2floatVerifyResultPool = new ThreadPool((max_template(processor_count, 1), requiredTotalTasks));
 		for (int i = 0; i < elementsToCheck; i += 1000000) {
 			unitTestBinInt2floatVerifyResultPool->enqueue(unitTestBinInt2floatVerifyResultThread, floatOutTest, i, min(i + 1000000, elementsToCheck));
 		}
@@ -519,9 +487,9 @@ int unitTestToBinaryArray() {
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test, (int)((int)(vertical_block_test) / 31) + 1);
 		checkCudaErrors(cudaStreamSynchronize(ToBinaryArrayStreamTest));
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
-		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
+		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min_template(max_template(processor_count, 1), requiredTotalTasks));
 		for (int i = 0; i < elementsToCheck; i += 1000000) {
-			unitTestToBinaryArrayVerifyResultPool->enqueue(unitTestToBinaryArrayVerifyResultThread, binOutTest, key_rest_test, i, min(i + 1000000, elementsToCheck));
+			unitTestToBinaryArrayVerifyResultPool->enqueue(unitTestToBinaryArrayVerifyResultThread, binOutTest, key_rest_test, i, min_template(i + 1000000, elementsToCheck));
 		}
 		unitTestToBinaryArrayVerifyResultPool->~ThreadPool();
 	}
@@ -740,6 +708,7 @@ inline void readKeyFromFile() {
 
 
 void reciveData() {
+	return;
 	void* socket_seed_in = nullptr;
 	void* socket_key_in = nullptr;
 	void* context_seed_in = nullptr;
@@ -1037,22 +1006,7 @@ void readConfig() {
 }
 
 
-inline void setConsoleDesign() {
-	#ifdef _WIN32
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	CONSOLE_SCREEN_BUFFER_INFO csbi;
-	DWORD dwConSize;
-	COORD coordScreen = { 0, 0 };
-	DWORD cCharsWritten;
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
-	dwConSize = csbi.dwSize.X * csbi.dwSize.Y;
-	FillConsoleOutputAttribute(hConsole,
-		FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE,
-		dwConSize, coordScreen, &cCharsWritten);
-	SetConsoleTextAttribute(hConsole,
-		FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
-	#endif
-}
+inline void setConsoleDesign(){}
 
 
 #define PLAN_FFT \
@@ -1133,9 +1087,6 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMallocHost((void**)&Output, BANK_SIZE_BYTES * output_banks_to_cache + 992));
 	#ifdef TEST
 	checkCudaErrors(cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real))));
-	#endif
-	#if SHOW_DEBUG_OUTPUT == TRUE
-	checkCudaErrors(cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache)));
 	#endif
 
 	//Set key_start_zero_pos and key_rest_zero_pos to their default values
@@ -1384,16 +1335,9 @@ int main(int argc, char* argv[])
 		}
 		#endif
 
-		#if SHOW_DEBUG_OUTPUT == TRUE
-		if (!speedtest) {
-			checkCudaErrors(cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost));
-			checkCudaErrors(cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost));
-		}
-		#endif
-
 		
 		if (speedtest) {
-			goto return_speedtest;
+			//goto return_speedtest;
 		}
 		else
 		{
