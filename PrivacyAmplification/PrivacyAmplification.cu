@@ -123,10 +123,10 @@ atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
 float normalisation_float;
-atomic<bool> unitTestsFailed = false;
-atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
-atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = false;
-atomic<bool> cuFFT_planned = false;
+atomic<bool> unitTestsFailed = {false};
+atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = {false};
+atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = {false};
+atomic<bool> cuFFT_planned = {false};
 
 __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
@@ -368,7 +368,7 @@ void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_ma
 
 int unitTestBinInt2float() {
 	println("Started TestBinInt2float Unit Test...");
-	atomic<bool> unitTestsFailedLocal = false;
+	atomic<bool> unitTestsFailedLocal = {false};
 	cudaStream_t BinInt2floatStreamTest;
 	checkCudaErrors(cudaStreamCreate(&BinInt2floatStreamTest));
 	uint32_t* binInTest;
@@ -486,7 +486,7 @@ void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key
 
 int unitTestToBinaryArray() {
 	println("Started ToBinaryArray Unit Test...");
-	atomic<bool> unitTestsFailedLocal = false;
+	atomic<bool> unitTestsFailedLocal = {false};
 	cudaStream_t ToBinaryArrayStreamTest;
 	checkCudaErrors(cudaStreamCreate(&ToBinaryArrayStreamTest));
 	register const Real float0 = 0.0f;
