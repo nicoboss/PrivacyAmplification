@@ -1,6 +1,6 @@
 #pragma once
-#include <cuda_runtime.h>
-#include <cuda_fp16.h>
+
+#include <hip/hip_fp16.h>
 
 //Real numbers are stored as single precision float
 typedef float    Real;
@@ -153,10 +153,10 @@ println("Hallo " << name) which requires the following function-like macros*/
   Example: std::string greeting = streamToString("Hallo " << name);*/
 #define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
 
-/*Because cudaCalloc doesn't exist let's make our own one using §oc and cudaMemset*/
+/*Because cudaCalloc doesn't exist let's make our own one using Â§oc and cudaMemset*/
 #define cudaCalloc(a,b)  \
-checkCudaErrors(cudaMalloc(a, b)); \
-checkCudaErrors(cudaMemset(*a, 0b00000000, b));
+checkCudaErrors(hipMalloc(a, b)); \
+checkCudaErrors(hipMemset(*a, 0b00000000, b));
 
 /*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
 and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
@@ -398,7 +398,7 @@ void check(T result, char const* const func, const char* const file, int const l
     {
         fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n",
             file, line, static_cast<unsigned int>(result), _cudaGetErrorEnum(result), func);
-        cudaDeviceReset();
+        hipDeviceReset();
         exit(EXIT_FAILURE);
     }
 }
@@ -410,53 +410,53 @@ void check(T result, char const* const func, const char* const file, int const l
 #endif
 
 // cuFFT API errors
-static const char* _cudaGetErrorEnum(cufftResult error)
+static const char* _cudaGetErrorEnum(hipfftResult error)
 {
     switch (error)
     {
-    case CUFFT_SUCCESS:
+    case HIPFFT_SUCCESS:
         return "CUFFT_SUCCESS";
 
-    case CUFFT_INVALID_PLAN:
+    case HIPFFT_INVALID_PLAN:
         return "CUFFT_INVALID_PLAN";
 
-    case CUFFT_ALLOC_FAILED:
+    case HIPFFT_ALLOC_FAILED:
         return "CUFFT_ALLOC_FAILED";
 
-    case CUFFT_INVALID_TYPE:
+    case HIPFFT_INVALID_TYPE:
         return "CUFFT_INVALID_TYPE";
 
-    case CUFFT_INVALID_VALUE:
+    case HIPFFT_INVALID_VALUE:
         return "CUFFT_INVALID_VALUE";
 
-    case CUFFT_INTERNAL_ERROR:
+    case HIPFFT_INTERNAL_ERROR:
         return "CUFFT_INTERNAL_ERROR";
 
-    case CUFFT_EXEC_FAILED:
+    case HIPFFT_EXEC_FAILED:
         return "CUFFT_EXEC_FAILED";
 
-    case CUFFT_SETUP_FAILED:
+    case HIPFFT_SETUP_FAILED:
         return "CUFFT_SETUP_FAILED";
 
-    case CUFFT_INVALID_SIZE:
+    case HIPFFT_INVALID_SIZE:
         return "CUFFT_INVALID_SIZE";
 
-    case CUFFT_UNALIGNED_DATA:
+    case HIPFFT_UNALIGNED_DATA:
         return "CUFFT_UNALIGNED_DATA";
 
-    case CUFFT_INCOMPLETE_PARAMETER_LIST:
+    case HIPFFT_INCOMPLETE_PARAMETER_LIST:
         return "CUFFT_INCOMPLETE_PARAMETER_LIST";
 
-    case CUFFT_INVALID_DEVICE:
+    case HIPFFT_INVALID_DEVICE:
         return "CUFFT_INVALID_DEVICE";
 
-    case CUFFT_PARSE_ERROR:
+    case HIPFFT_PARSE_ERROR:
         return "CUFFT_PARSE_ERROR";
 
-    case CUFFT_NO_WORKSPACE:
+    case HIPFFT_NO_WORKSPACE:
         return "CUFFT_NO_WORKSPACE";
 
-    case CUFFT_NOT_IMPLEMENTED:
+    case HIPFFT_NOT_IMPLEMENTED:
         return "CUFFT_NOT_IMPLEMENTED";
 
     case CUFFT_LICENSE_ERROR:
@@ -466,254 +466,147 @@ static const char* _cudaGetErrorEnum(cufftResult error)
     return "<unknown>";
 }
 
-static const char* _cudaGetErrorEnum(cudaError_t error)
+static const char* _cudaGetErrorEnum(hipError_t error)
 {
     switch (error)
     {
-    case cudaSuccess:
-        return "cudaSuccess";
+    case hipSuccess:
+        return "hipSuccess";
 
-    case cudaErrorMissingConfiguration:
-        return "cudaErrorMissingConfiguration";
+    case hipErrorMissingConfiguration:
+        return "hipErrorMissingConfiguration";
 
-    case cudaErrorMemoryAllocation:
-        return "cudaErrorMemoryAllocation";
+    case hipErrorOutOfMemory:
+        return "hipErrorOutOfMemory";
 
-    case cudaErrorInitializationError:
-        return "cudaErrorInitializationError";
+    case hipErrorNotInitialized:
+        return "hipErrorNotInitialized";
 
-    case cudaErrorLaunchFailure:
-        return "cudaErrorLaunchFailure";
+    case hipErrorLaunchFailure:
+        return "hipErrorLaunchFailure";
 
-    case cudaErrorPriorLaunchFailure:
-        return "cudaErrorPriorLaunchFailure";
+    case hipErrorPriorLaunchFailure:
+        return "hipErrorPriorLaunchFailure";
 
-    case cudaErrorLaunchTimeout:
-        return "cudaErrorLaunchTimeout";
+    case hipErrorLaunchTimeOut:
+        return "hipErrorLaunchTimeOut";
 
-    case cudaErrorLaunchOutOfResources:
-        return "cudaErrorLaunchOutOfResources";
+    case hipErrorLaunchOutOfResources:
+        return "hipErrorLaunchOutOfResources";
 
-    case cudaErrorInvalidDeviceFunction:
-        return "cudaErrorInvalidDeviceFunction";
+    case hipErrorInvalidDeviceFunction:
+        return "hipErrorInvalidDeviceFunction";
 
-    case cudaErrorInvalidConfiguration:
-        return "cudaErrorInvalidConfiguration";
+    case hipErrorInvalidConfiguration:
+        return "hipErrorInvalidConfiguration";
 
-    case cudaErrorInvalidDevice:
-        return "cudaErrorInvalidDevice";
+    case hipErrorInvalidDevice:
+        return "hipErrorInvalidDevice";
 
-    case cudaErrorInvalidValue:
-        return "cudaErrorInvalidValue";
+    case hipErrorInvalidValue:
+        return "hipErrorInvalidValue";
 
-    case cudaErrorInvalidPitchValue:
-        return "cudaErrorInvalidPitchValue";
+    case hipErrorInvalidSymbol:
+        return "hipErrorInvalidSymbol";
 
-    case cudaErrorInvalidSymbol:
-        return "cudaErrorInvalidSymbol";
+    case hipErrorMapFailed:
+        return "hipErrorMapFailed";
 
-    case cudaErrorMapBufferObjectFailed:
-        return "cudaErrorMapBufferObjectFailed";
+    case hipErrorUnmapFailed:
+        return "hipErrorUnmapFailed";
 
-    case cudaErrorUnmapBufferObjectFailed:
-        return "cudaErrorUnmapBufferObjectFailed";
+    case hipErrorInvalidDevicePointer:
+        return "hipErrorInvalidDevicePointer";
 
-    case cudaErrorInvalidHostPointer:
-        return "cudaErrorInvalidHostPointer";
+    case hipErrorInvalidMemcpyDirection:
+        return "hipErrorInvalidMemcpyDirection";
 
-    case cudaErrorInvalidDevicePointer:
-        return "cudaErrorInvalidDevicePointer";
+    case hipErrorDeinitialized:
+        return "hipErrorDeinitialized";
 
-    case cudaErrorInvalidTexture:
-        return "cudaErrorInvalidTexture";
+    case hipErrorUnknown:
+        return "hipErrorUnknown";
 
-    case cudaErrorInvalidTextureBinding:
-        return "cudaErrorInvalidTextureBinding";
+    case hipErrorInvalidHandle:
+        return "hipErrorInvalidHandle";
 
-    case cudaErrorInvalidChannelDescriptor:
-        return "cudaErrorInvalidChannelDescriptor";
+    case hipErrorNotReady:
+        return "hipErrorNotReady";
 
-    case cudaErrorInvalidMemcpyDirection:
-        return "cudaErrorInvalidMemcpyDirection";
+    case hipErrorInsufficientDriver:
+        return "hipErrorInsufficientDriver";
 
-    case cudaErrorAddressOfConstant:
-        return "cudaErrorAddressOfConstant";
+    case hipErrorSetOnActiveProcess:
+        return "hipErrorSetOnActiveProcess";
 
-    case cudaErrorTextureFetchFailed:
-        return "cudaErrorTextureFetchFailed";
+    case hipErrorNoDevice:
+        return "hipErrorNoDevice";
 
-    case cudaErrorTextureNotBound:
-        return "cudaErrorTextureNotBound";
+    case hipErrorECCNotCorrectable:
+        return "hipErrorECCNotCorrectable";
 
-    case cudaErrorSynchronizationError:
-        return "cudaErrorSynchronizationError";
+    case hipErrorSharedObjectSymbolNotFound:
+        return "hipErrorSharedObjectSymbolNotFound";
 
-    case cudaErrorInvalidFilterSetting:
-        return "cudaErrorInvalidFilterSetting";
+    case hipErrorSharedObjectInitFailed:
+        return "hipErrorSharedObjectInitFailed";
 
-    case cudaErrorInvalidNormSetting:
-        return "cudaErrorInvalidNormSetting";
+    case hipErrorUnsupportedLimit:
+        return "hipErrorUnsupportedLimit";
 
-    case cudaErrorMixedDeviceExecution:
-        return "cudaErrorMixedDeviceExecution";
+    case hipErrorInvalidImage:
+        return "hipErrorInvalidImage";
 
-    case cudaErrorCudartUnloading:
-        return "cudaErrorCudartUnloading";
+    case hipErrorNoBinaryForGpu:
+        return "hipErrorNoBinaryForGpu";
 
-    case cudaErrorUnknown:
-        return "cudaErrorUnknown";
+    case hipErrorPeerAccessAlreadyEnabled:
+        return "hipErrorPeerAccessAlreadyEnabled";
 
-    case cudaErrorNotYetImplemented:
-        return "cudaErrorNotYetImplemented";
+    case hipErrorPeerAccessNotEnabled:
+        return "hipErrorPeerAccessNotEnabled";
 
-    case cudaErrorMemoryValueTooLarge:
-        return "cudaErrorMemoryValueTooLarge";
+    case hipErrorContextAlreadyInUse:
+        return "hipErrorContextAlreadyInUse";
 
-    case cudaErrorInvalidResourceHandle:
-        return "cudaErrorInvalidResourceHandle";
+    case hipErrorProfilerDisabled:
+        return "hipErrorProfilerDisabled";
 
-    case cudaErrorNotReady:
-        return "cudaErrorNotReady";
+    case hipErrorProfilerNotInitialized:
+        return "hipErrorProfilerNotInitialized";
 
-    case cudaErrorInsufficientDriver:
-        return "cudaErrorInsufficientDriver";
+    case hipErrorProfilerAlreadyStarted:
+        return "hipErrorProfilerAlreadyStarted";
 
-    case cudaErrorSetOnActiveProcess:
-        return "cudaErrorSetOnActiveProcess";
+    case hipErrorProfilerAlreadyStopped:
+        return "hipErrorProfilerAlreadyStopped";
 
-    case cudaErrorInvalidSurface:
-        return "cudaErrorInvalidSurface";
+    case hipErrorAssert:
+        return "hipErrorAssert";
 
-    case cudaErrorNoDevice:
-        return "cudaErrorNoDevice";
+    case hipErrorHostMemoryAlreadyRegistered:
+        return "hipErrorHostMemoryAlreadyRegistered";
 
-    case cudaErrorECCUncorrectable:
-        return "cudaErrorECCUncorrectable";
+    case hipErrorHostMemoryNotRegistered:
+        return "hipErrorHostMemoryNotRegistered";
 
-    case cudaErrorSharedObjectSymbolNotFound:
-        return "cudaErrorSharedObjectSymbolNotFound";
+    case hipErrorOperatingSystem:
+        return "hipErrorOperatingSystem";
 
-    case cudaErrorSharedObjectInitFailed:
-        return "cudaErrorSharedObjectInitFailed";
+    case hipErrorPeerAccessUnsupported:
+        return "hipErrorPeerAccessUnsupported";
 
-    case cudaErrorUnsupportedLimit:
-        return "cudaErrorUnsupportedLimit";
+    case hipErrorNotSupported:
+        return "hipErrorNotSupported";
 
-    case cudaErrorDuplicateVariableName:
-        return "cudaErrorDuplicateVariableName";
+    case hipErrorIllegalAddress:
+        return "hipErrorIllegalAddress";
 
-    case cudaErrorDuplicateTextureName:
-        return "cudaErrorDuplicateTextureName";
+    case hipErrorInvalidKernelFile:
+        return "hipErrorInvalidKernelFile";
 
-    case cudaErrorDuplicateSurfaceName:
-        return "cudaErrorDuplicateSurfaceName";
-
-    case cudaErrorDevicesUnavailable:
-        return "cudaErrorDevicesUnavailable";
-
-    case cudaErrorInvalidKernelImage:
-        return "cudaErrorInvalidKernelImage";
-
-    case cudaErrorNoKernelImageForDevice:
-        return "cudaErrorNoKernelImageForDevice";
-
-    case cudaErrorIncompatibleDriverContext:
-        return "cudaErrorIncompatibleDriverContext";
-
-    case cudaErrorPeerAccessAlreadyEnabled:
-        return "cudaErrorPeerAccessAlreadyEnabled";
-
-    case cudaErrorPeerAccessNotEnabled:
-        return "cudaErrorPeerAccessNotEnabled";
-
-    case cudaErrorDeviceAlreadyInUse:
-        return "cudaErrorDeviceAlreadyInUse";
-
-    case cudaErrorProfilerDisabled:
-        return "cudaErrorProfilerDisabled";
-
-    case cudaErrorProfilerNotInitialized:
-        return "cudaErrorProfilerNotInitialized";
-
-    case cudaErrorProfilerAlreadyStarted:
-        return "cudaErrorProfilerAlreadyStarted";
-
-    case cudaErrorProfilerAlreadyStopped:
-        return "cudaErrorProfilerAlreadyStopped";
-
-        /* Since CUDA 4.0*/
-    case cudaErrorAssert:
-        return "cudaErrorAssert";
-
-    case cudaErrorTooManyPeers:
-        return "cudaErrorTooManyPeers";
-
-    case cudaErrorHostMemoryAlreadyRegistered:
-        return "cudaErrorHostMemoryAlreadyRegistered";
-
-    case cudaErrorHostMemoryNotRegistered:
-        return "cudaErrorHostMemoryNotRegistered";
-
-        /* Since CUDA 5.0 */
-    case cudaErrorOperatingSystem:
-        return "cudaErrorOperatingSystem";
-
-    case cudaErrorPeerAccessUnsupported:
-        return "cudaErrorPeerAccessUnsupported";
-
-    case cudaErrorLaunchMaxDepthExceeded:
-        return "cudaErrorLaunchMaxDepthExceeded";
-
-    case cudaErrorLaunchFileScopedTex:
-        return "cudaErrorLaunchFileScopedTex";
-
-    case cudaErrorLaunchFileScopedSurf:
-        return "cudaErrorLaunchFileScopedSurf";
-
-    case cudaErrorSyncDepthExceeded:
-        return "cudaErrorSyncDepthExceeded";
-
-    case cudaErrorLaunchPendingCountExceeded:
-        return "cudaErrorLaunchPendingCountExceeded";
-
-    case cudaErrorNotPermitted:
-        return "cudaErrorNotPermitted";
-
-    case cudaErrorNotSupported:
-        return "cudaErrorNotSupported";
-
-        /* Since CUDA 6.0 */
-    case cudaErrorHardwareStackError:
-        return "cudaErrorHardwareStackError";
-
-    case cudaErrorIllegalInstruction:
-        return "cudaErrorIllegalInstruction";
-
-    case cudaErrorMisalignedAddress:
-        return "cudaErrorMisalignedAddress";
-
-    case cudaErrorInvalidAddressSpace:
-        return "cudaErrorInvalidAddressSpace";
-
-    case cudaErrorInvalidPc:
-        return "cudaErrorInvalidPc";
-
-    case cudaErrorIllegalAddress:
-        return "cudaErrorIllegalAddress";
-
-        /* Since CUDA 6.5*/
-    case cudaErrorInvalidPtx:
-        return "cudaErrorInvalidPtx";
-
-    case cudaErrorInvalidGraphicsContext:
-        return "cudaErrorInvalidGraphicsContext";
-
-    case cudaErrorStartupFailure:
-        return "cudaErrorStartupFailure";
-
-    case cudaErrorApiFailureBase:
-        return "cudaErrorApiFailureBase";
-    }
+    case hipErrorInvalidGraphicsContext:
+        return "hipErrorInvalidGraphicsContext";
 
     return "<unknown>";
 }
