@@ -20,6 +20,9 @@ typedef float2   Complex;
 //Return the minimum of two values
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 
+//Return the maximum of two values
+#define max_template(a,b) (((a) > (b)) ? (a) : (b))
+
 /*In modified toeplitz hashing the result needs to be XORed with key_rest
   This can be disabled for debugging purposes but must be enabled for security!
   On purpose not in config.yaml for security and performance!*/
