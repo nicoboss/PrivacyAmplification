@@ -1,6 +1,7 @@
 #pragma once
 
 #include <hip/hip_fp16.h>
+#include <rocfft.h>
 
 //Real numbers are stored as single precision float
 typedef float    Real;
@@ -409,204 +410,212 @@ void check(T result, char const* const func, const char* const file, int const l
 #define checkCudaErrors(val) val
 #endif
 
-// cuFFT API errors
-static const char* _cudaGetErrorEnum(hipfftResult error)
+// rocFFT API errors
+static const char* _cudaGetErrorEnum(rocfft_status error)
 {
     switch (error)
     {
-    case HIPFFT_SUCCESS:
-        return "CUFFT_SUCCESS";
+    case rocfft_status_success:
+        return "rocfft_status_success";
 
-    case HIPFFT_INVALID_PLAN:
-        return "CUFFT_INVALID_PLAN";
+    case rocfft_status_failure:
+        return "rocfft_status_failure";
 
-    case HIPFFT_ALLOC_FAILED:
-        return "CUFFT_ALLOC_FAILED";
+    case rocfft_status_invalid_arg_value:
+        return "rocfft_status_invalid_arg_value";
 
-    case HIPFFT_INVALID_TYPE:
-        return "CUFFT_INVALID_TYPE";
+    case rocfft_status_invalid_dimensions:
+        return "rocfft_status_invalid_dimensions";
 
-    case HIPFFT_INVALID_VALUE:
-        return "CUFFT_INVALID_VALUE";
+    case rocfft_status_invalid_array_type:
+        return "rocfft_status_invalid_array_type";
 
-    case HIPFFT_INTERNAL_ERROR:
-        return "CUFFT_INTERNAL_ERROR";
+    case rocfft_status_invalid_strides:
+        return "rocfft_status_invalid_strides";
 
-    case HIPFFT_EXEC_FAILED:
-        return "CUFFT_EXEC_FAILED";
+    case rocfft_status_invalid_distance:
+        return "rocfft_status_invalid_distance";
 
-    case HIPFFT_SETUP_FAILED:
-        return "CUFFT_SETUP_FAILED";
-
-    case HIPFFT_INVALID_SIZE:
-        return "CUFFT_INVALID_SIZE";
-
-    case HIPFFT_UNALIGNED_DATA:
-        return "CUFFT_UNALIGNED_DATA";
-
-    case HIPFFT_INCOMPLETE_PARAMETER_LIST:
-        return "CUFFT_INCOMPLETE_PARAMETER_LIST";
-
-    case HIPFFT_INVALID_DEVICE:
-        return "CUFFT_INVALID_DEVICE";
-
-    case HIPFFT_PARSE_ERROR:
-        return "CUFFT_PARSE_ERROR";
-
-    case HIPFFT_NO_WORKSPACE:
-        return "CUFFT_NO_WORKSPACE";
-
-    case HIPFFT_NOT_IMPLEMENTED:
-        return "CUFFT_NOT_IMPLEMENTED";
-
-    case CUFFT_LICENSE_ERROR:
-        return "CUFFT_LICENSE_ERROR";
+    case rocfft_status_invalid_offset:
+        return "rocfft_status_invalid_offset";
+    default:
+        return "<unknown>";
     }
-
-    return "<unknown>";
 }
 
 static const char* _cudaGetErrorEnum(hipError_t error)
 {
     switch (error)
     {
-    case hipSuccess:
-        return "hipSuccess";
-
-    case hipErrorMissingConfiguration:
-        return "hipErrorMissingConfiguration";
-
-    case hipErrorOutOfMemory:
-        return "hipErrorOutOfMemory";
-
-    case hipErrorNotInitialized:
-        return "hipErrorNotInitialized";
-
-    case hipErrorLaunchFailure:
-        return "hipErrorLaunchFailure";
-
-    case hipErrorPriorLaunchFailure:
-        return "hipErrorPriorLaunchFailure";
-
-    case hipErrorLaunchTimeOut:
-        return "hipErrorLaunchTimeOut";
-
-    case hipErrorLaunchOutOfResources:
-        return "hipErrorLaunchOutOfResources";
-
-    case hipErrorInvalidDeviceFunction:
-        return "hipErrorInvalidDeviceFunction";
-
-    case hipErrorInvalidConfiguration:
-        return "hipErrorInvalidConfiguration";
-
-    case hipErrorInvalidDevice:
-        return "hipErrorInvalidDevice";
-
-    case hipErrorInvalidValue:
-        return "hipErrorInvalidValue";
-
-    case hipErrorInvalidSymbol:
-        return "hipErrorInvalidSymbol";
-
-    case hipErrorMapFailed:
-        return "hipErrorMapFailed";
-
-    case hipErrorUnmapFailed:
-        return "hipErrorUnmapFailed";
-
-    case hipErrorInvalidDevicePointer:
-        return "hipErrorInvalidDevicePointer";
-
-    case hipErrorInvalidMemcpyDirection:
-        return "hipErrorInvalidMemcpyDirection";
-
-    case hipErrorDeinitialized:
-        return "hipErrorDeinitialized";
-
-    case hipErrorUnknown:
-        return "hipErrorUnknown";
-
-    case hipErrorInvalidHandle:
-        return "hipErrorInvalidHandle";
-
-    case hipErrorNotReady:
-        return "hipErrorNotReady";
-
-    case hipErrorInsufficientDriver:
-        return "hipErrorInsufficientDriver";
-
-    case hipErrorSetOnActiveProcess:
-        return "hipErrorSetOnActiveProcess";
-
-    case hipErrorNoDevice:
-        return "hipErrorNoDevice";
-
-    case hipErrorECCNotCorrectable:
-        return "hipErrorECCNotCorrectable";
-
-    case hipErrorSharedObjectSymbolNotFound:
-        return "hipErrorSharedObjectSymbolNotFound";
-
-    case hipErrorSharedObjectInitFailed:
-        return "hipErrorSharedObjectInitFailed";
-
-    case hipErrorUnsupportedLimit:
-        return "hipErrorUnsupportedLimit";
-
-    case hipErrorInvalidImage:
-        return "hipErrorInvalidImage";
-
-    case hipErrorNoBinaryForGpu:
-        return "hipErrorNoBinaryForGpu";
-
-    case hipErrorPeerAccessAlreadyEnabled:
-        return "hipErrorPeerAccessAlreadyEnabled";
-
-    case hipErrorPeerAccessNotEnabled:
-        return "hipErrorPeerAccessNotEnabled";
-
-    case hipErrorContextAlreadyInUse:
-        return "hipErrorContextAlreadyInUse";
-
-    case hipErrorProfilerDisabled:
-        return "hipErrorProfilerDisabled";
-
-    case hipErrorProfilerNotInitialized:
-        return "hipErrorProfilerNotInitialized";
-
-    case hipErrorProfilerAlreadyStarted:
-        return "hipErrorProfilerAlreadyStarted";
-
-    case hipErrorProfilerAlreadyStopped:
-        return "hipErrorProfilerAlreadyStopped";
-
-    case hipErrorAssert:
-        return "hipErrorAssert";
-
-    case hipErrorHostMemoryAlreadyRegistered:
-        return "hipErrorHostMemoryAlreadyRegistered";
-
-    case hipErrorHostMemoryNotRegistered:
-        return "hipErrorHostMemoryNotRegistered";
-
-    case hipErrorOperatingSystem:
-        return "hipErrorOperatingSystem";
-
-    case hipErrorPeerAccessUnsupported:
-        return "hipErrorPeerAccessUnsupported";
-
-    case hipErrorNotSupported:
-        return "hipErrorNotSupported";
-
-    case hipErrorIllegalAddress:
-        return "hipErrorIllegalAddress";
-
-    case hipErrorInvalidKernelFile:
-        return "hipErrorInvalidKernelFile";
-
-    case hipErrorInvalidGraphicsContext:
-        return "hipErrorInvalidGraphicsContext";
-
-    return "<unknown>";
+        case hipSuccess:
+            return "hipSuccess";
+        
+        case hipErrorOutOfMemory:
+            return "hipErrorOutOfMemory or hipErrorMemoryAllocation";
+        
+        case hipErrorNotInitialized:
+            return "hipErrorNotInitialized or hipErrorInitializationError";
+        
+        case hipErrorDeinitialized:
+            return "hipErrorDeinitialized";
+        
+        case hipErrorProfilerDisabled:
+            return "hipErrorProfilerDisabled";
+        
+        case hipErrorProfilerNotInitialized:
+            return "hipErrorProfilerNotInitialized";
+        
+        case hipErrorProfilerAlreadyStarted:
+            return "hipErrorProfilerAlreadyStarted";
+        
+        case hipErrorProfilerAlreadyStopped:
+            return "hipErrorProfilerAlreadyStopped";
+        
+        case hipErrorInvalidImage:
+            return "hipErrorInvalidImage";
+        
+        case hipErrorInvalidContext:
+            return "hipErrorInvalidContext";
+        
+        case hipErrorContextAlreadyCurrent:
+            return "hipErrorContextAlreadyCurrent";
+        
+        case hipErrorMapFailed:
+            return "hipErrorMapFailed or hipErrorMapBufferObjectFailed";
+        
+        case hipErrorUnmapFailed:
+            return "hipErrorUnmapFailed";
+        
+        case hipErrorArrayIsMapped:
+            return "hipErrorArrayIsMapped";
+        
+        case hipErrorAlreadyMapped:
+            return "hipErrorAlreadyMapped";
+        
+        case hipErrorNoBinaryForGpu:
+            return "hipErrorNoBinaryForGpu";
+        
+        case hipErrorAlreadyAcquired:
+            return "hipErrorAlreadyAcquired";
+        
+        case hipErrorNotMapped:
+            return "hipErrorNotMapped";
+        
+        case hipErrorNotMappedAsArray:
+            return "hipErrorNotMappedAsArray";
+        
+        case hipErrorNotMappedAsPointer:
+            return "hipErrorNotMappedAsPointer";
+        
+        case hipErrorECCNotCorrectable:
+            return "hipErrorECCNotCorrectable";
+        
+        case hipErrorUnsupportedLimit:
+            return "hipErrorUnsupportedLimit";
+        
+        case hipErrorContextAlreadyInUse:
+            return "hipErrorContextAlreadyInUse";
+        
+        case hipErrorPeerAccessUnsupported:
+            return "hipErrorPeerAccessUnsupported";
+        
+        case hipErrorInvalidKernelFile:
+            return "hipErrorInvalidKernelFile";
+        
+        case hipErrorInvalidGraphicsContext:
+            return "hipErrorInvalidGraphicsContext";
+        
+        case hipErrorInvalidSource:
+            return "hipErrorInvalidSource";
+        
+        case hipErrorFileNotFound:
+            return "hipErrorFileNotFound";
+        
+        case hipErrorSharedObjectSymbolNotFound:
+            return "hipErrorSharedObjectSymbolNotFound";
+        
+        case hipErrorSharedObjectInitFailed:
+            return "hipErrorSharedObjectInitFailed";
+        
+        case hipErrorOperatingSystem:
+            return "hipErrorOperatingSystem";
+        
+        case hipErrorSetOnActiveProcess:
+            return "hipErrorSetOnActiveProcess";
+        
+        case hipErrorInvalidHandle:
+            return "hipErrorInvalidHandle or hipErrorInvalidResourceHandle";
+        
+        case hipErrorNotFound:
+            return "hipErrorNotFound";
+        
+        case hipErrorIllegalAddress:
+            return "hipErrorIllegalAddress";
+        
+        case hipErrorInvalidSymbol:
+            return "hipErrorInvalidSymbol";
+        
+        case hipErrorMissingConfiguration:
+            return "hipErrorMissingConfiguration";
+        
+        case hipErrorLaunchFailure:
+            return "hipErrorLaunchFailure";
+        
+        case hipErrorPriorLaunchFailure:
+            return "hipErrorPriorLaunchFailure";
+        
+        case hipErrorLaunchTimeOut:
+            return "hipErrorLaunchTimeOut";
+        
+        case hipErrorLaunchOutOfResources:
+            return "hipErrorLaunchOutOfResources";
+        
+        case hipErrorInvalidDeviceFunction:
+            return "hipErrorInvalidDeviceFunction";
+        
+        case hipErrorInvalidConfiguration:
+            return "hipErrorInvalidConfiguration";
+        
+        case hipErrorInvalidDevice:
+            return "hipErrorInvalidDevice";
+        
+        case hipErrorInvalidValue:
+            return "hipErrorInvalidValue";
+        
+        case hipErrorInvalidDevicePointer:
+            return "hipErrorInvalidDevicePointer";
+        
+        case hipErrorInvalidMemcpyDirection:
+            return "hipErrorInvalidMemcpyDirection";
+        
+        case hipErrorUnknown:
+            return "hipErrorUnknown";
+        
+        case hipErrorNotReady:
+            return "hipErrorNotReady";
+        
+        case hipErrorNoDevice:
+            return "hipErrorNoDevice";
+        
+        case hipErrorPeerAccessAlreadyEnabled:
+            return "hipErrorPeerAccessAlreadyEnabled";
+        
+        case hipErrorPeerAccessNotEnabled:
+            return "hipErrorPeerAccessNotEnabled";
+        
+        case hipErrorRuntimeMemory:
+            return "hipErrorRuntimeMemory";
+        
+        case hipErrorRuntimeOther:
+            return "hipErrorRuntimeOther";
+        
+        case hipErrorHostMemoryAlreadyRegistered:
+            return "hipErrorHostMemoryAlreadyRegistered";
+        
+        case hipErrorHostMemoryNotRegistered:
+            return "hipErrorHostMemoryNotRegistered";
+        default:
+            return "<unknown>";
+    }
 }
+
