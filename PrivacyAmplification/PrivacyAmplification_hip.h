@@ -1,7 +1,7 @@
 #pragma once
 
 #include <hip/hip_fp16.h>
-#include <rocfft.h>
+#include <hipfft.h>
 
 //Real numbers are stored as single precision float
 typedef float    Real;
@@ -411,35 +411,60 @@ void check(T result, char const* const func, const char* const file, int const l
 #endif
 
 // rocFFT API errors
-static const char* _cudaGetErrorEnum(rocfft_status error)
+static const char* _cudaGetErrorEnum(hipfftResult_t error)
 {
     switch (error)
     {
-    case rocfft_status_success:
-        return "rocfft_status_success";
-
-    case rocfft_status_failure:
-        return "rocfft_status_failure";
-
-    case rocfft_status_invalid_arg_value:
-        return "rocfft_status_invalid_arg_value";
-
-    case rocfft_status_invalid_dimensions:
-        return "rocfft_status_invalid_dimensions";
-
-    case rocfft_status_invalid_array_type:
-        return "rocfft_status_invalid_array_type";
-
-    case rocfft_status_invalid_strides:
-        return "rocfft_status_invalid_strides";
-
-    case rocfft_status_invalid_distance:
-        return "rocfft_status_invalid_distance";
-
-    case rocfft_status_invalid_offset:
-        return "rocfft_status_invalid_offset";
-    default:
-        return "<unknown>";
+		case HIPFFT_SUCCESS:
+			return "HIPFFT_SUCCESS: hipFFT operation was successful";
+		
+		case HIPFFT_INVALID_PLAN:
+			return "HIPFFT_INVALID_PLAN: hipFFT was passed an invalid plan handle";
+		
+		case HIPFFT_ALLOC_FAILED:
+			return "HIPFFT_ALLOC_FAILED: hipFFT failed to allocate GPU or CPU memory";
+		
+		case HIPFFT_INVALID_TYPE:
+			return "HIPFFT_INVALID_TYPE: No longer used";
+		
+		case HIPFFT_INVALID_VALUE:
+			return "HIPFFT_INVALID_VALUE: User specified an invalid pointer or parameter";
+		
+		case HIPFFT_INTERNAL_ERROR:
+			return "HIPFFT_INTERNAL_ERROR: Driver or internal hipFFT library error";
+		
+		case HIPFFT_EXEC_FAILED:
+			return "HIPFFT_EXEC_FAILED: Failed to execute an FFT on the GPU";
+		
+		case HIPFFT_SETUP_FAILED:
+			return "HIPFFT_SETUP_FAILED: hipFFT failed to initialize";
+		
+		case HIPFFT_INVALID_SIZE:
+			return "HIPFFT_INVALID_SIZE: User specified an invalid transform size";
+		
+		case HIPFFT_UNALIGNED_DATA:
+			return "HIPFFT_UNALIGNED_DATA: No longer used";
+		
+		case HIPFFT_INCOMPLETE_PARAMETER_LIST:
+			return "HIPFFT_INCOMPLETE_PARAMETER_LIST: Missing parameters in call";
+		
+		case HIPFFT_INVALID_DEVICE:
+			return "HIPFFT_INVALID_DEVICE: Execution of a plan was on different GPU than plan creation";
+		
+		case HIPFFT_PARSE_ERROR:
+			return "HIPFFT_PARSE_ERROR: Internal plan database error";
+		
+		case HIPFFT_NO_WORKSPACE:
+			return "HIPFFT_NO_WORKSPACE: No workspace has been provided prior to plan execution";
+		
+		case HIPFFT_NOT_IMPLEMENTED:
+			return "HIPFFT_NOT_IMPLEMENTED: Function does not implement functionality for parameters given.";
+		
+		case HIPFFT_NOT_SUPPORTED:
+			return "HIPFFT_NOT_SUPPORTED: Operation is not supported for parameters given.";
+		
+		default:
+			return "<unknown>";
     }
 }
 
