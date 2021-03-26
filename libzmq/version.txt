@@ -1,1 +1,1 @@
-Visual Studio 2019 v16.7.2 libzmq from Aug 17, 2020 at master/29f5ede68463b3b3af4fb8ce5b884ce5db60e24a
+Visual Studio 2019 v16.9.1 libzmq from March 26, 2021 at master/3070a4b2461ec64129062907d915ed665d2ac126
