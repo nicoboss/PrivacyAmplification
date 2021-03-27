@@ -288,8 +288,12 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 int unitTestSetFirstElementToZero() {
 	println("Started SetFirstElementToZero Unit Test...");
 	bool unitTestsFailedLocal = false;
+	#if defined(__NVCC__)
 	cudaStream_t SetFirstElementToZeroStreamTest;
 	cudaStreamCreate(&SetFirstElementToZeroStreamTest);
+	#else
+	const int SetFirstElementToZeroStreamTest = 0;
+	#endif
 	float* do1_test;
 	float* do2_test;
 	cudaMallocHost((void**)&do1_test, pow(2, 10) * 2 * sizeof(float));
@@ -298,8 +302,11 @@ int unitTestSetFirstElementToZero() {
 		do1_test[i] = i + 0.77;
 		do2_test[i] = i + 0.88;
 	}
-	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)
-		(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	#if defined(__NVCC__)
+	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	#else
+	vuda::launchKernel("setFirstElementToZero.spv", "main", SetFirstElementToZeroStreamTest, 1, 2, do1_test, do2_test);
+	#endif
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
 	assertZeroThreshold(do1_test[0], 0.00001, 0);
 	assertZeroThreshold(do1_test[1], 0.00001, 1);
@@ -313,6 +320,7 @@ int unitTestSetFirstElementToZero() {
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
+#if defined(__NVCC__)
 __global__
 void setFirstElementToZero(Complex* do1, Complex* do2)
 {
@@ -324,6 +332,7 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 		do2[0] = c0_dev;
 	}
 }
+#endif
 
 
 int unitTestElementWiseProduct() {
