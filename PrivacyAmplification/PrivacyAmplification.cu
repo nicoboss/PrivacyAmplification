@@ -425,14 +425,22 @@ void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_ma
 int unitTestBinInt2float() {
 	println("Started TestBinInt2float Unit Test...");
 	atomic<bool> unitTestsFailedLocal = false;
+	#if defined(__NVCC__)
 	cudaStream_t BinInt2floatStreamTest;
 	cudaStreamCreate(&BinInt2floatStreamTest);
+	#else
+	const int BinInt2floatStreamTest = 0;
+	float* float1_reduced_dev;
+	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
+	float float1_reduced = 1.0f / reduction;
+	*float1_reduced_dev = float1_reduced;
+	#endif
 	uint32_t* binInTest;
 	float* floatOutTest;
 	cudaMallocHost((void**)&binInTest, (pow(2, 27) / 32) * sizeof(uint32_t));
 	cudaMallocHost((void**)&floatOutTest, pow(2, 27) * sizeof(float));
 	uint32_t* count_one_test;
-	cudaMallocHost(&count_one_test, sizeof(uint32_t));
+	cudaMallocHost((void**)&count_one_test, sizeof(uint32_t));
 
 	const auto processor_count = std::thread::hardware_concurrency();
 	for (int i = 0; i < pow(2, 27) / 32; ++i) {
@@ -444,11 +452,14 @@ int unitTestBinInt2float() {
 		int elementsToCheck = pow(2, sample_size_test_exponent);
 		println("TestBinInt2float Unit Test with 2^" << sample_size_test_exponent << " samples...");
 		uint32_t sample_size_test = elementsToCheck;
-		uint32_t count_one_expected = A000788((sample_size_test/32)-1);
+		uint32_t count_one_expected = A000788((sample_size_test / 32) - 1);
 		*count_one_test = 0;
 		memset(floatOutTest, 0xFF, pow(2, 27) * sizeof(float));
-		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0,
-			BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
+		#if defined(__NVCC__)
+		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
+		#else
+		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_dev);
+	#endif
 		cudaStreamSynchronize(BinInt2floatStreamTest);
 		assertEquals(*count_one_test, count_one_expected, -1);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
@@ -465,6 +476,7 @@ int unitTestBinInt2float() {
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
+#if defined(__NVCC__)
 __global__
 void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 {
@@ -482,7 +494,7 @@ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 	inPos = idx / 32;
 	outPos = 1024 * block + idx;
 
-	if (idx < 32) {
+	if (threadIdx.x < 32) {
 		binInShared[idx] = binIn[32 * block + idx];
 	}
 	__syncthreads();
@@ -496,6 +508,8 @@ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 		realOut[outPos] = h1_reduced_local;
 	}
 }
+#endif
+
 
 void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_test, int i, int i_max)
 {
