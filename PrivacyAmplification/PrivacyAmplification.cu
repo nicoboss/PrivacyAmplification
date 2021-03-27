@@ -338,34 +338,47 @@ void setFirstElementToZero(Complex* do1, Complex* do2)
 int unitTestElementWiseProduct() {
 	println("Started ElementWiseProduct Unit Test...");
 	bool unitTestsFailedLocal = false;
+	#if defined(__NVCC__)
 	cudaStream_t ElementWiseProductStreamTest;
 	cudaStreamCreate(&ElementWiseProductStreamTest);
+	#else
+	const int ElementWiseProductStreamTest = 0;
+	#endif
 	uint32_t r = pow(2, 5);
 	float* do1_test;
 	float* do2_test;
-	cudaMemcpyToSymbol(pre_mul_reduction_dev, &r, sizeof(uint32_t));
+	uint32_t* pre_mul_reduction_test;
+	cudaMallocHost((void**)&pre_mul_reduction_test, sizeof(uint32_t));
+	*pre_mul_reduction_test = r;
+	#if defined(__NVCC__)
+	cudaMemcpyToSymbol(pre_mul_reduction_dev, pre_mul_reduction_test, sizeof(uint32_t));
+	#endif
 	cudaMallocHost((void**)&do1_test, pow(2, 10) * 2 * sizeof(float));
 	cudaMallocHost((void**)&do2_test, pow(2, 10) * 2 * sizeof(float));
 	for (int i = 0; i < pow(2, 10) * 2; ++i) {
 		do1_test[i] = i + 0.77;
 		do2_test[i] = i + 0.88;
 	}
-	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024),
-		min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest)
-		(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	#if defined(__NVCC__)
+	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest)(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
+	#else
+	vuda::launchKernel("elementWiseProduct.spv", "main", ElementWiseProductStreamTest, (int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), do1_test, do2_test, pre_mul_reduction_test);
+	#endif
 	cudaStreamSynchronize(ElementWiseProductStreamTest);
-	for (int i = 0; i < pow(2, 10) * 2; i+=2) {
+	for (int i = 0; i < pow(2, 10) * 2; i += 2) {
 		float real = ((i + 0.77) / r) * ((i + 0.88) / r) - (((i + 1) + 0.77) / r) * (((i + 1) + 0.88) / r);
 		float imag = ((i + 0.77) / r) * (((i + 1) + 0.88) / r) + (((i + 1) + 0.77) / r) * ((i + 0.88) / r);
 		assertZeroThreshold(do1_test[i] - real, 0.001, i);
 		assertZeroThreshold(do1_test[i + 1] - imag, 0.001, i + 1);
 	}
+	#if defined(__NVCC__)
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+	#endif
 	println("Completed ElementWiseProduct Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
-
+#if defined(__NVCC__)
 __global__
 void ElementWiseProduct(Complex* do1, Complex* do2)
 {
@@ -378,6 +391,8 @@ void ElementWiseProduct(Complex* do1, Complex* do2)
 	do1[i].x = do1x * do2x - do1y * do2y;
 	do1[i].y = do1x * do2y + do1y * do2x;
 }
+#endif
+
 
 //David W. Wilson: https://oeis.org/A000788/a000788.txt
 unsigned A000788(unsigned n)
