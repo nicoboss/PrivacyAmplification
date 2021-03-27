@@ -20,13 +20,14 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <math.h>
+#include <random>
 #include "yaml/Yaml.hpp"
 #include "sha3/sha3.h"
 #include "ThreadPool.h"
 #include "PrivacyAmplification.h"
 
 using namespace std;
+
 
 //Little endian only!
 #define TEST
@@ -212,30 +213,63 @@ __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 int unitTestCalculateCorrectionFloat() {
 	println("Started CalculateCorrectionFloat Unit Test...");
 	bool unitTestsFailedLocal = false;
+	#if defined(__NVCC__)
 	cudaStream_t CalculateCorrectionFloatTestStream;
 	cudaStreamCreate(&CalculateCorrectionFloatTestStream);
-	uint32_t sample_size_test = pow(2, 8);
+	#else
+	const int CalculateCorrectionFloatTestStream = 0;
+	#endif
 	uint32_t* count_one_of_global_seed_test;
 	uint32_t* count_one_of_global_key_test;
 	float* correction_float_dev_test;
+	uint32_t* sample_size_test;
 	cudaMallocHost((void**)&count_one_of_global_seed_test, sizeof(uint32_t));
 	cudaMallocHost((void**)&count_one_of_global_key_test, sizeof(uint32_t));
 	cudaMallocHost((void**)&correction_float_dev_test, sizeof(float));
-	cudaMemcpyToSymbol(sample_size_dev, &sample_size_test, sizeof(uint32_t));
-	for (uint32_t i = 0; i < sample_size_test; ++i) {
-		for (uint32_t j = 0; j < sample_size_test; ++j) {
+	cudaMallocHost((void**)&sample_size_test, sizeof(uint32_t));
+	*sample_size_test = pow(2, 6);
+	#if defined(__NVCC__)
+	cudaMemcpyToSymbol(sample_size_dev, sample_size_test, sizeof(uint32_t));
+	#endif
+	for (uint32_t i = 0; i < *sample_size_test; ++i) {
+		for (uint32_t j = 0; j < *sample_size_test; ++j) {
 			*count_one_of_global_seed_test = i;
 			*count_one_of_global_key_test = j;
-			calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)
-				(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
+			#if defined(__NVCC__)
+			calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
+			#else
+			vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
+			#endif
 			cudaStreamSynchronize(CalculateCorrectionFloatTestStream);
 			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
-			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)sample_size_test;
+			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)*sample_size_test;
 			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
-			assertZeroThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * sample_size_test + j);
+			assertZeroThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * *sample_size_test + j);
 		}
 	}
+	*sample_size_test = pow(2, 27);
+	#if defined(__NVCC__)
+	cudaMemcpyToSymbol(sample_size_dev, sample_size_test, sizeof(uint32_t));
+	#endif
+	std::mt19937_64 gen(777);
+	std::uniform_int_distribution<uint32_t> distrib(pow(2, 25), pow(2, 27));
+	for (uint32_t n = 0; n < 4096; ++n) {
+		*count_one_of_global_seed_test = distrib(gen);
+		*count_one_of_global_key_test = distrib(gen);
+		#if defined(__NVCC__)
+		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
+		#else
+		vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
+		#endif
+		cudaStreamSynchronize(CalculateCorrectionFloatTestStream);
+		uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
+		double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)*sample_size_test;
+		double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
+		assertZeroThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, n);
+	}
+	#if defined(__NVCC__)
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+	#endif
 	println("Completed CalculateCorrectionFloat Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
 }
@@ -1210,7 +1244,13 @@ int main(int argc, char* argv[])
 	bool doTest = true;
 	uint32_t dist_freq = sample_size / 2 + 1;
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
-
+	
+	unitTestCalculateCorrectionFloat();
+	unitTestSetFirstElementToZero();
+	unitTestElementWiseProduct();
+	unitTestBinInt2float();
+	unitTestToBinaryArray();
+	
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
 			speedtest = true;
