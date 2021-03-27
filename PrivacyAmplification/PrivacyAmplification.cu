@@ -406,8 +406,8 @@ unsigned A000788(unsigned n)
 void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_max)
 {
 	bool unitTestsFailedLocal = false;
-	register const Real float0 = 0.0f;
-	register const Real float1_reduced = 1.0f / reduction;
+	const Real float0 = 0.0f;
+	const Real float1_reduced = 1.0f / reduction;
 	for (; i < i_max; ++i) {
 		if (((i / 32) & (1 << (31 - (i % 32)))) == 0) {
 			assertEquals(floatOutTest[i], float0, i)
@@ -482,7 +482,7 @@ void binInt2float(uint32_t* binIn, Real* realOut, uint32_t* count_one_global)
 	inPos = idx / 32;
 	outPos = 1024 * block + idx;
 
-	if (threadIdx.x < 32) {
+	if (idx < 32) {
 		binInShared[idx] = binIn[32 * block + idx];
 	}
 	__syncthreads();
@@ -545,8 +545,8 @@ int unitTestToBinaryArray() {
 	atomic<bool> unitTestsFailedLocal = false;
 	cudaStream_t ToBinaryArrayStreamTest;
 	cudaStreamCreate(&ToBinaryArrayStreamTest);
-	register const Real float0 = 0.0f;
-	register const Real float1 = 1.0f;
+	const Real float0 = 0.0f;
+	const Real float1 = 1.0f;
 	float* invOutTest;
 	uint32_t* binOutTest;
 	uint32_t* key_rest_test;
@@ -1232,9 +1232,9 @@ int main(int argc, char* argv[])
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
 
-	register const Complex complex0 = make_float2(0.0f, 0.0f);
-	register const Real float0 = 0.0f;
-	register const Real float1_reduced = 1.0f / reduction;
+	const Complex complex0 = make_float2(0.0f, 0.0f);
+	const Real float0 = 0.0f;
+	const Real float1_reduced = 1.0f / reduction;
 	const uint32_t total_reduction = reduction * pre_mul_reduction;
 	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
 
