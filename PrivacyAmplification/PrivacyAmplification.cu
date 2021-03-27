@@ -274,6 +274,7 @@ int unitTestCalculateCorrectionFloat() {
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
+#if defined(__NVCC__)
 __global__
 void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* count_one_of_global_key, float* correction_float_dev)
 {
@@ -283,6 +284,7 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 	Real count_multiplied_normalized_modulo = (float)fmod(count_multiplied_normalized, two);
 	*correction_float_dev = count_multiplied_normalized_modulo;
 }
+#endif
 
 
 int unitTestSetFirstElementToZero() {
@@ -526,17 +528,17 @@ void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key
 		data = binOutTest[i / 32];
 		#if AMPOUT_REVERSE_ENDIAN == TRUE
 		data = ((((data) & 0xff000000) >> 24) |
-				(((data) & 0x00ff0000) >> 8) |
-				(((data) & 0x0000ff00) << 8) |
-				(((data) & 0x000000ff) << 24));
+			(((data) & 0x00ff0000) >> 8) |
+			(((data) & 0x0000ff00) << 8) |
+			(((data) & 0x000000ff) << 24));
 		#endif
 		#if XOR_WITH_KEY_REST == TRUE
 		#if AMPOUT_REVERSE_ENDIAN == TRUE
 		key_rest_little = key_rest_test[i / 32];
 		key_rest_xor = ((((key_rest_little) & 0xff000000) >> 24) |
-						(((key_rest_little) & 0x00ff0000) >> 8) |
-						(((key_rest_little) & 0x0000ff00) << 8) |
-						(((key_rest_little) & 0x000000ff) << 24));
+			(((key_rest_little) & 0x00ff0000) >> 8) |
+			(((key_rest_little) & 0x0000ff00) << 8) |
+			(((key_rest_little) & 0x000000ff) << 24));
 		#else
 		uint32_t key_rest_xor = key_rest_test[i / 32];
 		#endif
@@ -557,8 +559,12 @@ void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key
 int unitTestToBinaryArray() {
 	println("Started ToBinaryArray Unit Test...");
 	atomic<bool> unitTestsFailedLocal = false;
+	#if defined(__NVCC__)
 	cudaStream_t ToBinaryArrayStreamTest;
 	cudaStreamCreate(&ToBinaryArrayStreamTest);
+	#else
+	const int ToBinaryArrayStreamTest = 0;
+	#endif
 	const Real float0 = 0.0f;
 	const Real float1 = 1.0f;
 	float* invOutTest;
@@ -572,7 +578,13 @@ int unitTestToBinaryArray() {
 	memset(key_rest_test, 0b10101010, (pow(2, 27) / 32) * sizeof(uint32_t));
 	*correction_float_dev_test = 1.9f;
 	uint32_t normalisation_float_test = 1.0f;
+	#if defined(__NVCC__)
 	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float_test, sizeof(uint32_t));
+	#else
+	float* normalisation_float_test_dev;
+	cudaMallocHost((void**)&normalisation_float_test_dev, sizeof(float));
+	*normalisation_float_test_dev = 1.0f;
+	#endif
 	const auto processor_count = std::thread::hardware_concurrency();
 	for (int i = 0; i < pow(2, 27); ++i) {
 		invOutTest[i] = (((i / 32) & (1 << (31 - (i % 32)))) == 0) ? float0 : float1;
@@ -586,7 +598,11 @@ int unitTestToBinaryArray() {
 		uint32_t vertical_block_test = vertical_len_test / 32;
 		println("ToBinaryArray Unit Test with 2^" << sample_size_test_exponent << " samples...");
 		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
+		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
+		#else
+		vuda::launchKernel("toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
+		#endif
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
 		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
@@ -598,11 +614,14 @@ int unitTestToBinaryArray() {
 	if (unitTestToBinaryArrayVerifyResultThreadFailed) {
 		unitTestsFailedLocal = true;
 	}
+	#if defined(__NVCC__)
 	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(uint32_t));
+	#endif
 	println("Completed ToBinaryArray Unit Test");
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
+#if defined(__NVCC__)
 __global__
 void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
 {
@@ -645,13 +664,14 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 				binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
 				binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
 				binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
-				#if XOR_WITH_KEY_REST == TRUE
-				^ key_rest_xor[idx]
-				#endif
-				;
+			#if XOR_WITH_KEY_REST == TRUE
+			^ key_rest_xor[idx]
+			#endif
+			;
 		binOut[block * 31 + idx] = binOutLocal;
 	}
 }
+#endif
 
 
 void printBin(const uint8_t* position, const uint8_t* end) {
