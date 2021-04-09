@@ -27,6 +27,10 @@
     <ClInclude Include="sha3\sha3.h" />
     <ClInclude Include="sha3\ustd.h" />
     <ClInclude Include="ThreadPool.h" />
+    <ClInclude Include="vkFFT\vkFFT.h" />
+    <ClInclude Include="vkFFT\vkFFT_helper.h" />
+    <ClInclude Include="vuda\vuda.hpp" />
+    <ClInclude Include="vuda\vuda_runtime.hpp" />
     <ClInclude Include="yaml\Yaml.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -78,7 +82,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\libzmq\include;./;$(CudaToolkitDir)/include;$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%VULKAN_SDK%\Include;.\glslang-master\glslang\Include;..\libzmq\include;./;$(CudaToolkitDir)/include;$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

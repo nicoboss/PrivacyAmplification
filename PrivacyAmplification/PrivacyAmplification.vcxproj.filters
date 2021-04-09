@@ -24,6 +24,18 @@
       <Filter>yaml</Filter>
     </ClInclude>
     <ClInclude Include="PrivacyAmplification.h" />
+    <ClInclude Include="vuda\vuda.hpp">
+      <Filter>vuda</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\vuda_runtime.hpp">
+      <Filter>vuda</Filter>
+    </ClInclude>
+    <ClInclude Include="vkFFT\vkFFT.h">
+      <Filter>vkFFT</Filter>
+    </ClInclude>
+    <ClInclude Include="vkFFT\vkFFT_helper.h">
+      <Filter>vkFFT</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sha3">
@@ -31,6 +43,12 @@
     </Filter>
     <Filter Include="yaml">
       <UniqueIdentifier>{c4a772ad-6576-4038-91c1-2e02e77562a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vuda">
+      <UniqueIdentifier>{e8deac1a-01eb-4a7b-99b4-3f016d3d5bbf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vkFFT">
+      <UniqueIdentifier>{dc71fb4a-fcb9-46cf-8147-9f5cb806a498}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
