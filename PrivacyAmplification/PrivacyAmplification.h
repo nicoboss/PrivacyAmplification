@@ -1,6 +1,16 @@
 #pragma once
+
+#if defined(__NVCC__)
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+#else
+struct float2
+{
+    float re, im;
+};
+//Complex numbers are stored as two single precision floats glued together
+typedef float2 Complex;
+#endif
 
 //Real numbers are stored as single precision float
 typedef float    Real;
@@ -142,8 +152,13 @@ println("Hallo " << name) which requires the following function-like macros*/
   Example: std::string greeting = streamToString("Hallo " << name);*/
 #define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
 
+#if defined(__NVCC__)
 /*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
-#define cudaCalloc(a,b) if (cudaMalloc(a, b) == cudaSuccess) cudaMemset(*a, 0b00000000, b);
+#define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
+#else
+#define cudaMemset(address, value, num) vuda::launchKernel("memset.spv", "main", 0, (int)(num / 1024), min(num, 1024), value, num);
+#define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
+#endif
 
 /*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
 and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
@@ -212,6 +227,8 @@ std::string convertStreamToString(std::ostream& os);
 //   __global__    //
 //#################//
 
+#if defined(__NVCC__)
+
 __global__ void cudaAssertValue(uint32_t * data);
 
 /// @brief Calculates how much the IFFT output needs to be Y-shifted
@@ -276,6 +293,8 @@ unsigned A000788(unsigned n);
 __global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
 void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_local, int i, int i_max);
 int unitTestToBinaryArray();
+
+#endif
 
 /// @brief Prints bynary byte data.
 /// @param position The memory location where the data to print start

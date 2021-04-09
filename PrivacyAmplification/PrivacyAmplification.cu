@@ -1,7 +1,3 @@
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
-#include <cufftXt.h>
-#include <cuda_fp16.h>
 #include <iostream>
 #include <iomanip>
 #include <assert.h>
@@ -24,13 +20,35 @@
 #include "yaml/Yaml.hpp"
 #include "sha3/sha3.h"
 #include "ThreadPool.h"
+
+
+#if defined(__NVCC__)
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#include <cufftXt.h>
+#include <cuda_fp16.h>
+#else
+#include "vulkan/vulkan.h"
+#include "glslang_c_interface.h"
+#include "vkFFT/vkFFT.h"
+#include "half_lib/half.hpp"
+#include "vkFFT/vkFFT_helper.h"
+#include <vuda/vuda_runtime.hpp>
+#endif
+
+#if !defined(NDEBUG)
+#define VUDA_STD_LAYER_ENABLED
+#define VUDA_DEBUG_ENABLED
+#endif
+
 #include "PrivacyAmplification.h"
+//#define __NVCC__
 
 using namespace std;
 
 
 //Little endian only!
-#define TEST
+//#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -42,12 +60,14 @@ using namespace std;
 #define KERNEL_ARG4(grid, block, sh_mem, stream)
 #endif
 
+#if defined(__NVCC__)
 #ifdef __INTELLISENSE__
 cudaError_t cudaMemcpyToSymbol(Complex symbol, const void* src, size_t count);
 cudaError_t cudaMemcpyToSymbol(Real symbol, const void* src, size_t count);
 int __float2int_rn(float in);
 unsigned int atomicAdd(unsigned int* address, unsigned int val);
 #define __syncthreads()
+#endif
 #endif
 
 #ifdef DEBUG
@@ -129,6 +149,7 @@ atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
 atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = false;
 atomic<bool> cuFFT_planned = false;
 
+#if defined(__NVCC__)
 __device__ __constant__ Complex c0_dev;
 __device__ __constant__ Real h0_dev;
 __device__ __constant__ Real h1_reduced_dev;
@@ -181,6 +202,7 @@ __device__ __constant__ uint32_t ToBinaryBitShiftArray_dev[32] =
 	31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 	#endif
 };
+#endif
 
 
 void printStream(ostream& os) {
@@ -204,11 +226,12 @@ string convertStreamToString(ostream& os) {
 	return ss.str();
 }
 
+#if defined(__NVCC__)
 __global__ void cudaAssertValue(uint32_t* data, uint32_t value) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	assert(data[i] == value);
 }
-
+#endif
 
 int unitTestCalculateCorrectionFloat() {
 	println("Started CalculateCorrectionFloat Unit Test...");
@@ -432,10 +455,10 @@ int unitTestBinInt2float() {
 	cudaStreamCreate(&BinInt2floatStreamTest);
 	#else
 	const int BinInt2floatStreamTest = 0;
-	float* float1_reduced_dev;
-	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
-	float float1_reduced = 1.0f / reduction;
-	*float1_reduced_dev = float1_reduced;
+	float* float1_reduced_test_dev;
+	cudaMallocHost((void**)&float1_reduced_test_dev, sizeof(float));
+	float float1_reduced_test = 1.0f / reduction;
+	*float1_reduced_test_dev = float1_reduced_test;
 	#endif
 	uint32_t* binInTest;
 	float* floatOutTest;
@@ -460,7 +483,7 @@ int unitTestBinInt2float() {
 		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
 		#else
-		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_dev);
+		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
 	#endif
 		cudaStreamSynchronize(BinInt2floatStreamTest);
 		assertEquals(*count_one_test, count_one_expected, -1);
@@ -1171,7 +1194,7 @@ if (cuFFT_planned) \
 } \
 \
 /*Plan of the forward real to complex fast fourier transformation*/ \
-cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
+cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_C2C, 1); \
 if (result_forward_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
@@ -1179,7 +1202,7 @@ if (result_forward_FFT != CUFFT_SUCCESS) \
 } \
 \
 /* Plan of the inverse complex to real fast fourier transformation */ \
-cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1); \
+cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2C, 1); \
 if (result_inverse_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
@@ -1213,6 +1236,7 @@ int main(int argc, char* argv[])
 	Real* invOut;  //Result of the IFFT (uses the same memory as do2)
 	Complex* do1;  //Device Output 1 and result of ElementWiseProduct
 	Complex* do2;  //Device Output 2 and result of the IFFT
+	#if defined(__NVCC__)
 	cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
 		cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
 		ElementWiseProductStream, ToBinaryArrayStream;
@@ -1226,6 +1250,19 @@ int main(int argc, char* argv[])
 	cudaStreamCreate(&gpu2cpuStream);
 	cudaStreamCreate(&ElementWiseProductStream);
 	cudaStreamCreate(&ToBinaryArrayStream);
+	#else
+	const int cudaStream_t = 1;
+	const int FFTStream = 2;
+	const int BinInt2floatKeyStream = 3;
+	const int BinInt2floatSeedStream = 4;
+	const int CalculateCorrectionFloatStream = 5;
+	const int cpu2gpuKeyStartStream = 6;
+	const int cpu2gpuKeyRestStream = 7;
+	const int cpu2gpuSeedStream = 8;
+	const int gpu2cpuStream = 9;
+	const int ElementWiseProductStream = 10;
+	const int ToBinaryArrayStream = 11;
+	#endif
 
 	// Create cuda event to measure the performance
 	cudaEvent_t start;
@@ -1250,9 +1287,9 @@ int main(int argc, char* argv[])
 	fill(key_rest_zero_pos, key_rest_zero_pos + input_blocks_to_cache, desired_block);
 
 	// Allocate memory on GPU
-	cudaMalloc(&count_one_of_global_seed, sizeof(uint32_t));
-	cudaMalloc(&count_one_of_global_key, sizeof(uint32_t));
-	cudaMalloc(&correction_float_dev, sizeof(float));
+	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
+	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
+	cudaMalloc((void**)&correction_float_dev, sizeof(float));
 	cudaCalloc((void**)&di1, sample_size * sizeof(Real));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
@@ -1266,11 +1303,12 @@ int main(int argc, char* argv[])
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
 
-	const Complex complex0 = make_float2(0.0f, 0.0f);
-	const Real float0 = 0.0f;
-	const Real float1_reduced = 1.0f / reduction;
 	const uint32_t total_reduction = reduction * pre_mul_reduction;
 	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+	const Real float0 = 0.0f;
+	const Real float1_reduced = 1.0f / reduction;
+	#if defined(__NVCC__)
+	const Complex complex0 = make_float2(0.0f, 0.0f);
 
 	/*Copy constant variables from RAM to GPUs constant memory*/
 	cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
@@ -1279,6 +1317,24 @@ int main(int argc, char* argv[])
 	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
+	#else
+	float* float1_reduced_dev;
+	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
+	float float1_reduced = 1.0f / reduction;
+	*float1_reduced_dev = float1_reduced;
+
+	uint32_t* normalisation_float_dev;
+	cudaMallocHost((void**)&normalisation_float_dev, sizeof(uint32_t));
+	*normalisation_float_dev = normalisation_float;
+
+	uint32_t* sample_size_dev;
+	cudaMallocHost((void**)&float1_reduced_dev, sizeof(uint32_t));
+	*sample_size_dev = sample_size;
+
+	uint32_t* pre_mul_reduction_dev;
+	cudaMallocHost((void**)&pre_mul_reduction_dev, sizeof(uint32_t));
+	*pre_mul_reduction_dev = pre_mul_reduction;
+	#endif
 
 	/*The reciveData function is parallelly executed on a separate thread which we start now*/
 	thread threadReciveObj(reciveData);
@@ -1288,10 +1344,12 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
+	#if defined(__NVCC__)
 	/*Plan fast fourier transformations*/
 	cufftHandle plan_forward_R2C;
 	cufftHandle plan_inverse_C2R;
 	PLAN_FFT;
+	#endif
 
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
@@ -1332,10 +1390,12 @@ int main(int argc, char* argv[])
 					desired_block = sample_size / 32;
 					key_blocks = desired_block + 1;
 					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+					dist_freq = sample_size / 2 + 1;
+					#if defined(__NVCC__)
 					cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 					cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-					dist_freq = sample_size / 2 + 1;
 					PLAN_FFT;
+					#endif
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
 						goto mainloop;
@@ -1386,8 +1446,12 @@ int main(int argc, char* argv[])
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
+		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
+		#else
+		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
@@ -1396,8 +1460,12 @@ int main(int argc, char* argv[])
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
+			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
+			#else
+			vuda::launchKernel("binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
+			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 		}
 		cudaStreamSynchronize(BinInt2floatKeyStream);
@@ -1407,15 +1475,20 @@ int main(int argc, char* argv[])
 			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
 		}
 		#endif
+		#if defined(__NVCC__)
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
+		#else
+		vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatStream, 1, 1, count_one_of_global_key, count_one_of_global_seed, correction_float_dev, sample_size_dev);
+		#endif
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
 			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		}
 		#endif
-		cufftExecR2C(plan_forward_R2C, di1, do1);
+		#if defined(__NVCC__)
+		cufftExecC2C(plan_forward_R2C, do1, do2, CUFFT_FORWARD);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
 			if (doTest) {
@@ -1423,7 +1496,7 @@ int main(int argc, char* argv[])
 				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			}
 			#endif
-			cufftExecR2C(plan_forward_R2C, di2, do2);
+			cufftExecC2C(plan_forward_R2C, do2, do1, CUFFT_FORWARD);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
 				recalculate_toeplitz_matrix_seed = false;
@@ -1431,6 +1504,7 @@ int main(int argc, char* argv[])
 			}
 		}
 		cudaStreamSynchronize(FFTStream);
+		#endif
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1440,7 +1514,11 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
 		}
 		#endif
+		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
+		#else
+		vuda::launchKernel("setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, do1, do2);
+		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1450,7 +1528,11 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
 		}
 		#endif
+		#if defined(__NVCC__)
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
+		#else
+		vuda::launchKernel("elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
+		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1460,8 +1542,10 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
 		}
 		#endif
-		cufftExecC2R(plan_inverse_C2R, do1, invOut);
+		#if defined(__NVCC__)
+		cufftExecC2C(plan_inverse_C2R, do1, do2, CUFFT_INVERSE);
 		cudaStreamSynchronize(FFTStream);
+		#endif
 
 		/*Spinlock waiting for the data consumer*/
 		if (!speedtest) {
@@ -1480,8 +1564,12 @@ int main(int argc, char* argv[])
 			CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723	
 		}		
 		#endif
+		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
+		#else
+		vuda::launchKernel("toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
+		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {
@@ -1507,10 +1595,11 @@ int main(int argc, char* argv[])
 
 	}
 
-
+	#if defined(__NVCC__)
 	// Delete CUFFT Plans
 	cufftDestroy(plan_forward_R2C);
 	cufftDestroy(plan_inverse_C2R);
+	#endif
 
 	// Deallocate memoriey on GPU and RAM
 	cudaFree(di1);
