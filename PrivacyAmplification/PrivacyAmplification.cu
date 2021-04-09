@@ -1194,7 +1194,7 @@ if (cuFFT_planned) \
 } \
 \
 /*Plan of the forward real to complex fast fourier transformation*/ \
-cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_C2C, 1); \
+cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
 if (result_forward_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
@@ -1202,7 +1202,7 @@ if (result_forward_FFT != CUFFT_SUCCESS) \
 } \
 \
 /* Plan of the inverse complex to real fast fourier transformation */ \
-cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2C, 1); \
+cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1); \
 if (result_inverse_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
@@ -1488,7 +1488,7 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		#if defined(__NVCC__)
-		cufftExecC2C(plan_forward_R2C, do1, do2, CUFFT_FORWARD);
+		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
 			#ifdef TEST
 			if (doTest) {
@@ -1496,7 +1496,7 @@ int main(int argc, char* argv[])
 				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			}
 			#endif
-			cufftExecC2C(plan_forward_R2C, do2, do1, CUFFT_FORWARD);
+			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
 				recalculate_toeplitz_matrix_seed = false;
@@ -1543,7 +1543,7 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		#if defined(__NVCC__)
-		cufftExecC2C(plan_inverse_C2R, do1, do2, CUFFT_INVERSE);
+		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 		#endif
 
