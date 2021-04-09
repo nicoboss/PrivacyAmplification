@@ -424,7 +424,7 @@ VkFFTResult transferDataToCPU(VkGPU* vkGPU, void* arr, VkBuffer* buffer, uint64_
 }
 #endif
 
-VkFFTResult performVulkanFFTiFFT(VkGPU* vkGPU, VkFFTApplication* app, uint32_t num_iter, float* time_result) {
+VkFFTResult performVulkanFFTiFFT(VkGPU* vkGPU, VkFFTApplication* app, VkFFTLaunchParams* launchParams, uint32_t num_iter, float* time_result) {
 #if(VKFFT_BACKEND==0)
 	VkFFTResult resFFT = VKFFT_SUCCESS;
 	VkResult res = VK_SUCCESS;
@@ -439,10 +439,11 @@ VkFFTResult performVulkanFFTiFFT(VkGPU* vkGPU, VkFFTApplication* app, uint32_t n
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
 	if (res != 0) return VKFFT_ERROR_FAILED_TO_BEGIN_COMMAND_BUFFER;
+	launchParams->commandBuffer = &commandBuffer;
 	for (uint32_t i = 0; i < num_iter; i++) {
-		resFFT = VkFFTAppend(app, -1, &commandBuffer);
+		resFFT = VkFFTAppend(app, -1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
-		resFFT = VkFFTAppend(app, 1, &commandBuffer);
+		resFFT = VkFFTAppend(app, 1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
 	}
 	res = vkEndCommandBuffer(commandBuffer);
@@ -466,9 +467,9 @@ VkFFTResult performVulkanFFTiFFT(VkGPU* vkGPU, VkFFTApplication* app, uint32_t n
 	cudaError_t res = cudaSuccess;
 	std::chrono::steady_clock::time_point timeSubmit = std::chrono::steady_clock::now();
 	for (uint32_t i = 0; i < num_iter; i++) {
-		resFFT = VkFFTAppend(app, -1, NULL);
+		resFFT = VkFFTAppend(app, -1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
-		resFFT = VkFFTAppend(app, 1, NULL);
+		resFFT = VkFFTAppend(app, 1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
 	}
 	res = cudaDeviceSynchronize();
@@ -481,9 +482,9 @@ VkFFTResult performVulkanFFTiFFT(VkGPU* vkGPU, VkFFTApplication* app, uint32_t n
 	hipError_t res = hipSuccess;
 	std::chrono::steady_clock::time_point timeSubmit = std::chrono::steady_clock::now();
 	for (uint32_t i = 0; i < num_iter; i++) {
-		resFFT = VkFFTAppend(app, -1, NULL);
+		resFFT = VkFFTAppend(app, -1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
-		resFFT = VkFFTAppend(app, 1, NULL);
+		resFFT = VkFFTAppend(app, 1, launchParams);
 		if (resFFT != VKFFT_SUCCESS) return resFFT;
 	}
 	res = hipDeviceSynchronize();
