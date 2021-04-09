@@ -86,7 +86,8 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Debug\SPIRVd.lib;glslang-master\build\glslang\Debug\glslangd.lib;glslang-master\build\glslang\Debug\GenericCodeGend.lib;glslang-master\build\glslang\Debug\MachineIndependentd.lib;glslang-master\build\glslang\OSDependent\Windows\Debug\OSDependentd.lib;glslang-master\build\OGLCompilersDLL\Debug\OGLCompilerd.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Release\SPIRV.lib;glslang-master\build\glslang\Release\glslang.lib;glslang-master\build\glslang\Release\GenericCodeGen.lib;glslang-master\build\glslang\Release\MachineIndependent.lib;glslang-master\build\glslang\OSDependent\Windows\Release\OSDependent.lib;glslang-master\build\OGLCompilersDLL\Release\OGLCompiler.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\libzmq\dll;$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <OutputFile>$(OutDir)/PrivacyAmplification.exe</OutputFile>
     </Link>
