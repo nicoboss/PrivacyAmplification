@@ -156,7 +156,7 @@ println("Hallo " << name) which requires the following function-like macros*/
 /*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
 #define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
 #else
-#define cudaMemset(address, value, num) vuda::launchKernel("memset.spv", "main", 0, (int)(num / 1024), min(num, 1024), value, num);
+#define cudaMemset(address, value, num) vuda::launchKernel("SPIRV/memset.spv", "main", 0, (int)(num / 1024), min(num, 1024), value, address);
 #define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
 #endif
 

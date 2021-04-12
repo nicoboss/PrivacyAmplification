@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CudaCompile Include="PrivacyAmplification.cu" />
     <CudaCompile Include="sha3\sha3.c">
       <Filter>sha3</Filter>
     </CudaCompile>
@@ -33,6 +32,9 @@
     <ClInclude Include="vkFFT\vkFFT_helper.h">
       <Filter>vkFFT</Filter>
     </ClInclude>
+    <ClInclude Include="half_lib\half.hpp">
+      <Filter>half_lib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sha3">
@@ -47,10 +49,14 @@
     <Filter Include="vkFFT">
       <UniqueIdentifier>{dc71fb4a-fcb9-46cf-8147-9f5cb806a498}</UniqueIdentifier>
     </Filter>
+    <Filter Include="half_lib">
+      <UniqueIdentifier>{58cec59d-2f72-4904-9839-5d914e65d759}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="yaml\Yaml.cpp">
       <Filter>yaml</Filter>
     </ClCompile>
+    <ClCompile Include="PrivacyAmplification.cu" />
   </ItemGroup>
 </Project>

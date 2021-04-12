@@ -21,6 +21,8 @@
 #include "sha3/sha3.h"
 #include "ThreadPool.h"
 
+
+
 #define VKFFT_BACKEND 0
 //#define __NVCC__
 
@@ -32,7 +34,7 @@
 #else
 #include "vulkan/vulkan.h"
 #include "glslang_c_interface.h"
-#include "half_lib/half.hpp"
+//#include "half_lib/half.hpp"
 #include <vuda/vuda_runtime.hpp>
 #endif
 #include "vkFFT/vkFFT.h"
@@ -264,7 +266,7 @@ int unitTestCalculateCorrectionFloat() {
 			#if defined(__NVCC__)
 			calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
 			#else
-			vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
+			vuda::launchKernel("SPIRV/calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
 			#endif
 			cudaStreamSynchronize(CalculateCorrectionFloatTestStream);
 			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
@@ -285,7 +287,7 @@ int unitTestCalculateCorrectionFloat() {
 		#if defined(__NVCC__)
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
 		#else
-		vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
+		vuda::launchKernel("SPIRV/calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatTestStream, 1, 1, count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test, sample_size_test);
 		#endif
 		cudaStreamSynchronize(CalculateCorrectionFloatTestStream);
 		uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
@@ -333,7 +335,7 @@ int unitTestSetFirstElementToZero() {
 	#if defined(__NVCC__)
 	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	#else
-	vuda::launchKernel("setFirstElementToZero.spv", "main", SetFirstElementToZeroStreamTest, 1, 2, do1_test, do2_test);
+	vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", SetFirstElementToZeroStreamTest, 1, 2, do1_test, do2_test);
 	#endif
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
 	assertZeroThreshold(do1_test[0], 0.00001, 0);
@@ -390,7 +392,7 @@ int unitTestElementWiseProduct() {
 	#if defined(__NVCC__)
 	ElementWiseProduct KERNEL_ARG4((int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), 0, ElementWiseProductStreamTest)(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
 	#else
-	vuda::launchKernel("elementWiseProduct.spv", "main", ElementWiseProductStreamTest, (int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), do1_test, do2_test, pre_mul_reduction_test);
+	vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStreamTest, (int)((pow(2, 10) + 1023) / 1024), min((int)pow(2, 10), 1024), do1_test, do2_test, pre_mul_reduction_test);
 	#endif
 	cudaStreamSynchronize(ElementWiseProductStreamTest);
 	for (int i = 0; i < pow(2, 10) * 2; i += 2) {
@@ -486,7 +488,7 @@ int unitTestBinInt2float() {
 		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
 		#else
-		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
 	#endif
 		cudaStreamSynchronize(BinInt2floatStreamTest);
 		assertEquals(*count_one_test, count_one_expected, -1);
@@ -627,7 +629,7 @@ int unitTestToBinaryArray() {
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
 		#else
-		vuda::launchKernel("toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
+		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
@@ -1004,10 +1006,10 @@ string toHexString(const uint8_t* data, uint32_t data_length) {
 
 bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
 	sha3_ctx sha3;
-	rhash_sha3_256_init(&sha3);
-	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
+	//rhash_sha3_256_init(&sha3);
+	//rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
-	rhash_sha3_final(&sha3, calculatedHash);
+	//rhash_sha3_final(&sha3, calculatedHash);
 	println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
@@ -1267,11 +1269,7 @@ int main(int argc, char* argv[])
 	const int ToBinaryArrayStream = 11;
 	#endif
 
-	// Create cuda event to measure the performance
-	cudaEvent_t start;
-	cudaEvent_t stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+	cudaSetDevice(0);
 
 	// Allocate host pinned memory on RAM
 	cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
@@ -1323,7 +1321,6 @@ int main(int argc, char* argv[])
 	#else
 	float* float1_reduced_dev;
 	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
-	float float1_reduced = 1.0f / reduction;
 	*float1_reduced_dev = float1_reduced;
 
 	uint32_t* normalisation_float_dev;
@@ -1331,7 +1328,7 @@ int main(int argc, char* argv[])
 	*normalisation_float_dev = normalisation_float;
 
 	uint32_t* sample_size_dev;
-	cudaMallocHost((void**)&float1_reduced_dev, sizeof(uint32_t));
+	cudaMallocHost((void**)&sample_size_dev, sizeof(uint32_t));
 	*sample_size_dev = sample_size;
 
 	uint32_t* pre_mul_reduction_dev;
@@ -1453,7 +1450,7 @@ int main(int argc, char* argv[])
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
@@ -1467,7 +1464,7 @@ int main(int argc, char* argv[])
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 		}
@@ -1482,7 +1479,7 @@ int main(int argc, char* argv[])
 		calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatStream)
 			(count_one_of_global_key, count_one_of_global_seed, correction_float_dev);
 		#else
-		vuda::launchKernel("calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatStream, 1, 1, count_one_of_global_key, count_one_of_global_seed, correction_float_dev, sample_size_dev);
+		vuda::launchKernel("SPIRV/calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatStream, 1, 1, count_one_of_global_key, count_one_of_global_seed, correction_float_dev, sample_size_dev);
 		#endif
 		#ifdef TEST
 		if (doTest) {
@@ -1520,7 +1517,7 @@ int main(int argc, char* argv[])
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		#else
-		vuda::launchKernel("setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, do1, do2);
+		vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, do1, do2);
 		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
@@ -1534,7 +1531,7 @@ int main(int argc, char* argv[])
 		#if defined(__NVCC__)
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
 		#else
-		vuda::launchKernel("elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
+		vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
 		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
@@ -1652,7 +1649,7 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		#else
-		vuda::launchKernel("toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
+		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
@@ -1692,10 +1689,6 @@ int main(int argc, char* argv[])
 	cudaFree(do1);
 	cudaFree(do2);
 	cudaFree(Output);
-
-	// Delete cuda events
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
 
 	return 0;
 }

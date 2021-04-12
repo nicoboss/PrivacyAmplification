@@ -14,9 +14,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="PrivacyAmplification.cu" />
+    <ClCompile Include="PrivacyAmplification.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="half_lib\half.hpp" />
     <ClInclude Include="PrivacyAmplification.h" />
     <ClInclude Include="sha3\byte_order.h" />
     <ClInclude Include="sha3\sha3.h" />
@@ -56,9 +57,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.2.props" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets">
     <Import Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" />
   </ImportGroup>
@@ -81,8 +80,8 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Debug\SPIRVd.lib;glslang-master\build\glslang\Debug\glslangd.lib;glslang-master\build\glslang\Debug\GenericCodeGend.lib;glslang-master\build\glslang\Debug\MachineIndependentd.lib;glslang-master\build\glslang\OSDependent\Windows\Debug\OSDependentd.lib;glslang-master\build\OGLCompilersDLL\Debug\OGLCompilerd.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Release\SPIRV.lib;glslang-master\build\glslang\Release\glslang.lib;glslang-master\build\glslang\Release\GenericCodeGen.lib;glslang-master\build\glslang\Release\MachineIndependent.lib;glslang-master\build\glslang\OSDependent\Windows\Release\OSDependent.lib;glslang-master\build\OGLCompilersDLL\Release\OGLCompiler.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Debug\SPIRVd.lib;glslang-master\build\glslang\Debug\glslangd.lib;glslang-master\build\glslang\Debug\GenericCodeGend.lib;glslang-master\build\glslang\Debug\MachineIndependentd.lib;glslang-master\build\glslang\OSDependent\Windows\Debug\OSDependentd.lib;glslang-master\build\OGLCompilersDLL\Debug\OGLCompilerd.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">%VULKAN_SDK%\Lib\vulkan-1.lib;glslang-master\build\SPIRV\Release\SPIRV.lib;glslang-master\build\glslang\Release\glslang.lib;glslang-master\build\glslang\Release\GenericCodeGen.lib;glslang-master\build\glslang\Release\MachineIndependent.lib;glslang-master\build\glslang\OSDependent\Windows\Release\OSDependent.lib;glslang-master\build\OGLCompilersDLL\Release\OGLCompiler.lib;..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\libzmq\dll;$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <OutputFile>$(OutDir)/PrivacyAmplification.exe</OutputFile>
     </Link>
@@ -131,6 +130,7 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <FloatingPointModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Fast</FloatingPointModel>
       <SupportJustMyCode Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</SupportJustMyCode>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -143,6 +143,7 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.2\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "$(ProjectDir)SPIRV\" "$(ProjectDir)$(OutDir)SPIRV\*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
@@ -151,7 +152,5 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.2.targets" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

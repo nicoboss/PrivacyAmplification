@@ -1,0 +1,11 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+
+layout( local_size_x_id = 0 ) in;
+layout(set = 0, binding = 0) readonly buffer A { uint8_t value[]; };
+layout(set = 0, binding = 1) writeonly buffer B { uint8_t dest[]; };
+
+void main(void)
+{
+	dest[gl_GlobalInvocationID.x] = value[0];
+}

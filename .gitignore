@@ -361,6 +361,7 @@ FodyWeavers.xsd
 
 # Custom ignores
 *.o
+*/SPIRV/*
 build/*
 PrivacyAmplificationSetup.exe
 PrivacyAmplification/PrivacyAmplification
