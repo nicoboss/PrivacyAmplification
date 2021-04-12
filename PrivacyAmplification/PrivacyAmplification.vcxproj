@@ -17,11 +17,6 @@
     <CudaCompile Include="PrivacyAmplification.cu" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin">
-      <DeploymentContent>false</DeploymentContent>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="PrivacyAmplification.h" />
     <ClInclude Include="sha3\byte_order.h" />
     <ClInclude Include="sha3\sha3.h" />

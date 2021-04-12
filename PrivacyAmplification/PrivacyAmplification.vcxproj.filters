@@ -7,9 +7,6 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="random_toeplitz_seed_veracrypt_xor_quantum.bin" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="sha3\byte_order.h">
       <Filter>sha3</Filter>

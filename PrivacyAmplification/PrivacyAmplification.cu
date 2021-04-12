@@ -21,6 +21,8 @@
 #include "sha3/sha3.h"
 #include "ThreadPool.h"
 
+#define VKFFT_BACKEND 0
+//#define __NVCC__
 
 #if defined(__NVCC__)
 #include <cuda_runtime.h>
@@ -30,11 +32,12 @@
 #else
 #include "vulkan/vulkan.h"
 #include "glslang_c_interface.h"
-#include "vkFFT/vkFFT.h"
 #include "half_lib/half.hpp"
-#include "vkFFT/vkFFT_helper.h"
 #include <vuda/vuda_runtime.hpp>
 #endif
+#include "vkFFT/vkFFT.h"
+#include "vkFFT/vkFFT_helper.h"
+
 
 #if !defined(NDEBUG)
 #define VUDA_STD_LAYER_ENABLED
@@ -1546,6 +1549,87 @@ int main(int argc, char* argv[])
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 		#endif
+
+
+
+		VkGPU vkGPU = {};
+		vkGPU.device_id = 0;
+		cudaSetDevice(vkGPU.device_id);
+		vkGPU.instance = vuda::detail::Instance::GetVkInstance();
+		vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(vkGPU.device_id);
+		vuda::detail::logical_device* logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
+		const vuda::detail::thrdcmdpool* thrdcmdpool = logical_device->GetPool(std::this_thread::get_id());
+		vkGPU.device = logical_device->GetDeviceHandle();
+		vkGPU.commandPool = thrdcmdpool->GetCommandPool();
+		vkGPU.queue = logical_device->GetQueue(0);
+		vkGPU.fence = thrdcmdpool->GetFence(0);
+		VkFFTResult resFFT;
+
+		#if(VKFFT_BACKEND==0)
+		glslang_initialize_process();
+		#elif(VKFFT_BACKEND==1)
+		CUresult res = CUDA_SUCCESS;
+		cudaError_t res2 = cudaSuccess;
+		res = cuInit(0);
+		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_INITIALIZE;
+		res2 = cudaSetDevice(vkGPU->device_id);
+		if (res2 != cudaSuccess) return VKFFT_ERROR_FAILED_TO_SET_DEVICE_ID;
+		res = cuDeviceGet(&vkGPU->device, vkGPU->device_id);
+		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_GET_DEVICE;
+		res = cuCtxCreate(&vkGPU->context, 0, vkGPU->device);
+		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_CREATE_CONTEXT;
+		#endif
+
+		uint32_t vkFFT_size = pow(2, 27);
+		float* buffer_input = (float*)malloc((uint64_t)4 * vkFFT_size);
+		float* buffer_output = (float*)malloc((uint64_t)4 * 2 * vkFFT_size);
+		for (uint64_t i = 0; i < vkFFT_size; ++i) {
+			buffer_input[i] = 2 * ((float)rand()) / RAND_MAX - 1.0;
+		}
+		for (uint32_t i = 0; i < 64; ++i) {
+			printf("%.6f ", buffer_input[i]);
+			if (i % 8 == 7) std::cout << "\n";
+		}
+		println("");
+
+		VkFFTConfiguration configuration = {};
+		VkFFTApplication app = {};
+		configuration.FFTdim = 1;
+		configuration.size[0] = vkFFT_size;
+		configuration.size[1] = 1;
+		configuration.size[2] = 1;
+		configuration.performR2C = true;
+		configuration.device = &vkGPU.device;
+		#if(VKFFT_BACKEND==0)
+		configuration.queue = &vkGPU.queue;
+		configuration.fence = &vkGPU.fence;
+		configuration.commandPool = &vkGPU.commandPool;
+		configuration.physicalDevice = &vkGPU.physicalDevice;
+		configuration.isCompilerInitialized = 1;
+		#endif
+
+		uint64_t bufferSize = (uint64_t)sizeof(float) * 2 * (vkFFT_size / 2 + 1);
+		void* bufferVuda;
+		cudaMalloc(&bufferVuda, bufferSize);
+		configuration.buffer = new VkBuffer{ logical_device->GetBuffer(bufferVuda) };
+		configuration.bufferSize = &bufferSize;
+		configuration.normalize = false;
+		cudaMemcpy(bufferVuda, buffer_input, bufferSize, cudaMemcpyHostToDevice);
+		resFFT = initializeVkFFT(&app, configuration);
+		if (resFFT != VKFFT_SUCCESS) return resFFT;
+		float totTime = 0;
+		VkFFTLaunchParams launchParams = {};
+		resFFT = performVulkanFFTiFFT(&vkGPU, &app, &launchParams, 1, &totTime);
+		if (resFFT != VKFFT_SUCCESS) return resFFT;
+		cudaMemcpy(buffer_output, bufferVuda, bufferSize, cudaMemcpyDeviceToHost);
+		for (uint32_t i = 0; i < 64; ++i) {
+			printf("%.6f ", buffer_output[i] / vkFFT_size);
+			if (i % 8 == 7) std::cout << "\n";
+		}
+		println("");
+		deleteVkFFT(&app);
+
+
 
 		/*Spinlock waiting for the data consumer*/
 		if (!speedtest) {
