@@ -90,10 +90,24 @@ namespace vuda
                 vk::DeviceCreateInfo info(vk::DeviceCreateFlags(), 1, &deviceQueueCreateInfo);
             #endif
 
+                VkDeviceQueueCreateInfo queueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
+                //queueCreateInfo.queueFamilyIndex = vkGPU->queueFamilyIndex;
+                queueCreateInfo.queueCount = 1;
+                float queuePriorities = 1.0;
+                queueCreateInfo.pQueuePriorities = &queuePriorities;
+                VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+                VkPhysicalDeviceFeatures deviceFeatures = {};
+                //deviceCreateInfo.enabledExtensionCount = vkGPU->enabledDeviceExtensions.size();
+                //deviceCreateInfo.ppEnabledExtensionNames = vkGPU->enabledDeviceExtensions.data();
+                deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+                deviceCreateInfo.queueCreateInfoCount = 1;
+                deviceCreateInfo.pEnabledFeatures = NULL;
+                deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
                 //get().insert({ device, logical_device(info, physDevice) });
                 //auto pair = get().emplace(std::piecewise_construct, std::forward_as_tuple(device), std::forward_as_tuple(info, physDevice));
                 // c++17
-                auto pair = get().try_emplace(device, info, physDevice);
+                auto pair = get().try_emplace(device, deviceCreateInfo, physDevice);
                 assert(pair.second);
                 return &pair.first->second;
             }

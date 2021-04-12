@@ -12,10 +12,10 @@ namespace vuda
             logical_device(const vk::DeviceCreateInfo& deviceInfo, const vk::PhysicalDevice& physDevice);       
             //~logical_device();
 
-        #ifdef VUDA_DEBUG_ENABLED
             // external access to the device handle
             vk::Device GetDeviceHandle(void);
-        #endif
+            vk::Queue GetQueue(int stream);
+            VkBuffer GetBuffer(void* ptr);
 
             //
             // events
@@ -26,6 +26,7 @@ namespace vuda
 
             //
             // queries
+            const thrdcmdpool* GetPool(const std::thread::id tid) const;
             void GetQueryID(const std::thread::id tid, uint32_t* event) const;
             void WriteTimeStamp(const std::thread::id tid, const uint32_t event, const stream_t stream) const;
             float GetQueryPoolResults(const std::thread::id tid, const uint32_t startQuery, const uint32_t stopQuery) const;

@@ -29,6 +29,7 @@ namespace vuda
             {
                 // the initialization of the function local static variable is thread-safe.
                 static vk::UniqueInstance instance = vk::createInstanceUnique(vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &getInstanceCreateInfo()));
+                VkInstance a = instance.get();
                 return instance;
             }
 
@@ -82,6 +83,11 @@ namespace vuda
     #endif
 
         public:
+
+            static vk::Instance GetVkInstance(void)
+            {
+                return get().get();
+            }
 
             static size_t GetPhysicalDeviceCount(void)
             {

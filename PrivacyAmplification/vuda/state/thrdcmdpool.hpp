@@ -56,6 +56,14 @@ namespace vuda
                     m_ufences.push_back(device->createFenceUnique(vk::FenceCreateFlags()));
             }
 
+            vk::CommandPool GetCommandPool() const {
+                return m_commandPool.get();
+            }
+
+            vk::Fence GetFence(int stream) const {
+                return m_ufences[stream].get();
+            }
+
             /*
                 public synchronized interface
             */

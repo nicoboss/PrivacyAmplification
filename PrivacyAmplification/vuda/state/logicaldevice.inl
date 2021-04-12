@@ -73,17 +73,25 @@ namespace vuda
             m_internal_pinned_buffers_in_use.resize(m_queueComputeCount);
         }
 
-        #ifdef VUDA_DEBUG_ENABLED
         inline vk::Device logical_device::GetDeviceHandle(void)
         {
             return m_device.get();
         }
-        #endif
 
-        //
+        inline vk::Queue logical_device::GetQueue(int stream)
+        {
+            std::lock_guard<std::mutex> lckQueues(*m_mtxQueues[stream]);
+            return m_queues.at(stream);
+        }
+
+        inline VkBuffer logical_device::GetBuffer(void* ptr)
+        {
+            std::shared_lock<std::shared_mutex> lckResources(*m_mtxResources);
+            const default_storage_node* dst_node = m_storage.search_range(m_storageBST_root, ptr);
+            return dst_node->GetBuffer();
+        }
+
         // event management
-        //
-
         inline void logical_device::CreateEvent(event_t* event)
         {
             std::lock_guard<std::shared_mutex> lck(*m_mtxEvents);
@@ -142,13 +150,18 @@ namespace vuda
             return m_events[end].toc_diff(m_events[start].get_tick()) * 1e3f;
         }
 
-        //
-        // event management (through queries)
-        //
+        inline const thrdcmdpool* logical_device::GetPool(const std::thread::id tid) const
+        {
+            // every thread can look up its command pool in the list
+            {
+                std::shared_lock<std::shared_mutex> lckCmdPools(*m_mtxCmdPools);
+                return &m_thrdCommandPools.at(tid);
+            }
+        }
 
+        // event management (through queries)
         inline void logical_device::GetQueryID(const std::thread::id tid, uint32_t* event) const
         {
-            //
             // every thread can look up its command pool in the list
             {
                 std::shared_lock<std::shared_mutex> lckCmdPools(*m_mtxCmdPools);
