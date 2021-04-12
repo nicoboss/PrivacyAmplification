@@ -1,0 +1,79 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+
+/*In modified toeplitz hashing the result needs to be XORed with key_rest
+  This can be disabled for debugging purposes but must be enabled for security!
+  On purpose not in config.yaml for security and performance!*/
+#define XOR_WITH_KEY_REST TRUE
+
+/*If big endian is required, set the following definition to true otherwise to false.
+  Enabling this has a very small perfromance impact.
+  Due to performance reasons this can't be set in config.yaml*/
+#define AMPOUT_REVERSE_ENDIAN TRUE
+
+shared uint32_t key_rest_xor[31];
+shared uint32_t binOutRawBit[992];
+
+uint32_t ToBinaryBitShiftArray_dev[32] =
+uint32_t[](
+	#if AMPOUT_REVERSE_ENDIAN == TRUE
+	7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24
+	#else
+	31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+	#endif
+);
+
+
+layout( local_size_x_id = 0 ) in;
+layout( constant_id = 1 ) const float32_t h0_local = 0.0;
+layout(set = 0, binding = 0) readonly buffer A { float32_t invOut[]; };
+layout(set = 0, binding = 1) writeonly buffer B { uint32_t binOut[]; };
+layout(set = 0, binding = 2) readonly buffer C { uint32_t key_rest_local[]; };
+layout(set = 0, binding = 3) readonly buffer D { float32_t correction_float_dev[]; };
+layout(set = 0, binding = 4) readonly buffer E { float32_t normalisation_float_dev[]; };
+
+void main(void)
+{
+	const float32_t normalisation_float_local = normalisation_float_dev[0];
+	const uint32_t block = gl_WorkGroupID.x;
+	const uint32_t idx = gl_LocalInvocationID.x;
+	const float32_t correction_float = correction_float_dev[0];
+	
+	if (idx < 992) {
+		binOutRawBit[idx] = (uint32_t(round(invOut[block * 992 + idx] / normalisation_float_local + correction_float)) & 1) << ToBinaryBitShiftArray_dev[idx % 32];
+	}
+	else if (idx < 1023)
+	{
+#if XOR_WITH_KEY_REST == TRUE
+#if AMPOUT_REVERSE_ENDIAN == TRUE
+		uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
+		key_rest_xor[idx - 992] =
+			((((key_rest_little) & 0xff000000) >> 24) |
+				(((key_rest_little) & 0x00ff0000) >> 8) |
+				(((key_rest_little) & 0x0000ff00) << 8) |
+				(((key_rest_little) & 0x000000ff) << 24));
+#else
+		key_rest_xor[idx - 992] = key_rest_local[block * 31 + idx - 992];
+#endif
+#endif
+	}
+	barrier();
+
+	if (idx < 31) {
+		const uint32_t pos = idx * 32;
+		uint32_t binOutLocal =
+			(binOutRawBit[pos] | binOutRawBit[pos + 1] | binOutRawBit[pos + 2] | binOutRawBit[pos + 3] |
+				binOutRawBit[pos + 4] | binOutRawBit[pos + 5] | binOutRawBit[pos + 6] | binOutRawBit[pos + 7] |
+				binOutRawBit[pos + 8] | binOutRawBit[pos + 9] | binOutRawBit[pos + 10] | binOutRawBit[pos + 11] |
+				binOutRawBit[pos + 12] | binOutRawBit[pos + 13] | binOutRawBit[pos + 14] | binOutRawBit[pos + 15] |
+				binOutRawBit[pos + 16] | binOutRawBit[pos + 17] | binOutRawBit[pos + 18] | binOutRawBit[pos + 19] |
+				binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
+				binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
+				binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
+#if XOR_WITH_KEY_REST == TRUE
+			^ key_rest_xor[idx]
+#endif
+			;
+		binOut[block * 31 + idx] = binOutLocal;
+	}
+}

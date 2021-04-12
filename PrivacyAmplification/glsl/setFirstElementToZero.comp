@@ -1,0 +1,17 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+
+layout( local_size_x_id = 0 ) in;
+layout(set = 0, binding = 0) writeonly buffer A { f32vec2 do1[]; };
+layout(set = 0, binding = 1) writeonly buffer B { f32vec2 do2[]; };
+
+void main(void)
+{
+	if (gl_GlobalInvocationID.x == 0) {
+		do1[0] = f32vec2(0.0, 0.0);
+	}
+	else
+	{
+		do2[0] = f32vec2(0.0, 0.0);
+	}
+}

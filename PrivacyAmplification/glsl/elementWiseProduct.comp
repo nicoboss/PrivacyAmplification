@@ -1,0 +1,19 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+
+layout( local_size_x_id = 0 ) in;
+layout(set = 0, binding = 0) buffer A { f32vec2 do1[]; };
+layout(set = 0, binding = 1) readonly buffer B { f32vec2 do2[]; };
+layout(set = 0, binding = 2) readonly buffer C { uint32_t pre_mul_reduction_dev[]; };
+
+void main(void)
+{
+	uint i = gl_GlobalInvocationID.x;
+	float32_t r = pre_mul_reduction_dev[0];
+	float32_t do1x = do1[i].x / r;
+	float32_t do1y = do1[i].y / r;
+	float32_t do2x = do2[i].x / r;
+	float32_t do2y = do2[i].y / r;
+	do1[i].x = do1x * do2x - do1y * do2y;
+	do1[i].y = do1x * do2y + do1y * do2x;
+}
