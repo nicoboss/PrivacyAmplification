@@ -1256,17 +1256,17 @@ int main(int argc, char* argv[])
 	cudaStreamCreate(&ElementWiseProductStream);
 	cudaStreamCreate(&ToBinaryArrayStream);
 	#else
-	const int cudaStream_t = 1;
-	const int FFTStream = 2;
-	const int BinInt2floatKeyStream = 3;
-	const int BinInt2floatSeedStream = 4;
-	const int CalculateCorrectionFloatStream = 5;
-	const int cpu2gpuKeyStartStream = 6;
-	const int cpu2gpuKeyRestStream = 7;
-	const int cpu2gpuSeedStream = 8;
-	const int gpu2cpuStream = 9;
-	const int ElementWiseProductStream = 10;
-	const int ToBinaryArrayStream = 11;
+	const int cudaStream_t = 0;
+	const int FFTStream = 0;
+	const int BinInt2floatKeyStream = 0;
+	const int BinInt2floatSeedStream = 0;
+	const int CalculateCorrectionFloatStream = 0;
+	const int cpu2gpuKeyStartStream = 0;
+	const int cpu2gpuKeyRestStream = 0;
+	const int cpu2gpuSeedStream = 0;
+	const int gpu2cpuStream = 0;
+	const int ElementWiseProductStream = 0;
+	const int ToBinaryArrayStream = 0;
 	#endif
 
 	cudaSetDevice(0);
@@ -1439,73 +1439,6 @@ int main(int argc, char* argv[])
 		}
 
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
-
-
-
-
-
-
-
-
-		println("Started TestBinInt2float Unit Test...");
-		atomic<bool> unitTestsFailedLocal = false;
-		#if defined(__NVCC__)
-		cudaStream_t BinInt2floatStreamTest;
-		cudaStreamCreate(&BinInt2floatStreamTest);
-		#else
-		const int BinInt2floatStreamTest = 0;
-		float* float1_reduced_test_dev;
-		cudaMallocHost((void**)&float1_reduced_test_dev, sizeof(float));
-		float float1_reduced_test = 1.0f / reduction;
-		*float1_reduced_test_dev = float1_reduced_test;
-		#endif
-		uint32_t* binInTest;
-		float* floatOutTest;
-		cudaMallocHost((void**)&binInTest, (pow(2, 27) / 32) * sizeof(uint32_t));
-		cudaMallocHost((void**)&floatOutTest, pow(2, 27) * sizeof(float));
-		uint32_t* count_one_test;
-		cudaMallocHost((void**)&count_one_test, sizeof(uint32_t));
-
-		const auto processor_count = std::thread::hardware_concurrency();
-		for (int i = 0; i < pow(2, 27) / 32; ++i) {
-			binInTest[i] = i;
-		}
-		unitTestBinInt2floatVerifyResultThreadFailed = false;
-		for (uint32_t sample_size_test_exponent = 26; sample_size_test_exponent <= 27; ++sample_size_test_exponent)
-		{
-			int elementsToCheck = pow(2, sample_size_test_exponent);
-			println("TestBinInt2float Unit Test with 2^" << sample_size_test_exponent << " samples...");
-			uint32_t sample_size_test = elementsToCheck;
-			uint32_t count_one_expected = A000788((sample_size_test / 32) - 1);
-			*count_one_test = 0;
-			memset(floatOutTest, 0xFF, pow(2, 27) * sizeof(float));
-			#if defined(__NVCC__)
-			binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
-			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
-			#endif
-			cudaStreamSynchronize(BinInt2floatStreamTest);
-			assertEquals(*count_one_test, count_one_expected, -1);
-			int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
-			ThreadPool* unitTestBinInt2floatVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
-			for (int i = 0; i < elementsToCheck; i += 1000000) {
-				unitTestBinInt2floatVerifyResultPool->enqueue(unitTestBinInt2floatVerifyResultThread, floatOutTest, i, min(i + 1000000, elementsToCheck));
-			}
-			unitTestBinInt2floatVerifyResultPool->~ThreadPool();
-		}
-		if (unitTestBinInt2floatVerifyResultThreadFailed) {
-			unitTestsFailedLocal = true;
-		}
-		println("Completed TestBinInt2float Unit Test");
-		return 0;
-
-
-
-
-
-
-
-
 		#ifdef TEST
 		if (doTest) {
 			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
@@ -1516,7 +1449,8 @@ int main(int argc, char* argv[])
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", 0, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		cudaStreamSynchronize(0);
 		//Crash here?
 		#endif
 		if (recalculate_toeplitz_matrix_seed) {
@@ -1531,11 +1465,11 @@ int main(int argc, char* argv[])
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", 0, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
-			cudaStreamSynchronize(BinInt2floatSeedStream);
+			cudaStreamSynchronize(0);
 		}
-		cudaStreamSynchronize(BinInt2floatKeyStream);
+		
 		#ifdef TEST
 		if (doTest) {
 			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
