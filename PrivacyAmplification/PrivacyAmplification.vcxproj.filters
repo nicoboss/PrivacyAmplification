@@ -35,6 +35,93 @@
     <ClInclude Include="half_lib\half.hpp">
       <Filter>half_lib</Filter>
     </ClInclude>
+    <ClInclude Include="vuda\api\devicemgr.hpp">
+      <Filter>vuda\api</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\api\eventmgr.hpp">
+      <Filter>vuda\api</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\api\memmgr.hpp">
+      <Filter>vuda\api</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\api\streammgr.hpp">
+      <Filter>vuda\api</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\api\vudakernel.hpp">
+      <Filter>vuda\api</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\binarysearchtree.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\event.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\instance.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\interfacelogicaldevices.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\kernellaunchinfo.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\kernelprogram.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\logicaldevice.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\memoryallocator.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\node_cached.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\node_device.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\node_host.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\node_internal.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\node_storage.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\pool.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\singleton.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\specialization.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\thrdcmdpool.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\threadinfo.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\virtualalloc.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\state\vulkanfunc.hpp">
+      <Filter>vuda\state</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\setup\debug.hpp">
+      <Filter>vuda\setup</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\setup\debugkernel.hpp">
+      <Filter>vuda\setup</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\setup\setup.hpp">
+      <Filter>vuda\setup</Filter>
+    </ClInclude>
+    <ClInclude Include="vuda\setup\types.hpp">
+      <Filter>vuda\setup</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sha3">
@@ -52,11 +139,28 @@
     <Filter Include="half_lib">
       <UniqueIdentifier>{58cec59d-2f72-4904-9839-5d914e65d759}</UniqueIdentifier>
     </Filter>
+    <Filter Include="vuda\api">
+      <UniqueIdentifier>{eddc8cab-6422-4737-a0b8-94c86539cd98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vuda\setup">
+      <UniqueIdentifier>{fe9a05bf-137b-4722-9f26-2662e1c9ef77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vuda\state">
+      <UniqueIdentifier>{e9d84dd6-ac4e-4bd1-a215-17a72631bc56}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="yaml\Yaml.cpp">
       <Filter>yaml</Filter>
     </ClCompile>
     <ClCompile Include="PrivacyAmplification.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vuda\state\kernelprogram.inl">
+      <Filter>vuda\state</Filter>
+    </None>
+    <None Include="vuda\state\logicaldevice.inl">
+      <Filter>vuda\state</Filter>
+    </None>
   </ItemGroup>
 </Project>
