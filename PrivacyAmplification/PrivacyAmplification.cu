@@ -1190,7 +1190,33 @@ inline void setConsoleDesign() {
 }
 
 
-#define PLAN_FFT \
+#define VKFFT_CONFIG(configuration, input, output) \
+VkFFTConfiguration configuration = {}; \
+configuration.FFTdim = 1; \
+configuration.size[0] = sample_size; \
+configuration.size[1] = 1; \
+configuration.size[2] = 1; \
+configuration.performR2C = true; \
+configuration.device = &vkGPU.device; \
+configuration.queue = &vkGPU.queue; \
+configuration.fence = &vkGPU.fence; \
+configuration.makeForwardPlanOnly = false; \
+configuration.isInputFormatted = true; \
+configuration.isOutputFormatted = true; \
+configuration.buffer = new VkBuffer{ logical_device->GetBuffer(input) }; \
+configuration.inputBuffer = new VkBuffer{ logical_device->GetBuffer(input) }; \
+configuration.outputBuffer = new VkBuffer{ logical_device->GetBuffer(output) }; \
+bufferSize = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1); \
+configuration.bufferSize = &bufferSize; \
+configuration.inputBufferSize = &bufferSize; \
+configuration.outputBufferSize = &bufferSize; \
+configuration.commandPool = &vkGPU.commandPool; \
+configuration.physicalDevice = &vkGPU.physicalDevice; \
+configuration.isCompilerInitialized = 1; \
+configuration.normalize = false;
+
+
+#define PLAN_CUFFT \
 if (cuFFT_planned) \
 { \
 	/*Delete CUFFT Plans*/ \
@@ -1215,6 +1241,45 @@ if (result_inverse_FFT != CUFFT_SUCCESS) \
 } \
 cuFFT_planned = true;
 
+
+#define PLAN_VKFFT(plan_forward_R2C_seed_input, plan_forward_R2C_seed_output, plan_forward_R2C_key_input, plan_forward_R2C_key_output, plan_inverse_C2R_input, plan_inverse_C2R_output) \
+if (cuFFT_planned) \
+{ \
+	/*Delete CUFFT Plans*/ \
+	deleteVkFFT(&plan_forward_R2C_seed); \
+	deleteVkFFT(&plan_forward_R2C_key); \
+	deleteVkFFT(&plan_inverse_C2R); \
+} \
+\
+/*Plan of the forward real to complex fast fourier transformation*/ \
+VKFFT_CONFIG(plan_forward_R2C_seed_configuration, plan_forward_R2C_seed_input, plan_forward_R2C_seed_output); \
+VkFFTResult result_forward_FFT_seed = initializeVkFFT(&plan_forward_R2C_seed, plan_forward_R2C_seed_configuration); \
+if (result_forward_FFT_seed != VKFFT_SUCCESS) \
+{ \
+	println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed); \
+	exit(0); \
+} \
+\
+/*Plan of the forward real to complex fast fourier transformation*/ \
+VKFFT_CONFIG(plan_forward_R2C_key_configuration, plan_forward_R2C_key_input, plan_forward_R2C_key_output); \
+VkFFTResult result_forward_FFT_key = initializeVkFFT(&plan_forward_R2C_key, plan_forward_R2C_key_configuration); \
+if (result_forward_FFT_key != VKFFT_SUCCESS) \
+{ \
+	println("Failed to plan FFT key! Error Code: " << result_forward_FFT_key); \
+	exit(0); \
+} \
+\
+/* Plan of the inverse complex to real fast fourier transformation */ \
+VKFFT_CONFIG(plan_inverse_C2R_configuration, plan_inverse_C2R_input, plan_inverse_C2R_output); \
+VkFFTResult result_inverse_FFT = initializeVkFFT(&plan_inverse_C2R, plan_inverse_C2R_configuration); \
+if (result_inverse_FFT != VKFFT_SUCCESS) \
+{ \
+	println("Failed to plan IFFT! Error Code: " << result_inverse_FFT); \
+	exit(0); \
+} \
+cuFFT_planned = true;
+
+
 int main(int argc, char* argv[])
 {
 	//About
@@ -1225,8 +1290,9 @@ int main(int argc, char* argv[])
 	readConfig();
 
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
-	//cudaSetDevice(cuda_device_id_to_use);
 	setConsoleDesign();
+
+	cudaSetDevice(0); //cudaSetDevice(cuda_device_id_to_use);
 
 	input_cache_read_pos = input_blocks_to_cache - 1;
 	input_cache_write_pos = 0;
@@ -1267,9 +1333,35 @@ int main(int argc, char* argv[])
 	const int gpu2cpuStream = 0;
 	const int ElementWiseProductStream = 0;
 	const int ToBinaryArrayStream = 0;
-	#endif
 
-	cudaSetDevice(0);
+	VkGPU vkGPU = {};
+	vkGPU.device_id = 0;
+	cudaSetDevice(vkGPU.device_id);
+	vkGPU.instance = vuda::detail::Instance::GetVkInstance();
+	vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(vkGPU.device_id);
+	vuda::detail::logical_device* logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
+	const vuda::detail::thrdcmdpool* thrdcmdpool = logical_device->GetPool(std::this_thread::get_id());
+	vkGPU.device = logical_device->GetDeviceHandle();
+	vkGPU.commandPool = thrdcmdpool->GetCommandPool();
+	vkGPU.queue = logical_device->GetQueue(0);
+	vkGPU.fence = thrdcmdpool->GetFence(0);
+	VkFFTResult resFFT;
+
+	#if(VKFFT_BACKEND==0)
+	glslang_initialize_process();
+	#elif(VKFFT_BACKEND==1)
+	CUresult res = CUDA_SUCCESS;
+	cudaError_t res2 = cudaSuccess;
+	res = cuInit(0);
+	if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_INITIALIZE;
+	res2 = cudaSetDevice(vkGPU->device_id);
+	if (res2 != cudaSuccess) return VKFFT_ERROR_FAILED_TO_SET_DEVICE_ID;
+	res = cuDeviceGet(&vkGPU->device, vkGPU->device_id);
+	if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_GET_DEVICE;
+	res = cuCtxCreate(&vkGPU->context, 0, vkGPU->device);
+	if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_CREATE_CONTEXT;
+	#endif
+	#endif
 
 	// Allocate host pinned memory on RAM
 	cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
@@ -1344,13 +1436,6 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
-	#if defined(__NVCC__)
-	/*Plan fast fourier transformations*/
-	cufftHandle plan_forward_R2C;
-	cufftHandle plan_inverse_C2R;
-	PLAN_FFT;
-	#endif
-
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
 	uint32_t relevant_keyBlocks_old = 0;
@@ -1360,6 +1445,19 @@ int main(int argc, char* argv[])
 	bool doTest = true;
 	uint32_t dist_freq = sample_size / 2 + 1;
 	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
+
+	#if defined(__NVCC__)
+	/*Plan fast fourier transformations*/
+	cufftHandle plan_forward_R2C;
+	cufftHandle plan_inverse_C2R;
+	PLAN_CUFFT;
+	#else
+	/*Plan fast fourier transformations*/
+	VkFFTApplication plan_forward_R2C_seed = {};
+	VkFFTApplication plan_forward_R2C_key = {};
+	VkFFTApplication plan_inverse_C2R = {};
+	PLAN_VKFFT(di1, do1, di2, do2, do1, invOut);
+	#endif
 	
 	//unitTestCalculateCorrectionFloat();
 	//unitTestSetFirstElementToZero();
@@ -1394,7 +1492,11 @@ int main(int argc, char* argv[])
 					#if defined(__NVCC__)
 					cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 					cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-					PLAN_FFT;
+					PLAN_CUFFT;
+					#else
+					*normalisation_float_dev = normalisation_float;
+					*sample_size_dev = sample_size;
+					PLAN_VKFFT(di1, do1, di2, do2, do1, invOut);
 					#endif
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
@@ -1505,6 +1607,23 @@ int main(int argc, char* argv[])
 			}
 		}
 		cudaStreamSynchronize(FFTStream);
+		#else
+		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
+		if (recalculate_toeplitz_matrix_seed) {
+			#ifdef TEST
+			if (doTest) {
+				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			}
+			#endif
+			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
+			if (!dynamic_toeplitz_matrix_seed)
+			{
+				recalculate_toeplitz_matrix_seed = false;
+				invOut = reinterpret_cast<Real*>(di2); //invOut and do1 share together the same memory region
+			}
+		}
+		cudaStreamSynchronize(FFTStream);
 		#endif
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#ifdef TEST
@@ -1546,87 +1665,10 @@ int main(int argc, char* argv[])
 		#if defined(__NVCC__)
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
+		#else
+		vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
+		cudaStreamSynchronize(FFTStream);
 		#endif
-
-
-
-		VkGPU vkGPU = {};
-		vkGPU.device_id = 0;
-		cudaSetDevice(vkGPU.device_id);
-		vkGPU.instance = vuda::detail::Instance::GetVkInstance();
-		vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(vkGPU.device_id);
-		vuda::detail::logical_device* logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
-		const vuda::detail::thrdcmdpool* thrdcmdpool = logical_device->GetPool(std::this_thread::get_id());
-		vkGPU.device = logical_device->GetDeviceHandle();
-		vkGPU.commandPool = thrdcmdpool->GetCommandPool();
-		vkGPU.queue = logical_device->GetQueue(0);
-		vkGPU.fence = thrdcmdpool->GetFence(0);
-		VkFFTResult resFFT;
-
-		#if(VKFFT_BACKEND==0)
-		glslang_initialize_process();
-		#elif(VKFFT_BACKEND==1)
-		CUresult res = CUDA_SUCCESS;
-		cudaError_t res2 = cudaSuccess;
-		res = cuInit(0);
-		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_INITIALIZE;
-		res2 = cudaSetDevice(vkGPU->device_id);
-		if (res2 != cudaSuccess) return VKFFT_ERROR_FAILED_TO_SET_DEVICE_ID;
-		res = cuDeviceGet(&vkGPU->device, vkGPU->device_id);
-		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_GET_DEVICE;
-		res = cuCtxCreate(&vkGPU->context, 0, vkGPU->device);
-		if (res != CUDA_SUCCESS) return VKFFT_ERROR_FAILED_TO_CREATE_CONTEXT;
-		#endif
-
-		uint32_t vkFFT_size = pow(2, 27);
-		float* buffer_input = (float*)malloc((uint64_t)4 * vkFFT_size);
-		float* buffer_output = (float*)malloc((uint64_t)4 * 2 * vkFFT_size);
-		for (uint64_t i = 0; i < vkFFT_size; ++i) {
-			buffer_input[i] = 2 * ((float)rand()) / RAND_MAX - 1.0;
-		}
-		for (uint32_t i = 0; i < 64; ++i) {
-			printf("%.6f ", buffer_input[i]);
-			if (i % 8 == 7) std::cout << "\n";
-		}
-		println("");
-
-		VkFFTConfiguration configuration = {};
-		VkFFTApplication app = {};
-		configuration.FFTdim = 1;
-		configuration.size[0] = vkFFT_size;
-		configuration.size[1] = 1;
-		configuration.size[2] = 1;
-		configuration.performR2C = true;
-		configuration.device = &vkGPU.device;
-		#if(VKFFT_BACKEND==0)
-		configuration.queue = &vkGPU.queue;
-		configuration.fence = &vkGPU.fence;
-		configuration.commandPool = &vkGPU.commandPool;
-		configuration.physicalDevice = &vkGPU.physicalDevice;
-		configuration.isCompilerInitialized = 1;
-		#endif
-
-		uint64_t bufferSize = (uint64_t)sizeof(float) * 2 * (vkFFT_size / 2 + 1);
-		void* bufferVuda;
-		cudaMalloc(&bufferVuda, bufferSize);
-		configuration.buffer = new VkBuffer{ logical_device->GetBuffer(bufferVuda) };
-		configuration.bufferSize = &bufferSize;
-		configuration.normalize = false;
-		cudaMemcpy(bufferVuda, buffer_input, bufferSize, cudaMemcpyHostToDevice);
-		resFFT = initializeVkFFT(&app, configuration);
-		if (resFFT != VKFFT_SUCCESS) return resFFT;
-		float totTime = 0;
-		VkFFTLaunchParams launchParams = {};
-		resFFT = performVulkanFFTiFFT(&vkGPU, &app, &launchParams, 1, &totTime);
-		if (resFFT != VKFFT_SUCCESS) return resFFT;
-		cudaMemcpy(buffer_output, bufferVuda, bufferSize, cudaMemcpyDeviceToHost);
-		for (uint32_t i = 0; i < 64; ++i) {
-			printf("%.6f ", buffer_output[i] / vkFFT_size);
-			if (i % 8 == 7) std::cout << "\n";
-		}
-		println("");
-		deleteVkFFT(&app);
-
 
 
 		/*Spinlock waiting for the data consumer*/
@@ -1681,6 +1723,11 @@ int main(int argc, char* argv[])
 	// Delete CUFFT Plans
 	cufftDestroy(plan_forward_R2C);
 	cufftDestroy(plan_inverse_C2R);
+	#else
+	// Delete CUFFT Plans
+	deleteVkFFT(&plan_forward_R2C_seed);
+	deleteVkFFT(&plan_forward_R2C_key);
+	deleteVkFFT(&plan_inverse_C2R);
 	#endif
 
 	// Deallocate memoriey on GPU and RAM
