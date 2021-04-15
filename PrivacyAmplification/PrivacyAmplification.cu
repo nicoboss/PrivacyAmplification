@@ -19,6 +19,7 @@
 #include <random>
 #include "yaml/Yaml.hpp"
 #include "sha3/sha3.h"
+#include "sha3/sha3.c"
 #include "ThreadPool.h"
 
 
@@ -53,7 +54,7 @@ using namespace std;
 
 
 //Little endian only!
-//#define TEST
+#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -111,7 +112,25 @@ if (!(actual)) { \
 	exit(101); \
 }
 
-#define CUDA_ASSERT_VALUE(data, data_len, value) \
+#if defined(__NVCC__)
+#define assertGPU(data, data_len, value) \
+cudaDeviceSynchronize(); \
+cudaAssertValue KERNEL_ARG3(max(data_len / 1024, 1), min(data_len, 1024), 0) (data, value); \
+{ \
+	cudaError_t error = cudaDeviceSynchronize(); \
+	assertTrue(error == cudaSuccess); \
+}
+#else
+#define assertGPU(data, data_len, value) \
+*assertKernelValue = value; \
+*assertKernelReturnValue = 0; \
+vuda::launchKernel("SPIRV/assert.spv", "main", 0, max(data_len / 1024, 1), min(data_len, 1024), data, assertKernelValue, assertKernelReturnValue); \
+cudaStreamSynchronize(0); \
+assertTrue(*assertKernelReturnValue == 0);
+#endif
+
+
+#define VULKAN_ASSERT_VALUE(data, data_len, value) \
 cudaDeviceSynchronize(); \
 cudaAssertValue KERNEL_ARG3(max(data_len/1024, 1), data_len, 0) (data, value); \
 { \
@@ -138,6 +157,8 @@ uint32_t* key_start_zero_pos;
 uint32_t* key_rest;
 uint32_t* key_rest_zero_pos;
 uint8_t* Output;
+uint32_t* assertKernelValue;
+uint32_t* assertKernelReturnValue;
 uint8_t* testMemoryHost;
 
 #if SHOW_DEBUG_OUTPUT == TRUE
@@ -1006,10 +1027,10 @@ string toHexString(const uint8_t* data, uint32_t data_length) {
 
 bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
 	sha3_ctx sha3;
-	//rhash_sha3_256_init(&sha3);
-	//rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
+	rhash_sha3_256_init(&sha3);
+	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
-	//rhash_sha3_final(&sha3, calculatedHash);
+	rhash_sha3_final(&sha3, calculatedHash);
 	println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
@@ -1368,6 +1389,8 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
 	cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
 	cudaMallocHost((void**)&Output, output_cache_block_size * output_blocks_to_cache);
+	cudaMallocHost((void**)&assertKernelValue, sizeof(uint32_t));
+	cudaMallocHost((void**)&assertKernelReturnValue, sizeof(uint32_t));
 	#ifdef TEST
 	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
 	#endif
@@ -1543,7 +1566,7 @@ int main(int argc, char* argv[])
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 		#ifdef TEST
 		if (doTest) {
-			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 0)
+			assertGPU(count_one_of_global_key, 1, 0);
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
@@ -1559,7 +1582,7 @@ int main(int argc, char* argv[])
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
 			if (doTest) {
-				CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 0)
+				assertGPU(count_one_of_global_seed, 1, 0);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
@@ -1574,8 +1597,8 @@ int main(int argc, char* argv[])
 		
 		#ifdef TEST
 		if (doTest) {
-			CUDA_ASSERT_VALUE(count_one_of_global_key, 1, 41947248)
-			CUDA_ASSERT_VALUE(count_one_of_global_seed, 1, 67113455)
+			assertGPU(count_one_of_global_key, 1, 41947248);
+			assertGPU(count_one_of_global_seed, 1, 67113455);
 		}
 		#endif
 		#if defined(__NVCC__)
@@ -1685,7 +1708,7 @@ int main(int argc, char* argv[])
 			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
-			CUDA_ASSERT_VALUE(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912) //0.83143723	
+			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
 		}		
 		#endif
 		#if defined(__NVCC__)

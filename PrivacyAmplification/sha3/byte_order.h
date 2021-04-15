@@ -68,7 +68,7 @@ extern "C" {
       defined(__POWERPC__) || defined(POWERPC) || defined(__powerpc) || \
       defined(__powerpc__) || defined(__powerpc64__) || defined(__ppc__) || \
       defined(__hpux)  || defined(_MIPSEB) || defined(mc68000) || \
-      defined(__s390__) || defined(__s390x__) || defined(sel)
+      defined(__s390__) || defined(__s390x__) || defined(sel) || defined(__hppa__)
 # define RHASH_BYTE_ORDER RHASH_BYTE_ORDER_BE
 #else
 #  error "Can't detect CPU architechture"
@@ -81,8 +81,8 @@ extern "C" {
 # define __has_builtin(x) 0
 #endif
 
-#define IS_ALIGNED_32(p) (0 == (3 & ((const char*)(p) - (const char*)0)))
-#define IS_ALIGNED_64(p) (0 == (7 & ((const char*)(p) - (const char*)0)))
+#define IS_ALIGNED_32(p) (0 == (3 & (uintptr_t)(p)))
+#define IS_ALIGNED_64(p) (0 == (7 & (uintptr_t)(p)))
 
 #if defined(_MSC_VER)
 #define ALIGN_ATTR(n) __declspec(align(n))
