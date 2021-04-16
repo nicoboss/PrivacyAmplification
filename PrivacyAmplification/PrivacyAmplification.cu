@@ -1580,9 +1580,14 @@ int main(int argc, char* argv[])
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", 0, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
-		cudaStreamSynchronize(0);
-		//Crash here?
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		#endif
+		cudaStreamSynchronize(BinInt2floatKeyStream);
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		}
 		#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
@@ -1596,9 +1601,15 @@ int main(int argc, char* argv[])
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", 0, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
-			cudaStreamSynchronize(0);
+			cudaStreamSynchronize(BinInt2floatSeedStream);
+			#ifdef TEST
+			if (doTest) {
+				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			}
+			#endif
 		}
 		
 		#ifdef TEST
@@ -1613,21 +1624,10 @@ int main(int argc, char* argv[])
 		#else
 		vuda::launchKernel("SPIRV/calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatStream, 1, 1, count_one_of_global_key, count_one_of_global_seed, correction_float_dev, sample_size_dev);
 		#endif
-		#ifdef TEST
-		if (doTest) {
-			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
-		}
-		#endif
+		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		#if defined(__NVCC__)
 		cufftExecR2C(plan_forward_R2C, di1, do1);
 		if (recalculate_toeplitz_matrix_seed) {
-			#ifdef TEST
-			if (doTest) {
-				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
-			}
-			#endif
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
@@ -1635,16 +1635,9 @@ int main(int argc, char* argv[])
 				invOut = reinterpret_cast<Real*>(di2); //invOut and do1 share together the same memory region
 			}
 		}
-		cudaStreamSynchronize(FFTStream);
 		#else
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		if (recalculate_toeplitz_matrix_seed) {
-			#ifdef TEST
-			if (doTest) {
-				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
-			}
-			#endif
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
@@ -1652,9 +1645,8 @@ int main(int argc, char* argv[])
 				invOut = reinterpret_cast<Real*>(di2); //invOut and do1 share together the same memory region
 			}
 		}
-		cudaStreamSynchronize(FFTStream);
 		#endif
-		cudaStreamSynchronize(CalculateCorrectionFloatStream);
+		cudaStreamSynchronize(FFTStream);
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
