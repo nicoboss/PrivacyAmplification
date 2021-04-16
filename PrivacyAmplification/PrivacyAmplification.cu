@@ -19,7 +19,9 @@
 #include <random>
 #include "yaml/Yaml.hpp"
 #include "sha3/sha3.h"
+#if !defined(__NVCC__)
 #include "sha3/sha3.c"
+#endif
 #include "ThreadPool.h"
 
 
@@ -1304,7 +1306,11 @@ cuFFT_planned = true;
 int main(int argc, char* argv[])
 {
 	//About
+	#if defined(__NVCC__)
+	string about = streamToString("# PrivacyAmplificationCuda v" << VERSION << " by Nico Bosshard from " << __DATE__ << " #");
+	#else
 	string about = streamToString("# PrivacyAmplification v" << VERSION << " by Nico Bosshard from " << __DATE__ << " #");
+	#endif
 	string border(about.length(), '#');
 	cout << border << endl << about << endl << border << endl << endl;
 

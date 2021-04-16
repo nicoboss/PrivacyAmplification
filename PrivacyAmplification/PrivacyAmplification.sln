@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30104.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PrivacyAmplification", "PrivacyAmplification.vcxproj", "{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PrivacyAmplificationCuda", "PrivacyAmplificationCuda.vcxproj", "{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Debug|x64.Build.0 = Debug|x64
 		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Release|x64.ActiveCfg = Release|x64
 		{C96411EE-C4F5-4A0B-9335-8741F0BB57A8}.Release|x64.Build.0 = Release|x64
+		{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}.Debug|x64.ActiveCfg = Debug|x64
+		{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}.Debug|x64.Build.0 = Debug|x64
+		{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}.Release|x64.ActiveCfg = Release|x64
+		{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
