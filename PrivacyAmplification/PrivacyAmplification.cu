@@ -1223,16 +1223,13 @@ configuration.performR2C = true; \
 configuration.device = &vkGPU.device; \
 configuration.queue = &vkGPU.queue; \
 configuration.fence = &vkGPU.fence; \
-configuration.makeForwardPlanOnly = false; \
 configuration.isInputFormatted = true; \
-configuration.isOutputFormatted = true; \
-configuration.buffer = new VkBuffer{ logical_device->GetBuffer(input) }; \
 configuration.inputBuffer = new VkBuffer{ logical_device->GetBuffer(input) }; \
-configuration.outputBuffer = new VkBuffer{ logical_device->GetBuffer(output) }; \
-bufferSize = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1); \
+configuration.buffer = new VkBuffer{ logical_device->GetBuffer(output) }; \
+bufferSizeInput = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1); \
+bufferSize = (uint64_t)sizeof(Complex) * sample_size * 2; \
+configuration.inputBufferSize = &bufferSizeInput; \
 configuration.bufferSize = &bufferSize; \
-configuration.inputBufferSize = &bufferSize; \
-configuration.outputBufferSize = &bufferSize; \
 configuration.commandPool = &vkGPU.commandPool; \
 configuration.physicalDevice = &vkGPU.physicalDevice; \
 configuration.isCompilerInitialized = 1; \
@@ -1650,6 +1647,12 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			for (int i = 0; i < 100; i+=2) {
+				println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
+			}
+			for (int i = sample_size-50; i < sample_size+50; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
 			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
