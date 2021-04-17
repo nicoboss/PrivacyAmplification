@@ -47,6 +47,7 @@ typedef float2   Complex;
 uint32_t sample_size;
 uint64_t bufferSize;
 uint64_t bufferSizeInput;
+uint8_t* value_dev;
 
 /*FFT input maps binary 0, 1 to 0 and 1/reduction which
   will be corrected during normalisation after IFFT
@@ -153,14 +154,6 @@ println("Hallo " << name) which requires the following function-like macros*/
 /*Convearts a stream into an std::string
   Example: std::string greeting = streamToString("Hallo " << name);*/
 #define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
-
-#if defined(__NVCC__)
-/*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
-#define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
-#else
-#define cudaMemset(address, value, num) vuda::launchKernel("SPIRV/memset.spv", "main", 0, (int)(num / 1024), min(num, 1024), value, address);
-#define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
-#endif
 
 /*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
 and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
