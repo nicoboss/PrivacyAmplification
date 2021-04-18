@@ -1224,29 +1224,6 @@ inline void setConsoleDesign() {
 }
 
 
-#define VKFFT_CONFIG(configuration, input, output) \
-VkFFTConfiguration configuration = {}; \
-configuration.FFTdim = 1; \
-configuration.size[0] = sample_size; \
-configuration.size[1] = 1; \
-configuration.size[2] = 1; \
-configuration.performR2C = true; \
-configuration.device = &vkGPU.device; \
-configuration.queue = &vkGPU.queue; \
-configuration.fence = &vkGPU.fence; \
-configuration.isInputFormatted = true; \
-configuration.inputBuffer = new VkBuffer{ logical_device->GetBuffer(input) }; \
-configuration.buffer = new VkBuffer{ logical_device->GetBuffer(output) }; \
-bufferSizeInput = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1); \
-bufferSize = (uint64_t)sizeof(Complex) * sample_size * 2; \
-configuration.inputBufferSize = &bufferSizeInput; \
-configuration.bufferSize = &bufferSize; \
-configuration.commandPool = &vkGPU.commandPool; \
-configuration.physicalDevice = &vkGPU.physicalDevice; \
-configuration.isCompilerInitialized = 1; \
-configuration.normalize = false;
-
-
 #define PLAN_CUFFT \
 if (cuFFT_planned) \
 { \
@@ -1273,42 +1250,56 @@ if (result_inverse_FFT != CUFFT_SUCCESS) \
 cuFFT_planned = true;
 
 
-#define PLAN_VKFFT(plan_forward_R2C_seed_input, plan_forward_R2C_seed_output, plan_forward_R2C_key_input, plan_forward_R2C_key_output, plan_inverse_C2R_input, plan_inverse_C2R_output) \
-if (cuFFT_planned) \
-{ \
-	/*Delete CUFFT Plans*/ \
-	deleteVkFFT(&plan_forward_R2C_seed); \
-	deleteVkFFT(&plan_forward_R2C_key); \
-	deleteVkFFT(&plan_inverse_C2R); \
-} \
-\
-/*Plan of the forward real to complex fast fourier transformation*/ \
-VKFFT_CONFIG(plan_forward_R2C_seed_configuration, plan_forward_R2C_seed_input, plan_forward_R2C_seed_output); \
-VkFFTResult result_forward_FFT_seed = initializeVkFFT(&plan_forward_R2C_seed, plan_forward_R2C_seed_configuration); \
-if (result_forward_FFT_seed != VKFFT_SUCCESS) \
-{ \
-	println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed); \
-	exit(0); \
-} \
-\
-/*Plan of the forward real to complex fast fourier transformation*/ \
-VKFFT_CONFIG(plan_forward_R2C_key_configuration, plan_forward_R2C_key_input, plan_forward_R2C_key_output); \
-VkFFTResult result_forward_FFT_key = initializeVkFFT(&plan_forward_R2C_key, plan_forward_R2C_key_configuration); \
-if (result_forward_FFT_key != VKFFT_SUCCESS) \
-{ \
-	println("Failed to plan FFT key! Error Code: " << result_forward_FFT_key); \
-	exit(0); \
-} \
-\
-/* Plan of the inverse complex to real fast fourier transformation */ \
-VKFFT_CONFIG(plan_inverse_C2R_configuration, plan_inverse_C2R_input, plan_inverse_C2R_output); \
-VkFFTResult result_inverse_FFT = initializeVkFFT(&plan_inverse_C2R, plan_inverse_C2R_configuration); \
-if (result_inverse_FFT != VKFFT_SUCCESS) \
-{ \
-	println("Failed to plan IFFT! Error Code: " << result_inverse_FFT); \
-	exit(0); \
-} \
-cuFFT_planned = true;
+
+inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, float* vkBuffer, VkFFTConfiguration* configuration)
+{
+	configuration->FFTdim = 1;
+	configuration->size[0] = sample_size;
+	configuration->size[1] = 1;
+	configuration->size[2] = 1;
+	configuration->performR2C = true;
+	configuration->device = &vkGPU->device;
+	configuration->queue = &vkGPU->queue;
+	configuration->fence = &vkGPU->fence;
+	configuration->buffer = new VkBuffer{ logical_device->GetBuffer(vkBuffer) };
+	bufferSize = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1);
+	configuration->bufferSize = &bufferSize;
+	configuration->commandPool = &vkGPU->commandPool;
+	configuration->physicalDevice = &vkGPU->physicalDevice;
+	configuration->isCompilerInitialized = 1;
+}
+
+
+inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_forward_R2C_key, float* seed_buffer, float* key_buffer)
+{
+	if (cuFFT_planned)
+	{
+		/*Delete CUFFT Plans*/
+		deleteVkFFT(plan_forward_R2C_seed);
+		deleteVkFFT(plan_forward_R2C_key);
+	}
+	
+	/*Plan of the forward real to complex fast fourier transformation*/
+	VkFFTConfiguration plan_forward_R2C_seed_configuration = {};
+	VkFFTCreateConfiguration(vkGPU, logical_device, seed_buffer, &plan_forward_R2C_seed_configuration);
+	VkFFTResult result_forward_FFT_seed = initializeVkFFT(plan_forward_R2C_seed, plan_forward_R2C_seed_configuration);
+	if (result_forward_FFT_seed != VKFFT_SUCCESS)
+	{
+		println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed);
+		exit(0);
+	}
+	
+	/*Plan of the forward real to complex fast fourier transformation*/
+	VkFFTConfiguration plan_forward_R2C_key_configuration = {};
+	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
+	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
+	if (result_forward_FFT_key != VKFFT_SUCCESS)
+	{
+		println("Failed to plan FFT key! Error Code: " << result_forward_FFT_key);
+		exit(0);
+	}
+	cuFFT_planned = true;
+}
 
 
 int main(int argc, char* argv[])
@@ -1421,7 +1412,7 @@ int main(int argc, char* argv[])
 	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 	cudaMalloc((void**)&correction_float_dev, sizeof(float));
-	cudaCalloc((void**)&di1, sample_size * sizeof(Real));
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
@@ -1493,8 +1484,7 @@ int main(int argc, char* argv[])
 	/*Plan fast fourier transformations*/
 	VkFFTApplication plan_forward_R2C_seed = {};
 	VkFFTApplication plan_forward_R2C_key = {};
-	VkFFTApplication plan_inverse_C2R = {};
-	PLAN_VKFFT(di1, do1, di2, do2, do1, invOut);
+	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_seed, &plan_forward_R2C_key, di1, di2);
 	#endif
 	
 	//unitTestCalculateCorrectionFloat();
@@ -1534,7 +1524,7 @@ int main(int argc, char* argv[])
 					#else
 					*normalisation_float_dev = normalisation_float;
 					*sample_size_dev = sample_size;
-					PLAN_VKFFT(di1, do1, di2, do2, do1, invOut);
+					planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_seed, &plan_forward_R2C_key, di1, di2);
 					#endif
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
@@ -1592,20 +1582,20 @@ int main(int argc, char* argv[])
 		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
 		cudaStreamSynchronize(BinInt2floatKeyStream);
-		#ifdef TEST
-		if (doTest) {
-			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
-		}
-		#endif
+		//#ifdef TEST
+		//if (doTest) {
+		//	cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+		//	assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		//}
+		//#endif
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
-			#ifdef TEST
-			if (doTest) {
-				assertGPU(count_one_of_global_seed, 1, 0);
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
-			}
-			#endif
+			//#ifdef TEST
+			//if (doTest) {
+			//	assertGPU(count_one_of_global_seed, 1, 0);
+			//	assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+			//}
+			//#endif
 			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -1613,12 +1603,12 @@ int main(int argc, char* argv[])
 			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
-			#ifdef TEST
-			if (doTest) {
-				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
-			}
-			#endif
+			//#ifdef TEST
+			//if (doTest) {
+			//	cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			//	assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+			//}
+			//#endif
 		}
 		
 		#ifdef TEST
@@ -1645,64 +1635,72 @@ int main(int argc, char* argv[])
 			}
 		}
 		#else
-		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
-		if (recalculate_toeplitz_matrix_seed) {
-			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
-			if (!dynamic_toeplitz_matrix_seed)
-			{
-				recalculate_toeplitz_matrix_seed = false;
-				invOut = reinterpret_cast<Real*>(di2); //invOut and di2 share together the same memory region
-			}
-		}
+		vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
+		//vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
+		//if (recalculate_toeplitz_matrix_seed) {
+		//	vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
+		//	if (!dynamic_toeplitz_matrix_seed)
+		//	{
+		//		recalculate_toeplitz_matrix_seed = false;
+		//		invOut = reinterpret_cast<Real*>(di2); //invOut and di2 share together the same memory region
+		//	}
+		//}
 		#endif
 		cudaStreamSynchronize(FFTStream);
-		#ifdef TEST
-		if (doTest) {
-			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-			for (int i = 0; i < 100; i+=2) {
-				println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
-			}
-			for (int i = sample_size-50; i < sample_size+50; i += 2) {
-				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
-			}
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
-			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
-		}
-		#endif
+		//#ifdef TEST
+		//if (doTest) {
+		//	cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		//	for (int i = 0; i < 100; i += 2) {
+		//		println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+		//	}
+		//	for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
+		//		println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+		//	}
+		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
+		//	cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
+		//}
+		//#endif
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		#else
-		vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, do1, do2);
+		vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, di1, di2);
 		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
 		#ifdef TEST
 		if (doTest) {
-			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
-			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
+			cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(float), cudaMemcpyDeviceToHost);
+			for (int i = 0; i < 100; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			//cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			//assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
+			//cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			//assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
 		}
 		#endif
-		#if defined(__NVCC__)
-		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
-		#else
-		vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
-		#endif
-		cudaStreamSynchronize(ElementWiseProductStream);
-		#ifdef TEST
-		if (doTest) {
-			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-			//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
-			//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
-		}
-		#endif
+		//#if defined(__NVCC__)
+		//ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
+		//#else
+		//vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
+		//#endif
+		//cudaStreamSynchronize(ElementWiseProductStream);
+		//#ifdef TEST
+		//if (doTest) {
+		//	cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+		//	//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
+		//	//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
+		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
+		//}
+		//#endif
 		#if defined(__NVCC__)
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 		#else
-		vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
+		vkfftExecC2R(&vkGPU, &plan_forward_R2C_seed);
 		cudaStreamSynchronize(FFTStream);
 		#endif
 
@@ -1718,7 +1716,13 @@ int main(int argc, char* argv[])
 		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
 		#ifdef TEST
 		if (doTest) {
-			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			cudaMemcpy(testMemoryHost, di1, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
+			for (int i = 0; i < 100; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
@@ -1763,7 +1767,6 @@ int main(int argc, char* argv[])
 	// Delete CUFFT Plans
 	deleteVkFFT(&plan_forward_R2C_seed);
 	deleteVkFFT(&plan_forward_R2C_key);
-	deleteVkFFT(&plan_inverse_C2R);
 	#endif
 
 	// Deallocate memoriey on GPU and RAM
