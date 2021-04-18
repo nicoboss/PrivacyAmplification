@@ -3,7 +3,7 @@
 #form 2^factor_exp where 27 is the maximum
 #The result of 2^factor_exp is in bits
 #Needs to match with the one specified in other components
-factor_exp: 27
+factor_exp: 24
 
 #FFT input maps binary 0, 1 to 0 and 1/(2^reduction_exp) which
 #will be corrected during normalisation after IFFT

@@ -14,6 +14,6 @@ void main(void)
 	float32_t do1y = do1[i].y / r;
 	float32_t do2x = do2[i].x / r;
 	float32_t do2y = do2[i].y / r;
-	do1[i].x = do1x * do2x - do1y * do2y;
-	do1[i].y = do1x * do2y + do1y * do2x;
+	do1[i].x = (do1x * do2x - do1y * do2y) * 2;
+	do1[i].y = (do1x * do2y + do1y * do2x) * 2;
 }
