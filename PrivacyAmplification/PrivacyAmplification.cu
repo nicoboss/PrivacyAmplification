@@ -1595,12 +1595,6 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			for (int i = 0; i < 100; i+=2) {
-				println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
-			}
-			//for (int i = sample_size-50; i < sample_size+50; i += 2) {
-			//	println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
-			//}
 			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		}
 		#endif
@@ -1651,7 +1645,6 @@ int main(int argc, char* argv[])
 			}
 		}
 		#else
-		cudaMemset(invOut, 0b00000000, sample_size * sizeof(Real));
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		if (recalculate_toeplitz_matrix_seed) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
@@ -1663,54 +1656,54 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		cudaStreamSynchronize(FFTStream);
-		//#ifdef TEST
-		//if (doTest) {
-		//	cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//	for (int i = 0; i < 100; i+=2) {
-		//		println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
-		//	}
-		//	for (int i = sample_size-50; i < sample_size+50; i += 2) {
-		//		println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
-		//	}
-		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
-		//	cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
-		//}
-		//#endif
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			for (int i = 0; i < 100; i+=2) {
+				println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
+			}
+			for (int i = sample_size-50; i < sample_size+50; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169418354.55271667, 20.0, 34113796927081708.0, 4000000000.0));
+			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214212024.18607470, 20.0, 43129067856294192.0, 4000000000.0));
+		}
+		#endif
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (do1, do2);
 		#else
 		vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, do1, do2);
 		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
-		//#ifdef TEST
-		//if (doTest) {
-		//	cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
-		//	cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
-		//}
-		//#endif
-		//#if defined(__NVCC__)
-		//ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
-		//#else
-		//vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
-		//#endif
-		//cudaStreamSynchronize(ElementWiseProductStream);
-		//#ifdef TEST
-		//if (doTest) {
-		//	cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
-		//	//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
-		//	//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
-		//	assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
-		//}
-		//#endif
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 169397872.49802935, 20.0, 34108298634674704.0, 4000000000.0));
+			cudaMemcpy(testMemoryHost, do2, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 214179253.94388714, 20.0, 43120271091896792.0, 4000000000.0));
+		}
+		#endif
+		#if defined(__NVCC__)
+		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (do1, do2);
+		#else
+		vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), do1, do2, pre_mul_reduction_dev);
+		#endif
+		cudaStreamSynchronize(ElementWiseProductStream);
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, do1, sample_size * sizeof(Complex), cudaMemcpyDeviceToHost);
+			//cout << *reinterpret_cast<float*>(testMemoryHost+24) << endl;
+			//memdump("cufftExecC2R_input_debug.bin", testMemoryHost, sample_size * sizeof(Complex));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size * 2, 414613.50757636, 0.1, 83481633447282.140625, 20000000.0));
+		}
+		#endif
 		#if defined(__NVCC__)
 		cufftExecC2R(plan_inverse_C2R, do1, invOut);
 		cudaStreamSynchronize(FFTStream);
 		#else
-		//vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
-		//cudaStreamSynchronize(FFTStream);
+		vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
+		cudaStreamSynchronize(FFTStream);
 		#endif
 
 
@@ -1725,15 +1718,7 @@ int main(int argc, char* argv[])
 		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
 		#ifdef TEST
 		if (doTest) {
-			//cudaMemset(invOut, 0b00000000, sample_size * sizeof(Real));
-			memset(testMemoryHost, 0, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
 			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-			for (int i = 0; i < 100; i+=2) {
-				println(i << ": "<< reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i+1]);
-			}
-			for (int i = sample_size-50; i < sample_size+50; i += 2) {
-				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
-			}
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 2000.0, 542186359506315456.0, 400000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
