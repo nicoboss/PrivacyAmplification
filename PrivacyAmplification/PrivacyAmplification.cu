@@ -56,7 +56,7 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
+//#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -692,7 +692,9 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 	const uint32_t idx = threadIdx.x;
 	const Real correction_float = *correction_float_dev;
 
+	#if XOR_WITH_KEY_REST == TRUE
 	__shared__ uint32_t key_rest_xor[31];
+	#endif
 	__shared__ uint32_t binOutRawBit[992];
 	if (idx < 992) {
 		binOutRawBit[idx] = ((__float2int_rn(invOut[block * 992 + idx] / normalisation_float_local + correction_float) & 1)
@@ -1494,7 +1496,7 @@ int main(int argc, char* argv[])
 	//unitTestSetFirstElementToZero();
 	//unitTestElementWiseProduct();
 	//unitTestBinInt2float();
-	unitTestToBinaryArray();
+	//unitTestToBinaryArray();
 	
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
@@ -1736,7 +1738,7 @@ int main(int argc, char* argv[])
 				if (i % 8 == 7) std::cout << "\n";
 			}
 			println("");
-
+			#if SHOW_DEBUG_OUTPUT == TRUE
 			FILE* pFile;
 			#if defined(__NVCC__)
 			pFile = fopen("Result_Cuda.txt", "w");
@@ -1749,6 +1751,7 @@ int main(int argc, char* argv[])
 			}
 			fclose(pFile);
 			exit(0);
+			#endif
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
@@ -1766,15 +1769,8 @@ int main(int argc, char* argv[])
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
 		}
 		#endif
+		//printBin(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
 
-		#if SHOW_DEBUG_OUTPUT == TRUE
-		if (!speedtest) {
-			cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, invOut, dist_freq * sizeof(float), cudaMemcpyDeviceToHost);
-			cudaMemcpy(OutputFloat + output_cache_block_size * output_cache_write_pos, correction_float_dev, sizeof(float), cudaMemcpyDeviceToHost);
-		}
-		#endif
-
-		
 		if (speedtest) {
 			goto return_speedtest;
 		}
