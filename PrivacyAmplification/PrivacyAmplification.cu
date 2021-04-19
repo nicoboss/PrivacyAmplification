@@ -137,7 +137,7 @@ assertTrue(*assertKernelReturnValue == 0);
 #else
 #define cudaMemset(address, value, num) \
 *value_dev = value; \
-vuda::launchKernel("SPIRV/memset.spv", "main", 0, (int)(num / 1024), min(num, 1024), value_dev, address); \
+vuda::launchKernel("SPIRV/memset.spv", "main", 0, max(num / 1024, 1), min(num, 1024), value_dev, address); \
 cudaStreamSynchronize(0);
 #define cudaCalloc(address, size) \
 if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
