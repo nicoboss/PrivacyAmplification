@@ -56,7 +56,7 @@ using namespace std;
 
 
 //Little endian only!
-//#define TEST
+#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1565,13 +1565,15 @@ int main(int argc, char* argv[])
 		}
 		input_cache_read_pos = (input_cache_read_pos + 1) % input_blocks_to_cache; //Switch read cache
 
-		/*Detect dirty memory regions parts*/
-		relevant_keyBlocks_old = relevant_keyBlocks;
-		relevant_keyBlocks = horizontal_block + 1;
-		if (relevant_keyBlocks_old > relevant_keyBlocks) {
-			/*Fill dirty memory regions parts with zeros*/
-			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
-		}
+		///*Detect dirty memory regions parts*/
+		//relevant_keyBlocks_old = relevant_keyBlocks;
+		//relevant_keyBlocks = horizontal_block + 1;
+		//if (relevant_keyBlocks_old > relevant_keyBlocks) {
+		//	/*Fill dirty memory regions parts with zeros*/
+		//	cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
+		//}
+
+		cudaMemset(di1, 0b00000000, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 		#ifdef TEST
@@ -1669,6 +1671,7 @@ int main(int argc, char* argv[])
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214211928.23554835, 200.0, 14378010673396208.0, 20000000000.0));
 		}
+		continue;
 		#endif
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (intermediate_key, intermediate_seed);
