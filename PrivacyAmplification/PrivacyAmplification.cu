@@ -639,9 +639,9 @@ int unitTestToBinaryArray() {
 	cudaMallocHost((void**)&correction_float_dev_test, sizeof(Real));
 	memset(key_rest_test, 0b10101010, (pow(2, 27) / 32) * sizeof(uint32_t));
 	*correction_float_dev_test = 1.9f;
-	uint32_t normalisation_float_test = 1.0f;
 	#if defined(__NVCC__)
-	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float_test, sizeof(uint32_t));
+	float normalisation_float_test = 1.0f;
+	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float_test, sizeof(float));
 	#else
 	float* normalisation_float_test_dev;
 	cudaMallocHost((void**)&normalisation_float_test_dev, sizeof(float));
@@ -1415,7 +1415,7 @@ int main(int argc, char* argv[])
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 	cudaMallocHost((void**)&correction_float_dev, sizeof(float));
 
-	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1));
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
@@ -1447,8 +1447,8 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
 	*float1_reduced_dev = float1_reduced;
 
-	uint32_t* normalisation_float_dev;
-	cudaMallocHost((void**)&normalisation_float_dev, sizeof(uint32_t));
+	float* normalisation_float_dev;
+	cudaMallocHost((void**)&normalisation_float_dev, sizeof(float));
 	*normalisation_float_dev = normalisation_float;
 
 	uint32_t* sample_size_dev;
@@ -1494,7 +1494,7 @@ int main(int argc, char* argv[])
 	//unitTestSetFirstElementToZero();
 	//unitTestElementWiseProduct();
 	//unitTestBinInt2float();
-	//unitTestToBinaryArray();
+	unitTestToBinaryArray();
 	
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
@@ -1727,11 +1727,28 @@ int main(int argc, char* argv[])
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
 				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
-			for (uint32_t i = 0; i < 64; ++i) {
+			for (uint32_t i = 0; i < 100; ++i) {
+				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
+				if (i % 8 == 7) std::cout << "\n";
+			}
+			for (uint32_t i = sample_size - 50; i < sample_size + 50; ++i) {
 				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
 				if (i % 8 == 7) std::cout << "\n";
 			}
 			println("");
+
+			FILE* pFile;
+			#if defined(__NVCC__)
+			pFile = fopen("Result_Cuda.txt", "w");
+			#else
+			pFile = fopen("Result_Vulkan.txt", "w");
+			#endif
+			for (uint32_t i = 0; i < sample_size; ++i) {
+				fprintf(pFile, "%i", (int)roundf(reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev) & 1);
+				if (i % 192 == 191) fprintf(pFile, "\n");
+			}
+			fclose(pFile);
+			exit(0);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
@@ -1741,7 +1758,7 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		#else
-		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, di1, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
+		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
