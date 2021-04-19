@@ -1284,6 +1284,9 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_forward_R2C_key_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
+	//plan_forward_R2C_key_configuration.performZeropadding[0] = true;
+	//plan_forward_R2C_key_configuration.fft_zeropad_left[0] = sample_size / 2;
+	//plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
 	{
@@ -1671,7 +1674,6 @@ int main(int argc, char* argv[])
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214211928.23554835, 200.0, 14378010673396208.0, 20000000000.0));
 		}
-		continue;
 		#endif
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (intermediate_key, intermediate_seed);
