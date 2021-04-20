@@ -1338,8 +1338,11 @@ int main(int argc, char* argv[])
 	Real* di1; //Device Input 1
 	Real* di2; //Device Input 2
 	Real* invOut;  //Result of the IFFT (uses the same memory as do2)
+	#if defined(__NVCC__)
 	Complex* do1;  //Device Output 1 and result of ElementWiseProduct
 	Complex* do2;  //Device Output 2 and result of the IFFT
+	#endif
+
 	#if defined(__NVCC__)
 	cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
 		cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
@@ -1421,17 +1424,19 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&correction_float_dev, sizeof(float));
 
 	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
-
+	
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
 	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
 
+	#if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
 	cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
 
 	/*Toeplitz Seed FFT output but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
+	#endif
 
 	const uint32_t total_reduction = reduction * pre_mul_reduction;
 	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
@@ -1481,7 +1486,6 @@ int main(int argc, char* argv[])
 	bool speedtest = false;
 	bool doTest = true;
 	uint32_t dist_freq = sample_size / 2 + 1;
-	invOut = reinterpret_cast<Real*>(do2); //invOut and do2 share together the same memory region
 
 	#if defined(__NVCC__)
 	/*Plan fast fourier transformations*/
@@ -1800,9 +1804,11 @@ int main(int argc, char* argv[])
 	cudaFree(di1);
 	cudaFree(di2);
 	cudaFree(invOut);
+	#if defined(__NVCC__)
 	cudaFree(do1);
 	cudaFree(do2);
+	#endif
 	cudaFree(Output);
-
+	cudaFree(testMemoryHost);
 	return 0;
 }
