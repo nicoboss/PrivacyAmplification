@@ -1096,7 +1096,7 @@ void sendData() {
 		}
 		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
-		uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
+		uint8_t* output_block = testMemoryHost;
 
 		if (verify_ampout)
 		{
@@ -1404,9 +1404,9 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&assertKernelValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&assertKernelReturnValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&value_dev, sizeof(uint8_t));
-	#ifdef TEST
+	//#ifdef TEST
 	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-	#endif
+	//#endif
 	#if SHOW_DEBUG_OUTPUT == TRUE
 	cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache);
 	#endif
@@ -1766,15 +1766,15 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		#else
-		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
+		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), vertical_len / 8, ampout_sha3));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(testMemoryHost), vertical_len / 8, ampout_sha3));
 		}
 		#endif
-		//printBin(reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
+		//printBin(reinterpret_cast<uint8_t*>(testMemoryHost), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
 
 		if (speedtest) {
 			goto return_speedtest;
