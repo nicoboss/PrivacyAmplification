@@ -56,7 +56,7 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
+//#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1272,21 +1272,22 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 }
 
 
-inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, float* key_buffer, float* seed_buffer)
+inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
 {
 	if (cuFFT_planned)
 	{
 		/*Delete CUFFT Plans*/
 		deleteVkFFT(plan_forward_R2C_seed);
 		deleteVkFFT(plan_forward_R2C_key);
+		deleteVkFFT(plan_inverse_C2R);
 	}
 	
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_forward_R2C_key_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
-	//plan_forward_R2C_key_configuration.performZeropadding[0] = true;
-	//plan_forward_R2C_key_configuration.fft_zeropad_left[0] = sample_size / 2;
-	//plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
+	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
+	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16);
+	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
 	{
@@ -1301,6 +1302,16 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	if (result_forward_FFT_seed != VKFFT_SUCCESS)
 	{
 		println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed);
+		exit(0);
+	}
+
+	/*Plan of the forward real to complex fast fourier transformation*/
+	VkFFTConfiguration plan_inverse_C2R_configuration = {};
+	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_inverse_C2R_configuration);
+	VkFFTResult result_plan_inverse_C2R = initializeVkFFT(plan_inverse_C2R, plan_inverse_C2R_configuration);
+	if (result_plan_inverse_C2R != VKFFT_SUCCESS)
+	{
+		println("Failed to plan FFT key! Error Code: " << result_plan_inverse_C2R);
 		exit(0);
 	}
 
@@ -1496,7 +1507,8 @@ int main(int argc, char* argv[])
 	/*Plan fast fourier transformations*/
 	VkFFTApplication plan_forward_R2C_seed = {};
 	VkFFTApplication plan_forward_R2C_key = {};
-	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, di1, di2);
+	VkFFTApplication plan_inverse_C2R = {};
+	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
 	#endif
 	
 	//unitTestCalculateCorrectionFloat();
@@ -1536,7 +1548,7 @@ int main(int argc, char* argv[])
 					#else
 					*normalisation_float_dev = normalisation_float;
 					*sample_size_dev = sample_size;
-					planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_seed, &plan_forward_R2C_key, di1, di2);
+					planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_seed, &plan_forward_R2C_key, &plan_inverse_C2R, di1, di2);
 					#endif
 					for (int k = 0; k < 10; ++k) {
 						//GOSUB reimplementation - Function call in same stackframe
@@ -1572,15 +1584,16 @@ int main(int argc, char* argv[])
 		}
 		input_cache_read_pos = (input_cache_read_pos + 1) % input_blocks_to_cache; //Switch read cache
 
-		///*Detect dirty memory regions parts*/
-		//relevant_keyBlocks_old = relevant_keyBlocks;
-		//relevant_keyBlocks = horizontal_block + 1;
-		//if (relevant_keyBlocks_old > relevant_keyBlocks) {
-		//	/*Fill dirty memory regions parts with zeros*/
-		//	cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
-		//}
-
-		cudaMemset(di1, 0b00000000, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
+		#if defined(__NVCC__)
+		/*Detect dirty memory regions parts*/
+		/*Not needed on VkFFT as we can make use of it's native zero padding instead*/
+		relevant_keyBlocks_old = relevant_keyBlocks;
+		relevant_keyBlocks = horizontal_block + 1;
+		if (relevant_keyBlocks_old > relevant_keyBlocks) {
+			/*Fill dirty memory regions parts with zeros*/
+			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
+		}
+		#endif
 
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 		#ifdef TEST
@@ -1715,7 +1728,7 @@ int main(int argc, char* argv[])
 		cufftExecC2R(plan_inverse_C2R, intermediate_key, invOut);
 		cudaStreamSynchronize(FFTStream);
 		#else
-		vkfftExecC2R(&vkGPU, &plan_forward_R2C_key);
+		vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
 		cudaStreamSynchronize(FFTStream);
 		#endif
 
