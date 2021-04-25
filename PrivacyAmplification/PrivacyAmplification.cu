@@ -151,6 +151,28 @@ cudaError_t error = cudaDeviceSynchronize(); \
 assertTrue(error == cudaSuccess); \
 }
 
+#if STOPWATCH == TRUE
+chrono::steady_clock::time_point start;
+chrono::steady_clock::time_point checkpoint;
+chrono::steady_clock::time_point new_checkpoint;
+
+#define STOPWATCH_START \
+start = std::chrono::high_resolution_clock::now(); \
+checkpoint = start;
+
+#define STOPWATCH_SAVE(VALUE) \
+new_checkpoint = std::chrono::high_resolution_clock::now(); \
+VALUE = std::chrono::duration_cast<std::chrono::nanoseconds>(new_checkpoint-checkpoint).count(); \
+checkpoint = new_checkpoint;
+
+#define STOPWATCH_TOTAL(VALUE) \
+VALUE = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now()-start).count();
+#else
+#define STOPWATCH_START
+#define STOPWATCH_SAVE(VALUE)
+#define STOPWATCH_TOTAL(VALUE)
+#endif
+
 string address_seed_in;
 string address_key_in;
 string address_amp_out;
@@ -1357,6 +1379,24 @@ int main(int argc, char* argv[])
 	Complex* do2;  //Device Output 2 and result of the IFFT
 	#endif
 
+
+	#if STOPWATCH == TRUE
+	uint64_t stopwatch_wait_for_input_buffer = 0;
+	uint64_t stopwatch_cleaned_memory = 0;
+	uint64_t stopwatch_set_count_one_of_global_key_to_zero = 0;
+	uint64_t stopwatch_binInt2float_key = 0;
+	uint32_t stopwatch_binInt2float_seed = 0;
+	uint64_t stopwatch_calculateCorrectionFloat = 0;
+	uint64_t stopwatch_fft_key = 0;
+	uint64_t stopwatch_fft_seed = 0;
+	uint64_t stopwatch_setFirstElementToZero = 0;
+	uint64_t stopwatch_elementWiseProduct = 0;
+	uint64_t stopwatch_ifft = 0;
+	uint64_t stopwatch_wait_for_output_buffer = 0;
+	uint64_t stopwatch_toBinaryArray = 0;
+	uint64_t stopwatch_total = 0;
+	#endif
+
 	#if defined(__NVCC__)
 	cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
 		cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
@@ -1576,16 +1616,20 @@ int main(int argc, char* argv[])
 	}
 
 
+
 	//##########################
 	// Mainloop of main thread #
 	//##########################
 	while (true) {
 		mainloop:;
+		STOPWATCH_START
 		/*Spinlock waiting for data provider*/
+		chrono::steady_clock::time_point begin = std::chrono::high_resolution_clock::now();
 		while ((input_cache_read_pos + 1) % input_blocks_to_cache == input_cache_write_pos) {
 			this_thread::yield();
 		}
 		input_cache_read_pos = (input_cache_read_pos + 1) % input_blocks_to_cache; //Switch read cache
+		STOPWATCH_SAVE(stopwatch_wait_for_input_buffer)
 
 		#if defined(__NVCC__)
 		/*Detect dirty memory regions parts*/
@@ -1596,6 +1640,7 @@ int main(int argc, char* argv[])
 			/*Fill dirty memory regions parts with zeros*/
 			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
 		}
+		STOPWATCH_SAVE(stopwatch_cleaned_memory)
 		#endif
 
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
@@ -1605,6 +1650,7 @@ int main(int argc, char* argv[])
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
+		STOPWATCH_SAVE(stopwatch_set_count_one_of_global_key_to_zero)
 		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
@@ -1618,6 +1664,7 @@ int main(int argc, char* argv[])
 			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		}
 		#endif
+		STOPWATCH_SAVE(stopwatch_binInt2float_key)
 		if (recalculate_toeplitz_matrix_seed) {
 			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
 			#ifdef TEST
@@ -1639,6 +1686,7 @@ int main(int argc, char* argv[])
 				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			}
 			#endif
+			STOPWATCH_SAVE(stopwatch_binInt2float_seed)
 		}
 		
 		#ifdef TEST
@@ -1654,8 +1702,11 @@ int main(int argc, char* argv[])
 		vuda::launchKernel("SPIRV/calculateCorrectionFloat.spv", "main", CalculateCorrectionFloatStream, 1, 1, count_one_of_global_key, count_one_of_global_seed, correction_float_dev, sample_size_dev);
 		#endif
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
+		STOPWATCH_SAVE(stopwatch_calculateCorrectionFloat)
 		#if defined(__NVCC__)
 		cufftExecR2C(plan_forward_R2C, di1, do1);
+		cudaDeviceSynchronize();
+		STOPWATCH_SAVE(stopwatch_fft_key)
 		
 		if (recalculate_toeplitz_matrix_seed) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
@@ -1663,24 +1714,29 @@ int main(int argc, char* argv[])
 			{
 				recalculate_toeplitz_matrix_seed = false;
 			}
+			cudaDeviceSynchronize();
+			STOPWATCH_SAVE(stopwatch_fft_seed)
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(do1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(do2);
 		invOut = reinterpret_cast<Real*>(di2); //invOut and di2 share together the same memory region
 		#else
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
+		cudaStreamSynchronize(FFTStream);
+		STOPWATCH_SAVE(stopwatch_fft_key)
 		if (recalculate_toeplitz_matrix_seed) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
 			if (!dynamic_toeplitz_matrix_seed)
 			{
 				recalculate_toeplitz_matrix_seed = false;
 			}
+			cudaStreamSynchronize(FFTStream);
+			STOPWATCH_SAVE(stopwatch_fft_seed)
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(di1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(di2);
 		invOut = reinterpret_cast<Real*>(di1); //invOut and di2 share together the same memory region
 		#endif
-		cudaStreamSynchronize(FFTStream);
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
@@ -1715,6 +1771,7 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214179157.99336109, 200.0, 14373612325878530.0, 20000000000.0));
 		}
 		#endif
+		STOPWATCH_SAVE(stopwatch_setFirstElementToZero)
 		#if defined(__NVCC__)
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (intermediate_key, intermediate_seed);
 		#else
@@ -1727,13 +1784,15 @@ int main(int argc, char* argv[])
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 414613.13602233, 0.5, 83481560389295.703125, 200000000.0));
 		}
 		#endif
+		STOPWATCH_SAVE(stopwatch_elementWiseProduct)
 		#if defined(__NVCC__)
 		cufftExecC2R(plan_inverse_C2R, intermediate_key, invOut);
-		cudaStreamSynchronize(FFTStream);
+		cudaDeviceSynchronize();
 		#else
 		vkfftExecC2R(&vkGPU, &plan_inverse_C2R);
 		cudaStreamSynchronize(FFTStream);
 		#endif
+		STOPWATCH_SAVE(stopwatch_ifft)
 
 
 		/*Spinlock waiting for the data consumer*/
@@ -1741,6 +1800,7 @@ int main(int argc, char* argv[])
 			while (output_cache_write_pos % output_blocks_to_cache == output_cache_read_pos) {
 				this_thread::yield();
 			}
+			STOPWATCH_SAVE(stopwatch_wait_for_output_buffer)
 		}
 
 		/*Calculates where in the host pinned output memory the Privacy Amplification result will be stored*/
@@ -1795,6 +1855,26 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		//printBin(reinterpret_cast<uint8_t*>(testMemoryHost), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
+		STOPWATCH_SAVE(stopwatch_toBinaryArray)
+		STOPWATCH_TOTAL(stopwatch_total)
+
+		#if STOPWATCH == TRUE
+		println("wait_for_input_buffer:    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
+		        "wait_for_input_buffer:    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
+		        "cleaned_memory:           " << stopwatch_cleaned_memory / 1000000.0 << " ms\n" <<
+		        "set_count_key_to_zero:    " << stopwatch_set_count_one_of_global_key_to_zero / 1000000.0 << " ms\n" <<
+		        "binIntffloat_key:         " << stopwatch_binInt2float_key / 1000000.0 << " ms\n" <<
+			    "binIntffloat_seed:        " << stopwatch_binInt2float_seed / 1000000.0 << " ms\n" <<
+		        "calculateCorrectionFloat: " << stopwatch_calculateCorrectionFloat / 1000000.0 << " ms\n" <<
+		        "fft_key:                  " << stopwatch_fft_key / 1000000.0 << " ms\n" <<
+		        "fft_seed:                 " << stopwatch_fft_seed / 1000000.0 << " ms\n" <<
+		        "elementWiseProduct:       " << stopwatch_elementWiseProduct / 1000000.0 << " ms\n" <<
+		        "ifft:                     " << stopwatch_ifft / 1000000.0 << " ms\n" <<
+		        "wait_for_output_buffer:   " << stopwatch_wait_for_output_buffer / 1000000.0 << " ms\n" <<
+		        "toBinaryArray:            " << stopwatch_toBinaryArray / 1000000.0 << " ms\n" <<
+		        "stopwatch_total:          " << stopwatch_total / 1000000.0 << " ms\n" <<
+		        "Speed:                    " << (1000000000.0 / stopwatch_total) * (sample_size / 1000000.0) << " MBit/s");
+		#endif
 
 		if (speedtest) {
 			goto return_speedtest;

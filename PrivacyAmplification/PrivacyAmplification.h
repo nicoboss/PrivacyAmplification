@@ -20,6 +20,8 @@ typedef float2   Complex;
 #define TRUE 1
 #define FALSE 0
 #define VERSION "1.1.0"
+#define STOPWATCH TRUE
+
 //Return the minimum of two values
 #define min_template(a,b) (((a) < (b)) ? (a) : (b))
 
