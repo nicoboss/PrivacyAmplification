@@ -1260,6 +1260,9 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->size[1] = 1;
 	configuration->size[2] = 1;
 	configuration->performR2C = true;
+	configuration->aimThreads = 1024;
+	configuration->useLUT = false;
+	configuration->normalize = false;
 	configuration->device = &vkGPU->device;
 	configuration->queue = &vkGPU->queue;
 	configuration->fence = &vkGPU->fence;
@@ -1311,7 +1314,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	VkFFTResult result_plan_inverse_C2R = initializeVkFFT(plan_inverse_C2R, plan_inverse_C2R_configuration);
 	if (result_plan_inverse_C2R != VKFFT_SUCCESS)
 	{
-		println("Failed to plan FFT key! Error Code: " << result_plan_inverse_C2R);
+		println("Failed to plan IFFT! Error Code: " << result_plan_inverse_C2R);
 		exit(0);
 	}
 
