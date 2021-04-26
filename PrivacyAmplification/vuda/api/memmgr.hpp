@@ -117,4 +117,36 @@ namespace vuda
         return vudaSuccess;
     }
 
+    /*__host__*/
+    inline error_t memset(void* devPtr, int value, size_t count)
+    {
+        const std::thread::id tid = std::this_thread::get_id();
+
+        //
+        // get device assigned to thread
+        const detail::thread_info* tinfo = detail::interface_thread_info::GetThreadInfo(std::this_thread::get_id());
+
+        //
+        // allocate mem on the device
+        tinfo->GetLogicalDevice()->memset(tid, devPtr, value, count);
+
+        return vudaSuccess;
+    }
+
+    /*__host__*/
+    inline error_t memsetAsync(void* devPtr, int value, size_t count, const stream_t stream)
+    {
+        const std::thread::id tid = std::this_thread::get_id();
+
+        //
+        // get device assigned to thread
+        const detail::thread_info* tinfo = detail::interface_thread_info::GetThreadInfo(std::this_thread::get_id());
+
+        //
+        // allocate mem on the device
+        tinfo->GetLogicalDevice()->memsetAsync(tid, devPtr, value, count, stream);
+
+        return vudaSuccess;
+    }
+
 } //namespace vuda

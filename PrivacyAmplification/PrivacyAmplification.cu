@@ -134,10 +134,6 @@ assertTrue(*assertKernelReturnValue == 0);
 /*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
 #define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
 #else
-#define cudaMemset(address, value, num) \
-*value_dev = value; \
-vuda::launchKernel("SPIRV/memset.spv", "main", 0, max(num / 1024, 1), min(num, 1024), value_dev, address); \
-cudaStreamSynchronize(0);
 #define cudaCalloc(address, size) \
 if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
 #endif
@@ -1654,11 +1650,7 @@ int main(int argc, char* argv[])
 		#endif
 
 		
-		#if defined(__NVCC__)
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
-		#else
-		cudaMemcpy(count_one_of_global_key, zero_dev, sizeof(uint32_t), cudaMemcpyDeviceToDevice);
-		#endif
 		#ifdef TEST
 		if (doTest) {
 			assertGPU(count_one_of_global_key, 1, 0);
@@ -1681,11 +1673,7 @@ int main(int argc, char* argv[])
 		#endif
 		STOPWATCH_SAVE(stopwatch_binInt2float_key)
 		if (recalculate_toeplitz_matrix_seed) {
-			#if defined(__NVCC__)
 			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
-			#else
-			cudaMemcpy(count_one_of_global_seed, zero_dev, sizeof(uint32_t), cudaMemcpyDeviceToDevice);
-			#endif
 			#ifdef TEST
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);

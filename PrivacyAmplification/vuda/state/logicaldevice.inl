@@ -961,5 +961,58 @@ namespace vuda
             return buffer;
         }
 
+        inline void logical_device::memset(const std::thread::id tid, void* ptr, int value, const size_t count)
+        {
+            const stream_t stream = 0;
+            memset_synch_async(tid, ptr, value, count, stream, true);
+        }
+
+        inline void logical_device::memsetAsync(const std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream)
+        {
+            memset_synch_async(tid, ptr, value, count, stream, false);
+        }
+
+        inline void logical_device::memset_synch_async(std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream, const bool doFlush)
+        {
+            /*
+            conformity to cudaMemset asynchronous
+            https://docs.nvidia.com/cuda/cuda-runtime-api/api-sync-behavior.html#api-sync-behavior
+
+            The synchronous memset functions are asynchronous with respect to the host except when the target is pinned host memory or a Unified Memory region,
+            in which case they are fully synchronous. The Async versions are always asynchronous with respect to the host.
+            */
+
+            assert(stream >= 0 && stream < m_queueComputeCount);
+
+            //
+            // all threads can read from the memory resources on the logical device
+            {
+                std::shared_lock<std::shared_mutex> lck(*m_mtxResources);
+
+                //
+                // copy from node to node
+                const default_storage_node* dst_node = m_storage.search_range(m_storageBST_root, ptr);
+
+                vk::Buffer dstbuf = dst_node->GetBuffer();
+                vk::DeviceSize dstOffset = dst_node->GetOffset();
+
+                //
+                // every thread can look up its command pool in the list
+                std::shared_lock<std::shared_mutex> lckCmdPools(*m_mtxCmdPools);
+                const thrdcmdpool* pool = &m_thrdCommandPools.at(tid);
+
+                std::lock_guard<std::mutex> lckQueues(*m_mtxQueues[stream]);
+                vk::Queue q = m_queues.at(stream);
+
+                pool->memset(m_device, dstbuf, dstOffset, value, count, q, stream);
+
+                if (doFlush) {
+                    //
+                    // internal flush queue
+                    flush_queue(tid, stream, pool, q);
+                }
+            }
+        }
+
     } //namespace detail
 } //namespace vuda

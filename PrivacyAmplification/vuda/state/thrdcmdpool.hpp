@@ -193,6 +193,21 @@ namespace vuda
                 //std::cout << ostr.str();
             }
 
+            void memset(const vk::UniqueDevice& device, const vk::Buffer& bufferDst, const vk::DeviceSize dstOffset, const int value, const vk::DeviceSize size, const vk::Queue& queue, const stream_t stream) const
+            {
+                //
+                // check state of command buffer and see if we should call begin
+                CheckStateAndBeginCommandBuffer(device, stream);
+
+                //
+                // the order of src and dst is interchanged compared to memcpy
+                m_commandBuffers[stream]->fillBuffer(bufferDst, dstOffset, size, value);
+
+                //
+                // execute the command buffer
+                ExecuteQueue(device, queue, stream);
+            }
+
             template <size_t specializationByteSize, typename... specialTypes, size_t bindingSize>
             void UpdateDescriptorAndCommandBuffer(const vk::UniqueDevice& device, const kernelprogram<specializationByteSize>& kernel, const specialization<specialTypes...>& specials, const std::array<vk::DescriptorBufferInfo, bindingSize>& bufferDescriptors, const dim3 blocks, const stream_t stream) const
             {

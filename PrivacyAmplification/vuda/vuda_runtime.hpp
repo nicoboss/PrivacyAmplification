@@ -290,7 +290,14 @@ inline cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, cud
 
 //
 // Initializes or sets device memory to a value.
-/*inline cudaError_t cudaMemset(void* devPtr, int  value, size_t count)
+inline cudaError_t cudaMemset(void* devPtr, int  value, size_t count)
 {
-    return vuda::memset
-}*/
+    return vuda::memset(devPtr, value, count);
+}
+
+//
+// Initializes or sets device memory to a value.
+inline cudaError_t cudaMemsetAsync(void* devPtr, int  value, size_t count, cudaStream_t stream = 0)
+{
+    return vuda::memsetAsync(devPtr, value, count, stream);
+}
