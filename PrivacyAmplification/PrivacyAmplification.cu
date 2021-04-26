@@ -1278,6 +1278,8 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->size[2] = 1;
 	configuration->performR2C = true;
 	configuration->aimThreads = 1024;
+	configuration->registerBoost = true;
+	configuration->performHalfBandwidthBoost = true;
 	configuration->useLUT = false;
 	configuration->normalize = false;
 	configuration->device = &vkGPU->device;
@@ -1477,7 +1479,7 @@ int main(int argc, char* argv[])
 	// Allocate memory on GPU
 	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
-	cudaMallocHost((void**)&correction_float_dev, sizeof(float));
+	cudaMalloc((void**)&correction_float_dev, sizeof(float));
 
 	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 	
@@ -1510,20 +1512,24 @@ int main(int argc, char* argv[])
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
 	#else
 	float* float1_reduced_dev;
-	cudaMallocHost((void**)&float1_reduced_dev, sizeof(float));
-	*float1_reduced_dev = float1_reduced;
+	cudaMalloc((void**)&float1_reduced_dev, sizeof(float));
+	cudaMemcpy(float1_reduced_dev, &float1_reduced, sizeof(float), cudaMemcpyHostToDevice);
 
 	float* normalisation_float_dev;
-	cudaMallocHost((void**)&normalisation_float_dev, sizeof(float));
-	*normalisation_float_dev = normalisation_float;
+	cudaMalloc((void**)&normalisation_float_dev, sizeof(float));
+	cudaMemcpy(normalisation_float_dev, &normalisation_float, sizeof(float), cudaMemcpyHostToDevice);
 
 	uint32_t* sample_size_dev;
-	cudaMallocHost((void**)&sample_size_dev, sizeof(uint32_t));
-	*sample_size_dev = sample_size;
+	cudaMalloc((void**)&sample_size_dev, sizeof(uint32_t));
+	cudaMemcpy(sample_size_dev, &sample_size, sizeof(uint32_t), cudaMemcpyHostToDevice);
 
 	uint32_t* pre_mul_reduction_dev;
-	cudaMallocHost((void**)&pre_mul_reduction_dev, sizeof(uint32_t));
-	*pre_mul_reduction_dev = pre_mul_reduction;
+	cudaMalloc((void**)&pre_mul_reduction_dev, sizeof(uint32_t));
+	cudaMemcpy(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t), cudaMemcpyHostToDevice);
+
+	uint32_t* zero_dev;
+	cudaMalloc((void**)&zero_dev, sizeof(uint32_t));
+	cudaMemcpy(zero_dev, &zero_cpu, sizeof(uint32_t), cudaMemcpyHostToDevice);
 	#endif
 
 	/*The reciveData function is parallelly executed on a separate thread which we start now*/
@@ -1647,7 +1653,12 @@ int main(int argc, char* argv[])
 		STOPWATCH_SAVE(stopwatch_cleaned_memory)
 		#endif
 
+		
+		#if defined(__NVCC__)
 		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
+		#else
+		cudaMemcpy(count_one_of_global_key, zero_dev, sizeof(uint32_t), cudaMemcpyDeviceToDevice);
+		#endif
 		#ifdef TEST
 		if (doTest) {
 			assertGPU(count_one_of_global_key, 1, 0);
@@ -1670,7 +1681,11 @@ int main(int argc, char* argv[])
 		#endif
 		STOPWATCH_SAVE(stopwatch_binInt2float_key)
 		if (recalculate_toeplitz_matrix_seed) {
-			cudaMemset(count_one_of_global_seed, 0x00, sizeof(uint32_t));
+			#if defined(__NVCC__)
+			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
+			#else
+			cudaMemcpy(count_one_of_global_seed, zero_dev, sizeof(uint32_t), cudaMemcpyDeviceToDevice);
+			#endif
 			#ifdef TEST
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);

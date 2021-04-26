@@ -51,6 +51,7 @@ uint32_t sample_size;
 uint64_t bufferSize;
 uint64_t bufferSizeInput;
 uint8_t* value_dev;
+uint32_t zero_cpu = 0;
 
 /*FFT input maps binary 0, 1 to 0 and 1/reduction which
   will be corrected during normalisation after IFFT
