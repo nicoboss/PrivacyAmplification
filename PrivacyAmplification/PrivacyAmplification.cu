@@ -370,6 +370,7 @@ void calculateCorrectionFloat(uint32_t* count_one_of_global_seed, uint32_t* coun
 #endif
 
 
+#if defined(__NVCC__)
 int unitTestSetFirstElementToZero() {
 	println("Started SetFirstElementToZero Unit Test...");
 	bool unitTestsFailedLocal = false;
@@ -387,11 +388,7 @@ int unitTestSetFirstElementToZero() {
 		do1_test[i] = i + 0.77;
 		do2_test[i] = i + 0.88;
 	}
-	#if defined(__NVCC__)
 	setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStreamTest)(reinterpret_cast<Complex*>(do1_test), reinterpret_cast<Complex*>(do2_test));
-	#else
-	vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", SetFirstElementToZeroStreamTest, 1, 2, do1_test, do2_test);
-	#endif
 	cudaStreamSynchronize(SetFirstElementToZeroStreamTest);
 	assertZeroThreshold(do1_test[0], 0.00001, 0);
 	assertZeroThreshold(do1_test[1], 0.00001, 1);
@@ -405,7 +402,6 @@ int unitTestSetFirstElementToZero() {
 	return unitTestsFailedLocal ? 100 : 0;
 }
 
-#if defined(__NVCC__)
 __global__
 void setFirstElementToZero(Complex* do1, Complex* do2)
 {
@@ -1332,6 +1328,10 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_inverse_C2R_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_inverse_C2R_configuration);
+	plan_inverse_C2R_configuration.performZeropadding[0] = true;
+	plan_inverse_C2R_configuration.fft_zeropad_left[0] = 0;
+	plan_inverse_C2R_configuration.fft_zeropad_right[0] = 1;
+	plan_inverse_C2R_configuration.frequencyZeroPadding = 1;
 	VkFFTResult result_plan_inverse_C2R = initializeVkFFT(plan_inverse_C2R, plan_inverse_C2R_configuration);
 	if (result_plan_inverse_C2R != VKFFT_SUCCESS)
 	{
@@ -1401,7 +1401,7 @@ int main(int argc, char* argv[])
 	#if defined(__NVCC__)
 	cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
 		cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
-		ElementWiseProductStream, ToBinaryArrayStream;
+		SetFirstElementToZeroStream, ElementWiseProductStream, ToBinaryArrayStream;
 	cudaStreamCreate(&FFTStream);
 	cudaStreamCreate(&BinInt2floatKeyStream);
 	cudaStreamCreate(&BinInt2floatSeedStream);
@@ -1410,6 +1410,7 @@ int main(int argc, char* argv[])
 	cudaStreamCreate(&cpu2gpuKeyRestStream);
 	cudaStreamCreate(&cpu2gpuSeedStream);
 	cudaStreamCreate(&gpu2cpuStream);
+	cudaStreamCreate(&SetFirstElementToZeroStream);
 	cudaStreamCreate(&ElementWiseProductStream);
 	cudaStreamCreate(&ToBinaryArrayStream);
 	#else
@@ -1610,7 +1611,9 @@ int main(int argc, char* argv[])
 		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;
 		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
+		#if defined(__NVCC__)
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
+		#endif
 		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
 		if (strcmp(*arg, "unitTestBinInt2float") == 0) exit(unitTestBinInt2float());
 		if (strcmp(*arg, "unitTestToBinaryArray") == 0) exit(unitTestToBinaryArray());
@@ -1754,11 +1757,9 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		#if defined(__NVCC__)
-		setFirstElementToZero KERNEL_ARG4(1, 2, 0, ElementWiseProductStream) (intermediate_key, intermediate_seed);
-		#else
-		vuda::launchKernel("SPIRV/setFirstElementToZero.spv", "main", ElementWiseProductStream, 1, 2, intermediate_key, intermediate_seed);
-		#endif
-		cudaStreamSynchronize(ElementWiseProductStream);
+		setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStream) (intermediate_key, intermediate_seed);
+		cudaStreamSynchronize(SetFirstElementToZeroStream);
+		
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
@@ -1774,7 +1775,6 @@ int main(int argc, char* argv[])
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_setFirstElementToZero)
-		#if defined(__NVCC__)
 		ElementWiseProduct KERNEL_ARG4((int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), 0, ElementWiseProductStream) (intermediate_key, intermediate_seed);
 		#else
 		vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), intermediate_key, intermediate_seed, pre_mul_reduction_dev);
