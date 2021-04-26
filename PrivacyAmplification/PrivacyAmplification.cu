@@ -43,7 +43,6 @@
 #include "vkFFT/vkFFT.h"
 #include "vkFFT/vkFFT_helper.h"
 
-
 #if !defined(NDEBUG)
 #define VUDA_STD_LAYER_ENABLED
 #define VUDA_DEBUG_ENABLED
@@ -1068,7 +1067,7 @@ bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uin
 	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
 	rhash_sha3_final(&sha3, calculatedHash);
-	println(toHexString(calculatedHash, 32));
+	//println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
@@ -1384,6 +1383,7 @@ int main(int argc, char* argv[])
 	uint64_t stopwatch_wait_for_input_buffer = 0;
 	uint64_t stopwatch_cleaned_memory = 0;
 	uint64_t stopwatch_set_count_one_of_global_key_to_zero = 0;
+	uint64_t stopwatch_set_count_one_of_global_seed_to_zero = 0;
 	uint64_t stopwatch_binInt2float_key = 0;
 	uint32_t stopwatch_binInt2float_seed = 0;
 	uint64_t stopwatch_calculateCorrectionFloat = 0;
@@ -1395,6 +1395,7 @@ int main(int argc, char* argv[])
 	uint64_t stopwatch_wait_for_output_buffer = 0;
 	uint64_t stopwatch_toBinaryArray = 0;
 	uint64_t stopwatch_total = 0;
+	uint64_t stopwatch_total_max = UINT64_MAX;
 	#endif
 
 	#if defined(__NVCC__)
@@ -1673,6 +1674,7 @@ int main(int argc, char* argv[])
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
+			STOPWATCH_SAVE(stopwatch_set_count_one_of_global_seed_to_zero)
 			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -1858,23 +1860,30 @@ int main(int argc, char* argv[])
 		STOPWATCH_SAVE(stopwatch_toBinaryArray)
 		STOPWATCH_TOTAL(stopwatch_total)
 
+			
 		#if STOPWATCH == TRUE
-		println("wait_for_input_buffer:    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
-		        "wait_for_input_buffer:    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
-		        "cleaned_memory:           " << stopwatch_cleaned_memory / 1000000.0 << " ms\n" <<
-		        "set_count_key_to_zero:    " << stopwatch_set_count_one_of_global_key_to_zero / 1000000.0 << " ms\n" <<
-		        "binIntffloat_key:         " << stopwatch_binInt2float_key / 1000000.0 << " ms\n" <<
-			    "binIntffloat_seed:        " << stopwatch_binInt2float_seed / 1000000.0 << " ms\n" <<
-		        "calculateCorrectionFloat: " << stopwatch_calculateCorrectionFloat / 1000000.0 << " ms\n" <<
-		        "fft_key:                  " << stopwatch_fft_key / 1000000.0 << " ms\n" <<
-		        "fft_seed:                 " << stopwatch_fft_seed / 1000000.0 << " ms\n" <<
-		        "elementWiseProduct:       " << stopwatch_elementWiseProduct / 1000000.0 << " ms\n" <<
-		        "ifft:                     " << stopwatch_ifft / 1000000.0 << " ms\n" <<
-		        "wait_for_output_buffer:   " << stopwatch_wait_for_output_buffer / 1000000.0 << " ms\n" <<
-		        "toBinaryArray:            " << stopwatch_toBinaryArray / 1000000.0 << " ms\n" <<
-		        "stopwatch_total:          " << stopwatch_total / 1000000.0 << " ms\n" <<
-		        "Speed:                    " << (1000000000.0 / stopwatch_total) * (sample_size / 1000000.0) << " MBit/s");
+		if (stopwatch_total < stopwatch_total_max) {
+			stopwatch_total_max = stopwatch_total;
+			println(fixed << setprecision(3) <<
+					"wait_for_input_buffer    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
+					"cleaned_memory           " << stopwatch_cleaned_memory / 1000000.0 << " ms\n" <<
+					"set_count_key_to_zero    " << stopwatch_set_count_one_of_global_key_to_zero / 1000000.0 << " ms\n" <<
+					"set_count_seed_to_zero   " << stopwatch_set_count_one_of_global_seed_to_zero / 1000000.0 << " ms\n" <<
+					"binIntffloat_key         " << stopwatch_binInt2float_key / 1000000.0 << " ms\n" <<
+					"binIntffloat_seed        " << stopwatch_binInt2float_seed / 1000000.0 << " ms\n" <<
+					"calculateCorrectionFloat " << stopwatch_calculateCorrectionFloat / 1000000.0 << " ms\n" <<
+					"fft_key                  " << stopwatch_fft_key / 1000000.0 << " ms\n" <<
+					"fft_seed                 " << stopwatch_fft_seed / 1000000.0 << " ms\n" <<
+					"setFirstElementToZero    " << stopwatch_setFirstElementToZero / 1000000.0 << " ms\n" <<
+					"elementWiseProduct       " << stopwatch_elementWiseProduct / 1000000.0 << " ms\n" <<
+					"ifft                     " << stopwatch_ifft / 1000000.0 << " ms\n" <<
+					"wait_for_output_buffer   " << stopwatch_wait_for_output_buffer / 1000000.0 << " ms\n" <<
+					"toBinaryArray            " << stopwatch_toBinaryArray / 1000000.0 << " ms\n" <<
+					"Total                    " << stopwatch_total / 1000000.0 << " ms\n" <<
+					"Speed                    " << (1000000000.0 / stopwatch_total) * (sample_size / 1000000.0) << " MBit/s");
+		}
 		#endif
+
 
 		if (speedtest) {
 			goto return_speedtest;
