@@ -460,13 +460,16 @@ __global__
 void ElementWiseProduct(Complex* do1, Complex* do2)
 {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
-	float r = pre_mul_reduction_dev;
-	Real do1x = do1[i].x / r;
-	Real do1y = do1[i].y / r;
-	Real do2x = do2[i].x / r;
-	Real do2y = do2[i].y / r;
-	do1[i].x = do1x * do2x - do1y * do2y;
-	do1[i].y = do1x * do2y + do1y * do2x;
+	Real r = pre_mul_reduction_dev;
+	Complex do1_local = do1[i];
+	Complex do2_local = do2[i];
+	Real do1x = do1_local.x / r;
+	Real do1y = do1_local.y / r;
+	Real do2x = do2_local.x / r;
+	Real do2y = do2_local.y / r;
+	do1_local.x = do1x * do2x - do1y * do2y;
+	do1_local.y = do1x * do2y + do1y * do2x;
+	do1[i] = do1_local;
 }
 #endif
 
