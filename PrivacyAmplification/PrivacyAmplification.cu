@@ -1365,6 +1365,7 @@ int main(int argc, char* argv[])
 	output_cache_read_pos = input_blocks_to_cache - 1;
 	output_cache_write_pos = 0;
 
+	uint32_t* count_one_arr;
 	uint32_t* count_one_of_global_seed;
 	uint32_t* count_one_of_global_key;
 	float* correction_float_dev;
@@ -1380,8 +1381,7 @@ int main(int argc, char* argv[])
 	#if STOPWATCH == TRUE
 	uint64_t stopwatch_wait_for_input_buffer = 0;
 	uint64_t stopwatch_cleaned_memory = 0;
-	uint64_t stopwatch_set_count_one_of_global_key_to_zero = 0;
-	uint64_t stopwatch_set_count_one_of_global_seed_to_zero = 0;
+	uint64_t stopwatch_set_count_one_to_zero = 0;
 	uint64_t stopwatch_binInt2float_key = 0;
 	uint32_t stopwatch_binInt2float_seed = 0;
 	uint64_t stopwatch_calculateCorrectionFloat = 0;
@@ -1473,9 +1473,10 @@ int main(int argc, char* argv[])
 	fill(key_rest_zero_pos, key_rest_zero_pos + input_blocks_to_cache, desired_block);
 
 	// Allocate memory on GPU
-	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
-	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 	cudaMalloc((void**)&correction_float_dev, sizeof(float));
+	cudaMalloc((void**)&count_one_arr, 2 * sizeof(uint32_t));
+	count_one_of_global_key = count_one_arr;
+	count_one_of_global_seed = count_one_arr + 1;
 
 	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 	
@@ -1650,37 +1651,16 @@ int main(int argc, char* argv[])
 		#endif
 
 		
-		cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
-		#ifdef TEST
-		if (doTest) {
-			assertGPU(count_one_of_global_key, 1, 0);
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
-		}
-		#endif
-		STOPWATCH_SAVE(stopwatch_set_count_one_of_global_key_to_zero)
-		#if defined(__NVCC__)
-		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
-			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
-		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
-		#endif
-		cudaStreamSynchronize(BinInt2floatKeyStream);
-		#ifdef TEST
-		if (doTest) {
-			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
-		}
-		#endif
-		STOPWATCH_SAVE(stopwatch_binInt2float_key)
 		if (recalculate_toeplitz_matrix_seed) {
-			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
+			cudaMemset(count_one_arr, 0b00000000, 2 * sizeof(uint32_t));
 			#ifdef TEST
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);
+				assertGPU(count_one_of_global_key, 1, 0);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
-			STOPWATCH_SAVE(stopwatch_set_count_one_of_global_seed_to_zero)
+			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
 			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
@@ -1696,6 +1676,36 @@ int main(int argc, char* argv[])
 			#endif
 			STOPWATCH_SAVE(stopwatch_binInt2float_seed)
 		}
+		else
+		{
+			cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
+			#ifdef TEST
+			if (doTest) {
+				assertGPU(count_one_of_global_key, 1, 0);
+			}
+			#endif
+			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
+		}
+		
+		#ifdef TEST
+		if (doTest) {
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+		}
+		#endif
+		#if defined(__NVCC__)
+		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
+			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
+		#else
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		#endif
+		cudaStreamSynchronize(BinInt2floatKeyStream);
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
+			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+		}
+		#endif
+		STOPWATCH_SAVE(stopwatch_binInt2float_key)
 		
 		#ifdef TEST
 		if (doTest) {
@@ -1870,10 +1880,9 @@ int main(int argc, char* argv[])
 			println(fixed << setprecision(3) <<
 					"wait_for_input_buffer    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
 					"cleaned_memory           " << stopwatch_cleaned_memory / 1000000.0 << " ms\n" <<
-					"set_count_key_to_zero    " << stopwatch_set_count_one_of_global_key_to_zero / 1000000.0 << " ms\n" <<
-					"set_count_seed_to_zero   " << stopwatch_set_count_one_of_global_seed_to_zero / 1000000.0 << " ms\n" <<
+					"set_count_to_zero        " << stopwatch_set_count_one_to_zero / 1000000.0 << " ms\n" <<
+				    "binIntffloat_seed        " << stopwatch_binInt2float_seed / 1000000.0 << " ms\n" <<
 					"binIntffloat_key         " << stopwatch_binInt2float_key / 1000000.0 << " ms\n" <<
-					"binIntffloat_seed        " << stopwatch_binInt2float_seed / 1000000.0 << " ms\n" <<
 					"calculateCorrectionFloat " << stopwatch_calculateCorrectionFloat / 1000000.0 << " ms\n" <<
 					"fft_key                  " << stopwatch_fft_key / 1000000.0 << " ms\n" <<
 					"fft_seed                 " << stopwatch_fft_seed / 1000000.0 << " ms\n" <<
