@@ -964,15 +964,15 @@ namespace vuda
         inline void logical_device::memset(const std::thread::id tid, void* ptr, int value, const size_t count)
         {
             const stream_t stream = 0;
-            memset_synch_async(tid, ptr, value, count, stream, true);
+            memset_synch_async(tid, ptr, value, count, stream, false);
         }
 
         inline void logical_device::memsetAsync(const std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream)
         {
-            memset_synch_async(tid, ptr, value, count, stream, false);
+            memset_synch_async(tid, ptr, value, count, stream, true);
         }
 
-        inline void logical_device::memset_synch_async(std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream, const bool doFlush)
+        inline void logical_device::memset_synch_async(std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream, const bool isAsync)
         {
             /*
             conformity to cudaMemset asynchronous
@@ -1006,7 +1006,7 @@ namespace vuda
 
                 pool->memset(m_device, dstbuf, dstOffset, value, count, q, stream);
 
-                if (doFlush) {
+                if (!isAsync && dst_node->IsHostVisible()) {
                     //
                     // internal flush queue
                     flush_queue(tid, stream, pool, q);

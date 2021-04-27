@@ -69,7 +69,7 @@ namespace vuda
             //void UpdateDescriptorAndCommandBuffer(const std::thread::id tid, const uint64_t kernelIndex, const std::vector<void*>& memaddr, const std::vector<vk::DescriptorBufferInfo>& bufferDescriptors, const stream_t stream);
             void FlushQueue(const std::thread::id tid, const stream_t stream);
             void FlushEvent(const std::thread::id tid, const event_t event);
-            void memset_synch_async(const std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream, const bool doFlush);
+            void memset_synch_async(const std::thread::id tid, void* ptr, int value, const size_t count, const stream_t stream, const bool isAsync);
 
             //
             //
