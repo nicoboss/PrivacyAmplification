@@ -5,12 +5,12 @@ layout( local_size_x_id = 0 ) in;
 layout( constant_id = 1 ) const float64_t two = 2.0LF;
 layout(set = 0, binding = 0) readonly buffer A { uint32_t count_one_of_global_seed[]; };
 layout(set = 0, binding = 1) readonly buffer B { uint32_t count_one_of_global_key[]; };
-layout(set = 0, binding = 2) writeonly buffer C { float32_t correction_float_dev[]; };
+layout(set = 0, binding = 2) writeonly buffer C { float16_t correction_float_dev[]; };
 layout(set = 0, binding = 3) readonly buffer D { uint32_t sample_size_dev[]; };
 
 void main(void)
 {
 	uint64_t count_multiplied = count_one_of_global_seed[0] * count_one_of_global_key[0];
 	float64_t count_multiplied_normalized = float64_t(count_multiplied) / float64_t(sample_size_dev[0]);
-	correction_float_dev[0] = float32_t(mod(count_multiplied_normalized, two)); //count_multiplied_normalized_modulo
+	correction_float_dev[0] = float16_t(mod(count_multiplied_normalized, two)); //count_multiplied_normalized_modulo
 }
