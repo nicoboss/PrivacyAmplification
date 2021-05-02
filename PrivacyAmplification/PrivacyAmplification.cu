@@ -1276,6 +1276,8 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->size[1] = 1;
 	configuration->size[2] = 1;
 	configuration->performR2C = true;
+	configuration->halfPrecision = true;
+	configuration->halfPrecisionMemoryOnly = true;
 	configuration->aimThreads = 1024;
 	configuration->registerBoost = true;
 	configuration->performHalfBandwidthBoost = true;
