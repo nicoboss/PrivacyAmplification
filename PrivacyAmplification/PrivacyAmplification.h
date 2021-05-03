@@ -1,5 +1,7 @@
 #pragma once
-
+#include "half_lib/half.hpp"
+using half_float::half;
+typedef half half2[2];
 #if defined(__NVCC__)
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
@@ -13,9 +15,9 @@ typedef float2 Complex;
 #endif
 
 //Real numbers are stored as single precision float
-typedef float    Real;
+typedef half    Real;
 //Complex numbers are stored as two single precision floats glued together
-typedef float2   Complex;
+//typedef half2   Complex;
 
 #define TRUE 1
 #define FALSE 0
@@ -266,9 +268,9 @@ int unitTestSetFirstElementToZero();
 __global__ void ElementWiseProduct(Complex* do1, Complex* do2);
 int unitTestElementWiseProduct();
 
-std::pair<double, double> FletcherFloat(float* data, int count);
+std::pair<double, double> FletcherFloat(Real* data, int count);
 
-bool isFletcherFloat(float* data, int count, const double expectedSum1, const double allowedAbsDeltaSum1, const double expectedSum2, const double allowedAbsDeltaSum2);
+bool isFletcherFloat(Real* data, int count, const double expectedSum1, const double allowedAbsDeltaSum1, const double expectedSum2, const double allowedAbsDeltaSum2);
 
 /// @brief Converts binary data to a float array where every bit represents one float
 /// @param[in] Binary Input
