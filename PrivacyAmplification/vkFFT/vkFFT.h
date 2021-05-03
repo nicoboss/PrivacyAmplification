@@ -12500,7 +12500,7 @@ layout(std430, binding = %" PRIu64 ") readonly buffer DataLUT {\n\
 						else
 							sprintf(floatTypeInputMemory, "float");
 						if ((axis_id == 0) && (((!app->configuration.reorderFourStep) && (axis_upload_id == FFTPlan->numAxisUploads[axis_id] - 1)) || ((app->configuration.reorderFourStep) && (axis_upload_id == 0))) && (axis->specializationConstants.inverse))
-							sprintf(floatTypeOutputMemory, "half");
+							sprintf(floatTypeOutputMemory, "half"); //Hi
 						else
 							sprintf(floatTypeOutputMemory, "float");
 					}

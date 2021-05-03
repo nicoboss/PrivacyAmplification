@@ -1,5 +1,8 @@
 #pragma once
 
+#include "half_lib/half.hpp"
+using half_float::half;
+typedef half half2[2];
 #if defined(__NVCC__)
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
