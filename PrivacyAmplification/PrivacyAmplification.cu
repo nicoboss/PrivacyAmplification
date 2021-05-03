@@ -1,6 +1,3 @@
-#include "half_lib/half.hpp"
-using half_float::half;
-typedef half half2[2];
 #include <iostream>
 #include <iomanip>
 #include <assert.h>
@@ -40,6 +37,7 @@ typedef half half2[2];
 #else
 #include "vulkan/vulkan.h"
 #include "glslang_c_interface.h"
+//#include "half_lib/half.hpp"
 #include <vuda/vuda_runtime.hpp>
 #endif
 #include "vkFFT/vkFFT.h"
@@ -57,7 +55,7 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
+//#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -488,8 +486,8 @@ unsigned A000788(unsigned n)
 void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_max)
 {
 	bool unitTestsFailedLocal = false;
-	const Real float0 = (Real)0.0f;
-	const Real float1_reduced = (Real)(1.0f / reduction);
+	const Real float0 = 0.0f;
+	const Real float1_reduced = 1.0f / reduction;
 	for (; i < i_max; ++i) {
 		if (((i / 32) & (1 << (31 - (i % 32)))) == 0) {
 			assertEquals(floatOutTest[i], float0, i)
@@ -645,8 +643,8 @@ int unitTestToBinaryArray() {
 	#else
 	const int ToBinaryArrayStreamTest = 0;
 	#endif
-	const Real float0 = (Real)0.0f;
-	const Real float1 = (Real)1.0f;
+	const Real float0 = 0.0f;
+	const Real float1 = 1.0f;
 	float* invOutTest;
 	uint32_t* binOutTest;
 	uint32_t* key_rest_test;
@@ -780,7 +778,7 @@ void memdump(string const& filename, void* data, size_t const bytes)
 	myfile.close();
 }
 
-pair<double, double> FletcherFloat(Real* data, int count)
+pair<double, double> FletcherFloat(float* data, int count)
 {
 	double sum1 = 0.0;
 	double sum2 = 0.0;
@@ -794,7 +792,7 @@ pair<double, double> FletcherFloat(Real* data, int count)
 	return make_pair(sum1, sum2);
 }
 
-bool isFletcherFloat(Real* data, int count, const double expectedSum1, const double allowedAbsDeltaSum1, const double expectedSum2, const double allowedAbsDeltaSum2) {
+bool isFletcherFloat(float* data, int count, const double expectedSum1, const double allowedAbsDeltaSum1, const double expectedSum2, const double allowedAbsDeltaSum2) {
 	pair<double, double> result = FletcherFloat(data, count);
 	println(std::fixed << std::setprecision(8) << result.first << " | " << result.second);
 	return abs(result.first - expectedSum1) < allowedAbsDeltaSum1 && abs(result.second - expectedSum2) < allowedAbsDeltaSum2;
@@ -1271,7 +1269,7 @@ cuFFT_planned = true;
 
 
 #if !defined(__NVCC__)
-inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, Real* vkBuffer, VkFFTConfiguration* configuration)
+inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, float* vkBuffer, VkFFTConfiguration* configuration)
 {
 	configuration->FFTdim = 1;
 	configuration->size[0] = sample_size;
@@ -1279,7 +1277,7 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->size[2] = 1;
 	configuration->performR2C = true;
 	configuration->halfPrecision = true;
-	//configuration->halfPrecisionMemoryOnly = true;
+	configuration->halfPrecisionMemoryOnly = true;
 	configuration->aimThreads = 1024;
 	configuration->registerBoost = true;
 	configuration->performHalfBandwidthBoost = true;
@@ -1297,7 +1295,7 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 }
 
 
-inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, Real* key_buffer, Real* seed_buffer)
+inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
 {
 	if (cuFFT_planned)
 	{
@@ -1489,7 +1487,7 @@ int main(int argc, char* argv[])
 	
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(float));
+	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
 
 	#if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
@@ -1502,8 +1500,8 @@ int main(int argc, char* argv[])
 
 	const uint32_t total_reduction = reduction * pre_mul_reduction;
 	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
-	const Real float0 = (Real)0.0f;
-	const Real float1_reduced = (Real)(1.0f / reduction);
+	const Real float0 = 0.0f;
+	const Real float1_reduced = 1.0f / reduction;
 	#if defined(__NVCC__)
 	const Complex complex0 = make_float2(0.0f, 0.0f);
 
@@ -1678,7 +1676,7 @@ int main(int argc, char* argv[])
 			#ifdef TEST
 			if (doTest) {
 				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
-				//assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_binInt2float_seed)
@@ -1709,7 +1707,7 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
-			//assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_binInt2float_key)
@@ -1762,20 +1760,20 @@ int main(int argc, char* argv[])
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(di2);
 		invOut = reinterpret_cast<Real*>(di1); //invOut and di2 share together the same memory region
 		#endif
-		//#ifdef TEST
-		//if (doTest) {
-		//	cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(Real), cudaMemcpyDeviceToHost);
-		//	for (int i = 0; i < 100; i += 2) {
-		//		println(i << ": " << reinterpret_cast<Real*>(testMemoryHost)[i] << "|" << reinterpret_cast<Real*>(testMemoryHost)[i + 1]);
-		//	}
-		//	for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
-		//		println(i << ": " << reinterpret_cast<Real*>(testMemoryHost)[i] << "|" << reinterpret_cast<Real*>(testMemoryHost)[i + 1]);
-		//	}
-		//	assertTrue(isFletcherFloat(reinterpret_cast<Real*>(testMemoryHost), 2 * (sample_size / 2 + 1), 169418278.63041568, 200.0, 11374845421549196.0, 20000000000.0));
-		//	cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-		//	assertTrue(isFletcherFloat(reinterpret_cast<Real*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214211928.23554835, 200.0, 14378010673396208.0, 20000000000.0));
-		//}
-		//#endif
+		#ifdef TEST
+		if (doTest) {
+			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+			for (int i = 0; i < 100; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			}
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 169418278.63041568, 200.0, 11374845421549196.0, 20000000000.0));
+			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214211928.23554835, 200.0, 14378010673396208.0, 20000000000.0));
+		}
+		#endif
 		#if defined(__NVCC__)
 		setFirstElementToZero KERNEL_ARG4(1, 2, 0, SetFirstElementToZeroStream) (intermediate_key, intermediate_seed);
 		cudaStreamSynchronize(SetFirstElementToZeroStream);
@@ -1803,7 +1801,7 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<Real*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 414613.13602233, 0.5, 83481560389295.703125, 200000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 414613.13602233, 0.5, 83481560389295.703125, 200000000.0));
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_elementWiseProduct)
@@ -1831,17 +1829,17 @@ int main(int argc, char* argv[])
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
 			for (int i = 0; i < 100; i += 2) {
-				println(i << ": " << reinterpret_cast<Real*>(testMemoryHost)[i] << "|" << reinterpret_cast<Real*>(testMemoryHost)[i + 1]);
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
-				println(i << ": " << reinterpret_cast<Real*>(testMemoryHost)[i] << "|" << reinterpret_cast<Real*>(testMemoryHost)[i + 1]);
+				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
 			for (uint32_t i = 0; i < 100; ++i) {
-				printf("%f ", reinterpret_cast<Real*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
+				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
 				if (i % 8 == 7) std::cout << "\n";
 			}
 			for (uint32_t i = sample_size - 50; i < sample_size + 50; ++i) {
-				printf("%f ", reinterpret_cast<Real*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
+				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
 				if (i % 8 == 7) std::cout << "\n";
 			}
 			println("");
@@ -1859,7 +1857,7 @@ int main(int argc, char* argv[])
 			fclose(pFile);
 			exit(0);
 			#endif
-			assertTrue(isFletcherFloat(reinterpret_cast<Real*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
 		}		
