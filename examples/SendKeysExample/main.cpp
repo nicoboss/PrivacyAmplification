@@ -96,11 +96,11 @@ int main(int argc, char* argv[])
 	time_t currentTime;
 	cout << "Waiting for clients..." << endl;
 
-	while (true) {
+	//4 time 0x00 bytes at the end for conversion to unsigned int array
+	//Key data alice in little endians
+	fromFile("keyfile.bin", key_data_alice);
 
-		//4 time 0x00 bytes at the end for conversion to unsigned int array
-		//Key data alice in little endians
-		fromFile("keyfile.bin", key_data_alice);
+	while (true) {
 
 		rc = zmq_recv(SendKeys_socket, syn, 3, 0);
 		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {

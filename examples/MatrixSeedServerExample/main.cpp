@@ -141,10 +141,10 @@ void send_alice() {
 		time(&currentTime);
 		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Alice");
 
-		aliceReady = 1;
-		while (aliceReady != 0) {
-			this_thread::yield();
-		}
+		//aliceReady = 1;
+		//while (aliceReady != 0) {
+		//	this_thread::yield();
+		//}
 	}
 
 	zmq_unbind(MatrixSeedServer_socket_alice, address_alice);

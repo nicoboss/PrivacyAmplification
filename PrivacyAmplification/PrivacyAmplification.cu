@@ -194,8 +194,10 @@ uint8_t* testMemoryHost;
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
 #endif
-atomic<uint32_t> input_cache_read_pos;
-atomic<uint32_t> input_cache_write_pos;
+atomic<uint32_t> input_cache_read_pos_seed;
+atomic<uint32_t> input_cache_read_pos_key;
+atomic<uint32_t> input_cache_write_pos_seed;
+atomic<uint32_t> input_cache_write_pos_key;
 atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
@@ -799,10 +801,10 @@ bool isFletcherFloat(float* data, int count, const double expectedSum1, const do
 }
 
 inline void key2StartRest() {
-	uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
-	uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
-	uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos;
-	uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + input_cache_write_pos;
+	uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
+	uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos_key;
+	uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
+	uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + input_cache_write_pos_key;
 
 	memcpy(key_start_block, recv_key, horizontal_block * sizeof(uint32_t));
 	*(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
@@ -858,7 +860,7 @@ inline void readMatrixSeedFromFile() {
 		abort();
 	}
 
-	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos);
+	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed);
 	seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
 	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
 		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
@@ -908,13 +910,10 @@ inline void readKeyFromFile() {
 }
 
 
-void reciveData() {
+void reciveDataSeed() {
 	void* socket_seed_in = nullptr;
-	void* socket_key_in = nullptr;
 	void* context_seed_in = nullptr;
-	void* context_key_in = nullptr;
 	int timeout_seed_in = 1000;
-	int timeout_key_in = 1000;
 
 	if (use_matrix_seed_server)
 	{
@@ -928,27 +927,15 @@ void reciveData() {
 		readMatrixSeedFromFile();
 	}
 
-	if (use_key_server)
-	{
-		context_key_in = zmq_ctx_new();
-		socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-		zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-		zmq_connect(socket_key_in, address_key_in.c_str());
-	}
-	else
-	{
-		readKeyFromFile();
-	}
-
 	bool recive_toeplitz_matrix_seed = use_matrix_seed_server;
 	while (true)
 	{
 
-		while (input_cache_write_pos % input_blocks_to_cache == input_cache_read_pos) {
+		while (input_cache_write_pos_seed % input_blocks_to_cache == input_cache_read_pos_key) {
 			this_thread::yield();
 		}
 
-		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos;
+		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed;
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			zmq_send(socket_seed_in, "SYN", 3, 0);
@@ -975,6 +962,48 @@ void reciveData() {
 					memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
 				}
 			}
+		}
+
+		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
+		printlock.lock();
+		cout << "Toeplitz Seed: ";
+		printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
+		fflush(stdout);
+		printlock.unlock();
+		#endif
+
+		input_cache_write_pos_seed = (input_cache_write_pos_seed + 1) % input_blocks_to_cache;
+	}
+
+	if (use_matrix_seed_server && recive_toeplitz_matrix_seed) {
+		zmq_disconnect(socket_seed_in, address_seed_in.c_str());
+		zmq_close(socket_seed_in);
+		zmq_ctx_destroy(socket_seed_in);
+	}
+}
+
+void reciveDataKey() {
+	void* socket_key_in = nullptr;
+	void* context_key_in = nullptr;
+	int timeout_key_in = 1000;
+
+	if (use_key_server)
+	{
+		context_key_in = zmq_ctx_new();
+		socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+		zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+		zmq_connect(socket_key_in, address_key_in.c_str());
+	}
+	else
+	{
+		readKeyFromFile();
+	}
+
+	while (true)
+	{
+
+		while (input_cache_write_pos_key % input_blocks_to_cache == input_cache_read_pos_key) {
+			this_thread::yield();
 		}
 
 		if (use_key_server)
@@ -1009,12 +1038,10 @@ void reciveData() {
 			key2StartRest();
 		}
 
-		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
+#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
 		uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
 		uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
 		printlock.lock();
-		cout << "Toeplitz Seed: ";
-		printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
 		cout << "Key: ";
 		printBin(recv_key, recv_key + key_blocks);
 		cout << "Key Start: ";
@@ -1023,15 +1050,9 @@ void reciveData() {
 		printBin(key_rest_block, key_rest_block + vertical_block + 1);
 		fflush(stdout);
 		printlock.unlock();
-		#endif
+#endif
 
-		input_cache_write_pos = (input_cache_write_pos + 1) % input_blocks_to_cache;
-	}
-
-	if (use_matrix_seed_server && recive_toeplitz_matrix_seed) {
-		zmq_disconnect(socket_seed_in, address_seed_in.c_str());
-		zmq_close(socket_seed_in);
-		zmq_ctx_destroy(socket_seed_in);
+		input_cache_write_pos_key = (input_cache_write_pos_key + 1) % input_blocks_to_cache;
 	}
 
 	if (use_key_server)
@@ -1363,8 +1384,10 @@ int main(int argc, char* argv[])
 
 	cudaSetDevice(0); //cudaSetDevice(cuda_device_id_to_use);
 
-	input_cache_read_pos = input_blocks_to_cache - 1;
-	input_cache_write_pos = 0;
+	input_cache_read_pos_seed = input_blocks_to_cache - 1;
+	input_cache_read_pos_key = input_blocks_to_cache - 1;
+	input_cache_write_pos_seed = 0;
+	input_cache_write_pos_key = 0;
 	output_cache_read_pos = input_blocks_to_cache - 1;
 	output_cache_write_pos = 0;
 
@@ -1533,8 +1556,10 @@ int main(int argc, char* argv[])
 	#endif
 
 	/*The reciveData function is parallelly executed on a separate thread which we start now*/
-	thread threadReciveObj(reciveData);
-	threadReciveObj.detach();
+	thread threadReciveSeedObj(reciveDataSeed);
+	threadReciveSeedObj.detach();
+	thread threadReciveKeyObj(reciveDataKey);
+	threadReciveKeyObj.detach();
 
 	/*The sendData function is parallelly executed on a separate thread which we start now*/
 	thread threadSendObj(sendData);
@@ -1635,10 +1660,14 @@ int main(int argc, char* argv[])
 		STOPWATCH_START
 		/*Spinlock waiting for data provider*/
 		chrono::steady_clock::time_point begin = std::chrono::high_resolution_clock::now();
-		while ((input_cache_read_pos + 1) % input_blocks_to_cache == input_cache_write_pos) {
+		while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
 			this_thread::yield();
 		}
-		input_cache_read_pos = (input_cache_read_pos + 1) % input_blocks_to_cache; //Switch read cache
+		input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
+		while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
+			this_thread::yield();
+		}
+		input_cache_read_pos_key = (input_cache_read_pos_key + 1) % input_blocks_to_cache; //Switch read cache
 		STOPWATCH_SAVE(stopwatch_wait_for_input_buffer)
 
 		#if defined(__NVCC__)
@@ -1668,7 +1697,7 @@ int main(int argc, char* argv[])
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 			#ifdef TEST
@@ -1699,7 +1728,7 @@ int main(int argc, char* argv[])
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key, float1_reduced_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos_key, di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST
@@ -1864,7 +1893,7 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, reinterpret_cast<uint32_t*>(testMemoryHost), key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		#else
-		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev, normalisation_float_dev);
+		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
@@ -1878,7 +1907,8 @@ int main(int argc, char* argv[])
 
 			
 		#if STOPWATCH == TRUE
-		if (stopwatch_total < stopwatch_total_max) {
+		if (stopwatch_total < stopwatch_total_max)
+		{
 			stopwatch_total_max = stopwatch_total;
 			println(fixed << setprecision(3) <<
 					"wait_for_input_buffer    " << stopwatch_wait_for_input_buffer / 1000000.0 << " ms\n" <<
