@@ -1905,7 +1905,7 @@ int main(int argc, char* argv[])
 		STOPWATCH_SAVE(stopwatch_toBinaryArray)
 		STOPWATCH_TOTAL(stopwatch_total)
 
-			
+		
 		#if STOPWATCH == TRUE
 		if (stopwatch_total < stopwatch_total_max)
 		{

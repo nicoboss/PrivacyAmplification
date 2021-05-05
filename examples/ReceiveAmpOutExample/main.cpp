@@ -55,10 +55,10 @@ int main(int argc, char* argv[])
 		time(&currentTime);
 		cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl;
 
-		for (size_t i = 0; i < min(vertical_bytes, 4); ++i)
-		{
-			printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str());
-		}
+		//for (size_t i = 0; i < min(vertical_bytes, 4); ++i)
+		//{
+		//	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str());
+		//}
 	}
 
 	zmq_close(ampOutIn_socket);
