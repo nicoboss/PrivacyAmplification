@@ -254,7 +254,7 @@ void keyProvider()
 /// Currently it prints the first 4 bytes of the result on the screen.
 /// Note: In a real environment this code should be integrated in whatever
 /// tool makes use of the Privacy Amplification result.
-int receiveAmpOut()
+void receiveAmpOut()
 {
 	int32_t rc;
 	time_t currentTime;
@@ -289,7 +289,6 @@ int receiveAmpOut()
 
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
-	return 0;
 }
 
 
