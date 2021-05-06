@@ -116,77 +116,40 @@ void fromFile(const char* filepath, unsigned int* recv_seed) {
 }
 
 
-/// @brief Send data to the first Client connected to the matrix seed server.
-void send_alice() {
-	void* context_alice = zmq_ctx_new();
-	void* MatrixSeedServer_socket_alice = zmq_socket(context_alice, ZMQ_REP);
-	while (zmq_bind(MatrixSeedServer_socket_alice, address_alice) != 0) {
-		println("Binding to \"" << address_alice << "\" failed! Retrying...");
+/// @brief Send data to the Clients connected to the matrix seed server.
+void sendData(const char* address, atomic<int>* ready, const char* client_name) {
+	void* context = zmq_ctx_new();
+	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_REP);
+	while (zmq_bind(MatrixSeedServer_socket, address) != 0) {
+		println("Binding to \"" << address << "\" failed! Retrying...");
 	}
 	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 
-	println("Waiting for Alice...");
+	println("Waiting for Client " << client_name << " ...");
 	while (true) {
-		rc = zmq_recv(MatrixSeedServer_socket_alice, syn, 3, 0);
+		rc = zmq_recv(MatrixSeedServer_socket, syn, 3, 0);
 		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
 			println("Error receiving SYN! Retrying...");
 			continue;
 		}
-		if (zmq_send(MatrixSeedServer_socket_alice, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
-			println("Error sending data to Alice! Retrying...");
+		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
+			println("Error sending data to " << client_name << "! Retrying...");
 			continue;
 		}
 		time(&currentTime);
-		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Alice");
+		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Client " << client_name);
 
-		//aliceReady = 1;
-		//while (aliceReady != 0) {
-		//	this_thread::yield();
-		//}
-	}
-
-	zmq_unbind(MatrixSeedServer_socket_alice, address_alice);
-	zmq_close(MatrixSeedServer_socket_alice);
-	zmq_ctx_destroy(MatrixSeedServer_socket_alice);
-}
-
-
-/// @brief Send data to the second Client connected to the matrix seed server.
-void send_bob() {
-	void* context_bob = zmq_ctx_new();
-	void* MatrixSeedServer_socket_bob = zmq_socket(context_bob, ZMQ_REP);
-	while (zmq_bind(MatrixSeedServer_socket_bob, address_bob) != 0) {
-		println("Binding to \"" << address_bob << "\" failed! Retrying...");
-	}
-	char syn[3];
-	int32_t rc;
-	time_t currentTime;
-
-	println("Waiting for Bob...");
-	while (true) {
-		rc = zmq_recv(MatrixSeedServer_socket_bob, syn, 3, 0);
-		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			println("Error receiving SYN! Retrying...");
-			continue;
-		}
-		if (zmq_send(MatrixSeedServer_socket_bob, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
-			println("Error sending data to Bob! Retrying...");
-			continue;
-		}
-		time(&currentTime);
-		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Bob");
-
-		bobReady = 1;
-		while (bobReady != 0) {
+		*ready = 1;
+		while (*ready != 0) {
 			this_thread::yield();
 		}
 	}
 
-	zmq_unbind(MatrixSeedServer_socket_bob, address_bob);
-	zmq_close(MatrixSeedServer_socket_bob);
-	zmq_ctx_destroy(MatrixSeedServer_socket_bob);
+	zmq_unbind(MatrixSeedServer_socket, address);
+	zmq_close(MatrixSeedServer_socket);
+	zmq_ctx_destroy(MatrixSeedServer_socket);
 }
 
 
@@ -195,11 +158,11 @@ void send_bob() {
 /// before switching to the next toeplitz matrix seed
 int main(int argc, char* argv[])
 {
-	thread threadReciveObjAlice(send_alice);
-	threadReciveObjAlice.detach();
+	thread threadSendDataAlice(sendData, address_alice, &aliceReady, "Alice");
+	threadSendDataAlice.detach();
 	#if TWO_CLIENTS == TRUE
-	thread threadReciveObjBob(send_bob);
-	threadReciveObjBob.detach();
+	thread threadSendDataBob(sendData, address_bob, &bobReady, "Bob");
+	threadSendDataBob.detach();
 	#endif
 
 	while (true) {
