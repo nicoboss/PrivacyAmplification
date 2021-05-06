@@ -931,7 +931,7 @@ void reciveDataSeed() {
 	while (true)
 	{
 
-		while (input_cache_write_pos_seed % input_blocks_to_cache == input_cache_read_pos_key) {
+		while (input_cache_write_pos_seed % input_blocks_to_cache == input_cache_read_pos_seed) {
 			this_thread::yield();
 		}
 
@@ -1663,8 +1663,7 @@ int main(int argc, char* argv[])
 		while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
 			this_thread::yield();
 		}
-		input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
-		while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
+		while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 			this_thread::yield();
 		}
 		input_cache_read_pos_key = (input_cache_read_pos_key + 1) % input_blocks_to_cache; //Switch read cache
