@@ -30,7 +30,7 @@ constexpr uint32_t horizontal_block = horizontal_len / 32;
 constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
-unsigned int* key_data_alice = new unsigned int[key_blocks];
+unsigned int* key_data = new unsigned int[key_blocks];
 
 
 /// @brief Prints an error then terminates with error code 01.
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 
 	//4 time 0x00 bytes at the end for conversion to unsigned int array
 	//Key data alice in little endians
-	fromFile("keyfile.bin", key_data_alice);
+	fromFile("keyfile.bin", key_data);
 
 	while (true) {
 
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
 			cout << "Error sending vertical_blocks! Retrying..." << endl;
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, key_data_alice, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {
+		if (zmq_send(SendKeys_socket, key_data, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {
 			cout << "Error sending Key! Retrying..." << endl;
 			continue;
 		}

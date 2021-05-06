@@ -28,8 +28,10 @@ using namespace std;
 /*Address where the Server for the first client should bind to.*/
 const char* address_alice = "tcp://127.0.0.1:45555";
 
+#if TWO_CLIENTS == TRUE
 /*Address where the Server for the second client should bind to.*/
 const char* address_bob = "tcp://127.0.0.1:46666";
+#endif
 
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
@@ -144,7 +146,7 @@ void sendData(const char* address, atomic<int>* ready, const char* client_name) 
 			continue;
 		}
 		time(&currentTime);
-		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Client " << client_name);
+		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed to Client " << client_name);
 
 		*ready = 1;
 		while (*ready != 0) {

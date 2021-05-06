@@ -14,9 +14,6 @@ using namespace std;
 #define TRUE 1
 #define FALSE 0
 
-/*Specifies if one or two clients should be served*/
-#define TWO_CLIENTS FALSE
-
 /*Prints a stream in a thread safe way and adds a newline at the end.
   Example: println("Hallo " << name)*/
 #define println(TEXT) printlnStream(ostringstream().flush() << TEXT);
@@ -26,10 +23,10 @@ using namespace std;
 #define fatal(TEXT) fatalPrint(ostringstream().flush() << TEXT);
 
 /*Address where the Server for the first client should bind to.*/
-const char* address_alice = "tcp://127.0.0.1:45555";
+const char* address_seed_server = "tcp://127.0.0.1:45555";
 
-/*Address where the Server for the second client should bind to.*/
-const char* address_bob = "tcp://127.0.0.1:46666";
+/*Address where the key server should bind to.*/
+const char* address_key_server = "tcp://127.0.0.1:47777";
 
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
@@ -48,9 +45,10 @@ constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
 int32_t reuseSeedAmount = -1;
+unsigned int* key_data = new unsigned int[key_blocks];
 
-atomic<int> aliceReady = 1;
-atomic<int> bobReady = 1;
+atomic<int> seedServerReady = 1;
+atomic<int> keyServerReady = 1;
 mutex printlock;
 
 
@@ -96,7 +94,7 @@ size_t getFileSize(ifstream& file) {
 /// @param[out] Buffer where to store the toeplitz matrix seed
 /// Note: In a real environment this should be connected with
 /// a Cryptograpicaly secure random number generator.
-void fromFile(const char* filepath, unsigned int* recv_seed) {
+void getSeedFromFile(const char* filepath, unsigned int* recv_seed) {
 	ifstream seedfile(filepath, ios::binary);
 
 	if (seedfile.fail())
@@ -116,45 +114,131 @@ void fromFile(const char* filepath, unsigned int* recv_seed) {
 	seedfile.close();
 }
 
+void getKeyFromFile(const char* filepath, unsigned int* recv_key) {
+	ifstream keyfile(filepath, ios::binary);
+
+	if (keyfile.fail())
+	{
+		fatal("Can't open file \"" << filepath << "\" => terminating!");
+	}
+
+	size_t keyfile_length = getFileSize(keyfile);
+	if (keyfile_length < key_blocks * sizeof(uint32_t))
+	{
+		fatal("File \"" << filepath << "\" is with " << keyfile_length << " bytes too short!" << endl <<
+			"it is required to be at least " << key_blocks * sizeof(uint32_t) << " bytes => terminating!");
+	}
+
+	char* recv_key_char = reinterpret_cast<char*>(recv_key);
+	keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
+	keyfile.close();
+}
+
 
 /// @brief Send data to the Clients connected to the matrix seed server.
-void sendData(const char* address, atomic<int>* ready, const char* client_name) {
+void sendSeed() {
 	void* context = zmq_ctx_new();
 	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_REP);
-	while (zmq_bind(MatrixSeedServer_socket, address) != 0) {
-		println("Binding to \"" << address << "\" failed! Retrying...");
+	while (zmq_bind(MatrixSeedServer_socket, address_seed_server) != 0) {
+		println("Binding to \"" << address_seed_server << "\" failed! Retrying...");
 	}
 	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 
-	println("Waiting for Client " << client_name << " ...");
+	println("[Seed] Waiting for Client...");
 	while (true) {
 		rc = zmq_recv(MatrixSeedServer_socket, syn, 3, 0);
 		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			println("Error receiving SYN! Retrying...");
+			println("[Seed] Error receiving SYN! Retrying...");
 			continue;
 		}
 		if (zmq_send(MatrixSeedServer_socket, &reuseSeedAmount, sizeof(int32_t), ZMQ_SNDMORE) != sizeof(int32_t)) {
-			cout << "Error sending reuseSeedAmount! Retrying..." << endl;
+			println("[Seed] Error sending reuseSeedAmount! Retrying...");
 			continue;
 		}
 		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
-			println("Error sending data to " << client_name << "! Retrying...");
+			println("[Seed] Error sending data! Retrying...");
 			continue;
 		}
 		time(&currentTime);
-		println(std::put_time(localtime(&currentTime), "%F %T") << " Sent seed to Client " << client_name);
+		println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
 
-		*ready = 1;
-		while (*ready != 0) {
+		seedServerReady = 1;
+		while (seedServerReady != 0) {
 			this_thread::yield();
 		}
 	}
 
-	zmq_unbind(MatrixSeedServer_socket, address);
+	zmq_unbind(MatrixSeedServer_socket, address_seed_server);
 	zmq_close(MatrixSeedServer_socket);
 	zmq_ctx_destroy(MatrixSeedServer_socket);
+}
+
+
+void sendKey() {
+	void* context = zmq_ctx_new();
+	void* SendKeys_socket = zmq_socket(context, ZMQ_REP);
+	while (zmq_bind(SendKeys_socket, address_key_server) != 0) {
+		println("[Key ] Binding to \"" << address_key_server << "\" failed! Retrying...");
+	}
+
+	char syn[3];
+	int32_t rc;
+	time_t currentTime;
+	println("[Key ] Waiting for clients...");
+
+	while (true) {
+		rc = zmq_recv(SendKeys_socket, syn, 3, 0);
+		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
+			println("[Key ] Error receiving SYN! Retrying...");
+			continue;
+		}
+		if (zmq_send(SendKeys_socket, &vertical_block, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
+			println("[Key ] Error sending vertical_blocks! Retrying...");
+			continue;
+		}
+		if (zmq_send(SendKeys_socket, key_data, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {
+			println("[Key ] Error sending Key! Retrying...");
+			continue;
+		}
+		time(&currentTime);
+		println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
+
+		keyServerReady = 1;
+		while (keyServerReady != 0) {
+			this_thread::yield();
+		}
+	}
+
+	zmq_unbind(SendKeys_socket, address_key_server);
+	zmq_close(SendKeys_socket);
+	zmq_ctx_destroy(SendKeys_socket);
+}
+
+
+void seedProvider()
+{
+	while (true) {
+		while (seedServerReady == 0) {
+			this_thread::yield();
+		}
+		getSeedFromFile("toeplitz_seed.bin", toeplitz_seed);
+		seedServerReady = 0;
+	}
+}
+
+void keyProvider()
+{
+	while (true) {
+		while (keyServerReady == 0) {
+			this_thread::yield();
+		}
+		//4 time 0x00 bytes at the end for conversion to unsigned int array
+		//Key data alice in little endians
+		getKeyFromFile("keyfile.bin", key_data);
+		keyServerReady = 0;
+	}
 }
 
 
@@ -163,28 +247,17 @@ void sendData(const char* address, atomic<int>* ready, const char* client_name) 
 /// before switching to the next toeplitz matrix seed
 int main(int argc, char* argv[])
 {
-	thread threadSendDataAlice(sendData, address_alice, &aliceReady, "Alice");
-	threadSendDataAlice.detach();
-	#if TWO_CLIENTS == TRUE
-	thread threadSendDataBob(sendData, address_bob, &bobReady, "Bob");
-	threadSendDataBob.detach();
-	#endif
-
-	while (true) {
-
-		#if TWO_CLIENTS == TRUE
-		while (aliceReady == 0 || bobReady == 0) {
-		#else
-		while (aliceReady == 0) {
-		#endif
-			this_thread::yield();
-		}
-
-		fromFile("toeplitz_seed.bin", toeplitz_seed);
-
-		aliceReady = 0;
-		bobReady = 0;
-
+	thread threadSeedProvider(seedProvider);
+	threadSeedProvider.detach();
+	thread threadKeyProvider(keyProvider);
+	threadKeyProvider.detach();
+	thread threadSendSeed(sendSeed);
+	threadSendSeed.detach();
+	thread threadSendKey(sendKey);
+	threadSendKey.detach();
+	while(true) {
+		std::this_thread::sleep_for(10s);
+		//println("[Stat] Still alive");
 	}
 	return 0;
 }

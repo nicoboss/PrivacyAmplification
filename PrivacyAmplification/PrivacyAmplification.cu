@@ -940,7 +940,7 @@ void reciveDataSeed() {
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			zmq_send(socket_seed_in, "SYN", 3, 0);
-			if (zmq_recv(socket_seed_in, &reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), 0) != sizeof(int32_t)) {
+			if (zmq_recv(socket_seed_in, reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), 0) != sizeof(int32_t)) {
 				println("Error receiving reuse_seed_amount_array from Seedserver! Retrying...");
 				zmq_close(context_seed_in);
 				socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
