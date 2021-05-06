@@ -80,7 +80,7 @@ keyfile_path: 'keyfile.bin'
 #If disabled no output will be sent anywhere which only makes sense for debugging
 #if either verify_ampout, store_first_ampouts_in_file, show_ampout is enabled or
 #the preprocessor definition SHOW_DEBUG_OUTPUT is set.
-host_ampout_server: false
+host_ampout_server: true
 address_amp_out: 'tcp://127.0.0.1:48888'
 
 #Stors the first n Privace amplification outputs to ampout.bin
