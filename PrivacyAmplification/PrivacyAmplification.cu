@@ -171,6 +171,7 @@ VALUE = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_r
 string address_seed_in;
 string address_key_in;
 string address_amp_out;
+int32_t* reuse_seed_amount_array;
 
 uint32_t vertical_len;
 uint32_t horizontal_len;
@@ -939,6 +940,14 @@ void reciveDataSeed() {
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			zmq_send(socket_seed_in, "SYN", 3, 0);
+			if (zmq_recv(socket_seed_in, &reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), 0) != sizeof(int32_t)) {
+				println("Error receiving reuse_seed_amount_array from Seedserver! Retrying...");
+				zmq_close(context_seed_in);
+				socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
+				zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int));
+				zmq_connect(socket_seed_in, address_seed_in.c_str());
+				goto retry_receiving_seed;
+			}
 			if (zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0) != desired_block * sizeof(uint32_t)) {
 				println("Error receiving data from Seedserver! Retrying...");
 				zmq_close(context_seed_in);
@@ -949,18 +958,6 @@ void reciveDataSeed() {
 			}
 			if (show_zeromq_status) {
 				println("Seed Block recived");
-			}
-
-			if (!dynamic_toeplitz_matrix_seed)
-			{
-				recive_toeplitz_matrix_seed = false;
-				zmq_disconnect(socket_seed_in, address_seed_in.c_str());
-				zmq_close(socket_seed_in);
-				zmq_ctx_destroy(socket_seed_in);
-				for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-					uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-					memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
-				}
 			}
 		}
 
@@ -1216,7 +1213,7 @@ void readConfig() {
 	input_blocks_to_cache = root["input_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 	output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 
-	dynamic_toeplitz_matrix_seed = root["dynamic_toeplitz_matrix_seed"].As<bool>(true);
+	reuse_seed_amount = root["reuse_seed_amount"].As<int32_t>(0);
 	show_ampout = root["show_ampout"].As<int32_t>(0);
 	show_zeromq_status = root["show_zeromq_status"].As<bool>(true);
 	use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(true);
@@ -1239,6 +1236,7 @@ void readConfig() {
 	key_blocks = desired_block + 1;
 	input_cache_block_size = desired_block;
 	output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
+	reuse_seed_amount_array = (int32_t*)calloc(input_blocks_to_cache, sizeof(int32_t));
 	recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
 	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
@@ -1569,7 +1567,6 @@ int main(int argc, char* argv[])
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
 	uint32_t relevant_keyBlocks_old = 0;
 
-	bool recalculate_toeplitz_matrix_seed = true;
 	bool speedtest = false;
 	bool doTest = true;
 	uint32_t dist_freq = sample_size / 2 + 1;
@@ -1604,8 +1601,8 @@ int main(int argc, char* argv[])
 
 			for (int i = 0; i < 2; ++i) {
 				switch (i) {
-					case 0: dynamic_toeplitz_matrix_seed = true; break;
-					case 1: dynamic_toeplitz_matrix_seed = false; break;
+					case 0: reuse_seed_amount = 0; break;
+					case 1: reuse_seed_amount = -1; break;
 				}
 				for (int j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
@@ -1660,8 +1657,12 @@ int main(int argc, char* argv[])
 		STOPWATCH_START
 		/*Spinlock waiting for data provider*/
 		chrono::steady_clock::time_point begin = std::chrono::high_resolution_clock::now();
-		while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
-			this_thread::yield();
+		if (reuse_seed_amount == 0) {
+			while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
+				this_thread::yield();
+			}
+			input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
+			reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
 		}
 		while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 			this_thread::yield();
@@ -1682,7 +1683,7 @@ int main(int argc, char* argv[])
 		#endif
 
 		
-		if (recalculate_toeplitz_matrix_seed) {
+		if (reuse_seed_amount == 0 || reuse_seed_amount ==  -1) {
 			cudaMemset(count_one_arr, 0b00000000, 2 * sizeof(uint32_t));
 			#ifdef TEST
 			if (doTest) {
@@ -1716,6 +1717,7 @@ int main(int argc, char* argv[])
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
+			stopwatch_binInt2float_seed = 0;
 		}
 		
 		#ifdef TEST
@@ -1773,14 +1775,19 @@ int main(int argc, char* argv[])
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		cudaStreamSynchronize(FFTStream);
 		STOPWATCH_SAVE(stopwatch_fft_key)
-		if (recalculate_toeplitz_matrix_seed) {
+		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
-			if (!dynamic_toeplitz_matrix_seed)
+			if (reuse_seed_amount == -1)
 			{
-				recalculate_toeplitz_matrix_seed = false;
+				reuse_seed_amount = -2;
 			}
 			cudaStreamSynchronize(FFTStream);
 			STOPWATCH_SAVE(stopwatch_fft_seed)
+		} else {
+			if (reuse_seed_amount > 0) {
+				--reuse_seed_amount;
+			}
+			stopwatch_fft_seed = 0;
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(di1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(di2);

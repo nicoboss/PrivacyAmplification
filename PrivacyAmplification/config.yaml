@@ -31,12 +31,16 @@ input_blocks_to_cache: 16
 #has to be around double of what specified in output_blocks_to_cache
 output_blocks_to_cache: 16
 
-#Specifies if the toeplitz matrix seed should be exchanged for every Privacy Amplification
-#This has a huge performance and security impact. Not changing it will make the algorithms
-#security to be no longer proofen to be secure while changing
-#it every time will reduce performance by around 33% (around 47% faster).
-#I highly recommend to leave this enabled if security matters.
-dynamic_toeplitz_matrix_seed: true
+#Specifies if and how often the toeplitz matrix seed should be exchanged for every
+#Privacy Amplification. This has a huge performance and security impact. Not changing  
+#it will make the algorithms security to be no longer proven to be secure while
+#changing it every time will reduce performance by around 33% (around 47% faster).
+#0 = Always recalculate toeplitz matrix seed
+#-1 = Never recalculate toeplitz matrix seed
+#Note: This value gets overwritten by the key server and is heavily used during the
+#algorithm that splits large blocks into chunks small enough to fit in GPU memory.
+#I highly recommend to set this to 0 if security matters.
+reuse_seed_amount: 0
 
 #Displays the first n bytes of the final Privacy Amplification result
 #to the console. n > 0 has a little performance impact.

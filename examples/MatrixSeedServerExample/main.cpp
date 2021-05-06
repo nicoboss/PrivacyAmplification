@@ -47,6 +47,7 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
+int32_t reuseSeedAmount = -1;
 
 atomic<int> aliceReady = 1;
 atomic<int> bobReady = 1;
@@ -132,6 +133,10 @@ void sendData(const char* address, atomic<int>* ready, const char* client_name) 
 		rc = zmq_recv(MatrixSeedServer_socket, syn, 3, 0);
 		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
 			println("Error receiving SYN! Retrying...");
+			continue;
+		}
+		if (zmq_send(MatrixSeedServer_socket, &reuseSeedAmount, sizeof(int32_t), ZMQ_SNDMORE) != sizeof(int32_t)) {
+			cout << "Error sending reuseSeedAmount! Retrying..." << endl;
 			continue;
 		}
 		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
