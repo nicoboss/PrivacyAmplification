@@ -961,6 +961,16 @@ inline void readKeyFromFile() {
 }
 
 
+#define ZMQ_RECIVE_DATA_SEED(outbuff, sizeBytes, name) \
+if (zmq_recv(socket_seed_in, outbuff, sizeBytes, 0) != sizeBytes) { \
+	println("Error receiving " << name << " from Seedserver! Retrying..."); \
+	zmq_close(context_seed_in); \
+	socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ); \
+	zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int)); \
+	zmq_connect(socket_seed_in, address_seed_in.c_str()); \
+	goto retry_receiving_seed; \
+}
+
 void reciveDataSeed() {
 	void* socket_seed_in = nullptr;
 	void* context_seed_in = nullptr;
@@ -981,31 +991,15 @@ void reciveDataSeed() {
 	bool recive_toeplitz_matrix_seed = use_matrix_seed_server;
 	while (true)
 	{
-
 		while (input_cache_write_pos_seed % input_blocks_to_cache == input_cache_read_pos_seed) {
 			this_thread::yield();
 		}
-
 		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed;
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			zmq_send(socket_seed_in, "SYN", 3, 0);
-			if (zmq_recv(socket_seed_in, reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), 0) != sizeof(int32_t)) {
-				println("Error receiving reuse_seed_amount_array from Seedserver! Retrying...");
-				zmq_close(context_seed_in);
-				socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
-				zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int));
-				zmq_connect(socket_seed_in, address_seed_in.c_str());
-				goto retry_receiving_seed;
-			}
-			if (zmq_recv(socket_seed_in, toeplitz_seed_block, desired_block * sizeof(uint32_t), 0) != desired_block * sizeof(uint32_t)) {
-				println("Error receiving data from Seedserver! Retrying...");
-				zmq_close(context_seed_in);
-				socket_seed_in = zmq_socket(context_seed_in, ZMQ_REQ);
-				zmq_setsockopt(socket_seed_in, ZMQ_RCVTIMEO, &timeout_seed_in, sizeof(int));
-				zmq_connect(socket_seed_in, address_seed_in.c_str());
-				goto retry_receiving_seed;
-			}
+			ZMQ_RECIVE_DATA_SEED(reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), "reuse_seed_amount_array")
+			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_block * sizeof(uint32_t), "data")
 			if (show_zeromq_status) {
 				println("Seed Block recived");
 			}
@@ -1029,6 +1023,16 @@ void reciveDataSeed() {
 	}
 }
 
+#define ZMQ_RECIVE_DATA_KEY(outbuff, sizeBytes, name) \
+if (zmq_recv(socket_key_in, outbuff, sizeBytes, 0) != sizeBytes) { \
+	println("Error receiving " << name << " from Keyserver! Retrying..."); \
+	zmq_close(context_key_in); \
+	socket_key_in = zmq_socket(context_key_in, ZMQ_REQ); \
+	zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int)); \
+	zmq_connect(socket_key_in, address_key_in.c_str()); \
+	goto retry_receiving_key; \
+}
+
 void reciveDataKey() {
 	void* socket_key_in = nullptr;
 	void* context_key_in = nullptr;
@@ -1048,11 +1052,9 @@ void reciveDataKey() {
 
 	while (true)
 	{
-
 		while (input_cache_write_pos_key % input_blocks_to_cache == input_cache_read_pos_key) {
 			this_thread::yield();
 		}
-
 		if (use_key_server)
 		{
 		retry_receiving_key:
@@ -1060,50 +1062,21 @@ void reciveDataKey() {
 				println("Error sending SYN to Keyserver! Retrying...");
 				goto retry_receiving_key;
 			}
-			if (zmq_recv(socket_key_in, &do_xor_key_rest, sizeof(bool), 0) != sizeof(bool)) {
-				println("Error receiving do_xor_key_rest from Keyserver! Retrying...");
-				zmq_close(context_key_in);
-				socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-				zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-				zmq_connect(socket_key_in, address_key_in.c_str());
-				goto retry_receiving_key;
-			}
-			if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
-				println("Error receiving vertical_blocks from Keyserver! Retrying...");
-				zmq_close(context_key_in);
-				socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-				zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-				zmq_connect(socket_key_in, address_key_in.c_str());
-				goto retry_receiving_key;
-			}
+			ZMQ_RECIVE_DATA_KEY(&do_xor_key_rest, sizeof(bool), "do_xor_key_rest")
+			ZMQ_RECIVE_DATA_KEY(&vertical_block, sizeof(uint32_t), "vertical_blocks")
 			vertical_len = vertical_block * 32;
 			horizontal_len = sample_size - vertical_len;
 			horizontal_block = horizontal_len / 32;
 			if (do_xor_key_rest) {
-				if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
-					println("Error receiving data from Keyserver! Retrying...");
-					zmq_close(context_key_in);
-					socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-					zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-					zmq_connect(socket_key_in, address_key_in.c_str());
-					goto retry_receiving_key;
-				}
+				ZMQ_RECIVE_DATA_KEY(recv_key, key_blocks * sizeof(uint32_t), "data")
 				key2StartRest();
 			}
 			else
 			{
 				uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
 				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
-				if (zmq_recv(socket_key_in, key_start_block, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
-					println("Error receiving data from Keyserver! Retrying...");
-					zmq_close(context_key_in);
-					socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-					zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-					zmq_connect(socket_key_in, address_key_in.c_str());
-					goto retry_receiving_key;
-				}
+				ZMQ_RECIVE_DATA_KEY(key_start_block, key_blocks * sizeof(uint32_t), "data")
 				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
-
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
 				{
@@ -1117,7 +1090,7 @@ void reciveDataKey() {
 			}
 		}
 
-#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
+		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
 		uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
 		uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
 		printlock.lock();
@@ -1129,7 +1102,7 @@ void reciveDataKey() {
 		printBin(key_rest_block, key_rest_block + vertical_block + 1);
 		fflush(stdout);
 		printlock.unlock();
-#endif
+		#endif
 
 		input_cache_write_pos_key = (input_cache_write_pos_key + 1) % input_blocks_to_cache;
 	}
