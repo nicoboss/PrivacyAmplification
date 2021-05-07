@@ -1380,6 +1380,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_forward_R2C_key_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
+	plan_forward_R2C_key_configuration.makeForwardPlanOnly = true;
 	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
 	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16);
 	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
@@ -1394,6 +1395,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	VkFFTConfiguration plan_forward_R2C_seed_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, seed_buffer, &plan_forward_R2C_seed_configuration);
 	VkFFTResult result_forward_FFT_seed = initializeVkFFT(plan_forward_R2C_seed, plan_forward_R2C_seed_configuration);
+	plan_forward_R2C_seed_configuration.makeForwardPlanOnly = true;
 	if (result_forward_FFT_seed != VKFFT_SUCCESS)
 	{
 		println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed);
@@ -1403,6 +1405,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_inverse_C2R_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_inverse_C2R_configuration);
+	plan_inverse_C2R_configuration.makeInversePlanOnly = true;
 	plan_inverse_C2R_configuration.performZeropadding[0] = true;
 	plan_inverse_C2R_configuration.fft_zeropad_left[0] = 0;
 	plan_inverse_C2R_configuration.fft_zeropad_right[0] = 1;
