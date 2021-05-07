@@ -295,6 +295,7 @@ unsigned A000788(unsigned n);
 /// while also XORing it with the key rest to optain the Privacy Amplification result.
 __global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
 void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_local, int i, int i_max);
+void unitTestToBinaryArrayVerifyResultThreadNoXOR(uint32_t* binOutTest, int i, int i_max);
 int unitTestToBinaryArray();
 
 #endif

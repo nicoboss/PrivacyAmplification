@@ -191,6 +191,7 @@ uint8_t* Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
 uint8_t* testMemoryHost;
+bool do_xor_key_rest = true;
 
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
@@ -1059,6 +1060,14 @@ void reciveDataKey() {
 				println("Error sending SYN to Keyserver! Retrying...");
 				goto retry_receiving_key;
 			}
+			if (zmq_recv(socket_key_in, &do_xor_key_rest, sizeof(bool), 0) != sizeof(bool)) {
+				println("Error receiving do_xor_key_rest from Keyserver! Retrying...");
+				zmq_close(context_key_in);
+				socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+				zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+				zmq_connect(socket_key_in, address_key_in.c_str());
+				goto retry_receiving_key;
+			}
 			if (zmq_recv(socket_key_in, &vertical_block, sizeof(uint32_t), 0) != sizeof(uint32_t)) {
 				println("Error receiving vertical_blocks from Keyserver! Retrying...");
 				zmq_close(context_key_in);
@@ -1070,18 +1079,42 @@ void reciveDataKey() {
 			vertical_len = vertical_block * 32;
 			horizontal_len = sample_size - vertical_len;
 			horizontal_block = horizontal_len / 32;
-			if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
-				println("Error receiving data from Keyserver! Retrying...");
-				zmq_close(context_key_in);
-				socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
-				zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
-				zmq_connect(socket_key_in, address_key_in.c_str());
-				goto retry_receiving_key;
+			if (do_xor_key_rest) {
+				if (zmq_recv(socket_key_in, recv_key, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
+					println("Error receiving data from Keyserver! Retrying...");
+					zmq_close(context_key_in);
+					socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+					zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+					zmq_connect(socket_key_in, address_key_in.c_str());
+					goto retry_receiving_key;
+				}
+				key2StartRest();
+			}
+			else
+			{
+				uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
+				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
+				if (zmq_recv(socket_key_in, key_start_block, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
+					println("Error receiving data from Keyserver! Retrying...");
+					zmq_close(context_key_in);
+					socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+					zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+					zmq_connect(socket_key_in, address_key_in.c_str());
+					goto retry_receiving_key;
+				}
+				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
+
+				uint32_t new_key_start_zero_pos = horizontal_block + 1;
+				if (new_key_start_zero_pos < *key_start_zero_pos_block)
+				{
+					uint32_t key_start_fill_length = *key_start_zero_pos_block - new_key_start_zero_pos;
+					memset(key_start_block + new_key_start_zero_pos, 0b00000000, key_start_fill_length * sizeof(uint32_t));
+					*key_start_zero_pos_block = new_key_start_zero_pos;
+				}
 			}
 			if (show_zeromq_status) {
 				println("Key Block recived");
 			}
-			key2StartRest();
 		}
 
 #if SHOW_INPUT_DEBUG_OUTPUT == TRUE
@@ -1948,7 +1981,11 @@ int main(int argc, char* argv[])
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 			(invOut, reinterpret_cast<uint32_t*>(testMemoryHost), key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
 		#else
-		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
+		if (do_xor_key_rest) {
+			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
+		} else {
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, correction_float_dev, normalisation_float_dev);
+		}
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST

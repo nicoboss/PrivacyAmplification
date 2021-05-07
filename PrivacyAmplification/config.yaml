@@ -95,7 +95,7 @@ store_first_ampouts_in_file: 1
 #during debvelopment that corectness of this Privacy Amplification implementation.
 #Disable this if you are using anything else than the provided testdata with above
 #settings. A verificatiobn error will cause the programm to exit with error 101.
-verify_ampout: true
+verify_ampout: false
 
 #Specifies how meny threads for the ampout verification should be used. Around
 #1.3 Gbit/s input throughput per thread with a sample_size of 2^27 and a
