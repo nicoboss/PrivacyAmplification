@@ -4,11 +4,6 @@
 #define FALSE 0
 #define TRUE 1
 
-/*In modified toeplitz hashing the result needs to be XORed with key_rest
-  This can be disabled for debugging purposes but must be enabled for security!
-  On purpose not in config.yaml for security and performance!*/
-#define XOR_WITH_KEY_REST TRUE
-
 /*If big endian is required, set the following definition to true otherwise to false.
   Enabling this has a very small perfromance impact.
   Due to performance reasons this can't be set in config.yaml*/
@@ -33,9 +28,14 @@ layout( local_size_x_id = 0 ) in;
 layout( constant_id = 1 ) const float32_t h0_local = 0.0;
 layout(set = 0, binding = 0) readonly buffer A { float32_t invOut[]; };
 layout(set = 0, binding = 1) writeonly buffer B { uint32_t binOut[]; };
+#if XOR_WITH_KEY_REST == TRUE
 layout(set = 0, binding = 2) readonly buffer C { uint32_t key_rest_local[]; };
 layout(set = 0, binding = 3) readonly buffer D { float32_t correction_float_dev[]; };
 layout(set = 0, binding = 4) readonly buffer E { float32_t normalisation_float_dev[]; };
+#else
+layout(set = 0, binding = 2) readonly buffer C { float32_t correction_float_dev[]; };
+layout(set = 0, binding = 3) readonly buffer D { float32_t normalisation_float_dev[]; };
+#endif
 
 void main(void)
 {

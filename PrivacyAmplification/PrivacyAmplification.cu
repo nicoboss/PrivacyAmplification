@@ -613,7 +613,6 @@ void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key
 			(((data) & 0x0000ff00) << 8) |
 			(((data) & 0x000000ff) << 24));
 		#endif
-		#if XOR_WITH_KEY_REST == TRUE
 		#if AMPOUT_REVERSE_ENDIAN == TRUE
 		key_rest_little = key_rest_test[i / 32];
 		key_rest_xor = ((((key_rest_little) & 0xff000000) >> 24) |
@@ -623,13 +622,35 @@ void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key
 		#else
 		uint32_t key_rest_xor = key_rest_test[i / 32];
 		#endif
-		#endif
 		actualBit = (data & mask) > 0;
 		expectedBit = ((i / 32) & mask) > 0;
 		xorBit = (key_rest_xor & mask) > 0;
-		#if XOR_WITH_KEY_REST
 		expectedBit ^= xorBit;
-		#endif
+		assertEquals(actualBit, expectedBit, i)
+	}
+	if (unitTestsFailedLocal) {
+		unitTestToBinaryArrayVerifyResultThreadFailed = true;
+	}
+}
+
+void unitTestToBinaryArrayVerifyResultThreadNoXOR(uint32_t* binOutTest, int i, int i_max)
+{
+	bool unitTestsFailedLocal = false;
+	uint32_t mask;
+	uint32_t data;
+	uint32_t actualBit;
+	uint32_t expectedBit;
+	for (; i < i_max; ++i) {
+		mask = 1 << (31 - (i % 32));
+		data = binOutTest[i / 32];
+#if AMPOUT_REVERSE_ENDIAN == TRUE
+		data = ((((data) & 0xff000000) >> 24) |
+			(((data) & 0x00ff0000) >> 8) |
+			(((data) & 0x0000ff00) << 8) |
+			(((data) & 0x000000ff) << 24));
+#endif
+		actualBit = (data & mask) > 0;
+		expectedBit = ((i / 32) & mask) > 0;
 		assertEquals(actualBit, expectedBit, i)
 	}
 	if (unitTestsFailedLocal) {
@@ -650,10 +671,12 @@ int unitTestToBinaryArray() {
 	const Real float1 = 1.0f;
 	float* invOutTest;
 	uint32_t* binOutTest;
+	uint32_t* binOutTestNoXOR;
 	uint32_t* key_rest_test;
 	Real* correction_float_dev_test;
 	cudaMallocHost((void**)&invOutTest, pow(2, 27) * sizeof(float));
 	cudaMallocHost((void**)&binOutTest, (pow(2, 27) / 32) * sizeof(uint32_t));
+	cudaMallocHost((void**)&binOutTestNoXOR, (pow(2, 27) / 32) * sizeof(uint32_t));
 	cudaMallocHost((void**)&key_rest_test, (pow(2, 27) / 32) * sizeof(uint32_t));
 	cudaMallocHost((void**)&correction_float_dev_test, sizeof(Real));
 	memset(key_rest_test, 0b10101010, (pow(2, 27) / 32) * sizeof(uint32_t));
@@ -681,14 +704,17 @@ int unitTestToBinaryArray() {
 		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
+		ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTestNoXOR, key_rest_test, correction_float_dev_test);
 		#else
 		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
+		vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTestNoXOR, correction_float_dev_test, normalisation_float_test_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
 		ThreadPool* unitTestToBinaryArrayVerifyResultPool = new ThreadPool(min(max(processor_count, 1), requiredTotalTasks));
 		for (int i = 0; i < elementsToCheck; i += 1000000) {
 			unitTestToBinaryArrayVerifyResultPool->enqueue(unitTestToBinaryArrayVerifyResultThread, binOutTest, key_rest_test, i, min(i + 1000000, elementsToCheck));
+			unitTestToBinaryArrayVerifyResultPool->enqueue(unitTestToBinaryArrayVerifyResultThreadNoXOR, binOutTestNoXOR, i, min(i + 1000000, elementsToCheck));
 		}
 		unitTestToBinaryArrayVerifyResultPool->~ThreadPool();
 	}
@@ -711,9 +737,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 	const uint32_t idx = threadIdx.x;
 	const Real correction_float = *correction_float_dev;
 
-	#if XOR_WITH_KEY_REST == TRUE
 	__shared__ uint32_t key_rest_xor[31];
-	#endif
 	__shared__ uint32_t binOutRawBit[992];
 	if (idx < 992) {
 		binOutRawBit[idx] = ((__float2int_rn(invOut[block * 992 + idx] / normalisation_float_local + correction_float) & 1)
@@ -721,7 +745,6 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 	}
 	else if (idx < 1023)
 	{
-		#if XOR_WITH_KEY_REST == TRUE
 		#if AMPOUT_REVERSE_ENDIAN == TRUE
 		uint32_t key_rest_little = key_rest_local[block * 31 + idx - 992];
 		key_rest_xor[idx - 992] =
@@ -731,7 +754,6 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 				(((key_rest_little) & 0x000000ff) << 24));
 		#else
 		key_rest_xor[idx - 992] = key_rest_local[block * 31 + idx - 992];
-		#endif
 		#endif
 	}
 	__syncthreads();
@@ -747,10 +769,37 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 				binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
 				binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
 				binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31])
-			#if XOR_WITH_KEY_REST == TRUE
-			^ key_rest_xor[idx]
-			#endif
-			;
+			^ key_rest_xor[idx];
+		binOut[block * 31 + idx] = binOutLocal;
+	}
+}
+
+__global__
+void ToBinaryArrayNoXOR(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
+{
+	const Real normalisation_float_local = normalisation_float_dev;
+	const uint32_t block = blockIdx.x;
+	const uint32_t idx = threadIdx.x;
+	const Real correction_float = *correction_float_dev;
+
+	__shared__ uint32_t binOutRawBit[992];
+	if (idx < 992) {
+		binOutRawBit[idx] = ((__float2int_rn(invOut[block * 992 + idx] / normalisation_float_local + correction_float) & 1)
+			<< ToBinaryBitShiftArray_dev[idx % 32]);
+	}
+	__syncthreads();
+
+	if (idx < 31) {
+		const uint32_t pos = idx * 32;
+		uint32_t binOutLocal =
+			(binOutRawBit[pos] | binOutRawBit[pos + 1] | binOutRawBit[pos + 2] | binOutRawBit[pos + 3] |
+				binOutRawBit[pos + 4] | binOutRawBit[pos + 5] | binOutRawBit[pos + 6] | binOutRawBit[pos + 7] |
+				binOutRawBit[pos + 8] | binOutRawBit[pos + 9] | binOutRawBit[pos + 10] | binOutRawBit[pos + 11] |
+				binOutRawBit[pos + 12] | binOutRawBit[pos + 13] | binOutRawBit[pos + 14] | binOutRawBit[pos + 15] |
+				binOutRawBit[pos + 16] | binOutRawBit[pos + 17] | binOutRawBit[pos + 18] | binOutRawBit[pos + 19] |
+				binOutRawBit[pos + 20] | binOutRawBit[pos + 21] | binOutRawBit[pos + 22] | binOutRawBit[pos + 23] |
+				binOutRawBit[pos + 24] | binOutRawBit[pos + 25] | binOutRawBit[pos + 26] | binOutRawBit[pos + 27] |
+				binOutRawBit[pos + 28] | binOutRawBit[pos + 29] | binOutRawBit[pos + 30] | binOutRawBit[pos + 31]);
 		binOut[block * 31 + idx] = binOutLocal;
 	}
 }
