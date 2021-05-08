@@ -1434,6 +1434,16 @@ int main(int argc, char* argv[])
 	cout << border << endl << about << endl << border << endl << endl;
 
 	readConfig();
+	bool speedtest = false;
+	bool doTest = true;
+	for (char** arg = argv; *arg; ++arg) {
+		if (strcmp(*arg, "speedtest") == 0) {
+			verify_ampout = false;
+			use_matrix_seed_server = false;
+			use_key_server = false;
+			host_ampout_server = false;
+		}
+	}
 
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
@@ -1624,9 +1634,6 @@ int main(int argc, char* argv[])
 	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
 	uint32_t relevant_keyBlocks = horizontal_block + 1;
 	uint32_t relevant_keyBlocks_old = 0;
-
-	bool speedtest = false;
-	bool doTest = true;
 	uint32_t dist_freq = sample_size / 2 + 1;
 
 	#if defined(__NVCC__)
@@ -1652,8 +1659,6 @@ int main(int argc, char* argv[])
 		if (strcmp(*arg, "speedtest") == 0) {
 			speedtest = true;
 			doTest = false;
-			verify_ampout = false;
-			host_ampout_server = false;
 			auto start = chrono::high_resolution_clock::now();
 			auto stop = chrono::high_resolution_clock::now();
 
