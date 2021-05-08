@@ -705,7 +705,7 @@ int unitTestToBinaryArray() {
 		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
-		ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTestNoXOR, key_rest_test, correction_float_dev_test);
+		ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTestNoXOR, correction_float_dev_test);
 		#else
 		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
 		vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTestNoXOR, correction_float_dev_test, normalisation_float_test_dev);
@@ -776,7 +776,7 @@ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Rea
 }
 
 __global__
-void ToBinaryArrayNoXOR(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev)
+void ToBinaryArrayNoXOR(Real* invOut, uint32_t* binOut, Real* correction_float_dev)
 {
 	const Real normalisation_float_local = normalisation_float_dev;
 	const uint32_t block = blockIdx.x;
@@ -1753,7 +1753,7 @@ int main(int argc, char* argv[])
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
 			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
-				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos, di2, count_one_of_global_seed);
+				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed, di2, count_one_of_global_seed);
 			#else
 			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed, di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
@@ -1785,7 +1785,7 @@ int main(int argc, char* argv[])
 		#endif
 		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
-			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos, di1, count_one_of_global_key);
+			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos_key, di1, count_one_of_global_key);
 		#else
 		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos_key, di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
@@ -1817,14 +1817,19 @@ int main(int argc, char* argv[])
 		cudaDeviceSynchronize();
 		STOPWATCH_SAVE(stopwatch_fft_key)
 		
-		if (recalculate_toeplitz_matrix_seed) {
+		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
-			if (!dynamic_toeplitz_matrix_seed)
+			if (reuse_seed_amount == -1)
 			{
-				recalculate_toeplitz_matrix_seed = false;
+				reuse_seed_amount = -2;
 			}
 			cudaDeviceSynchronize();
 			STOPWATCH_SAVE(stopwatch_fft_seed)
+		} else {
+			if (reuse_seed_amount > 0) {
+				 --reuse_seed_amount;
+			}
+			stopwatch_fft_seed = 0;
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(do1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(do2);
@@ -1955,7 +1960,7 @@ int main(int argc, char* argv[])
 		#endif
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-			(invOut, reinterpret_cast<uint32_t*>(testMemoryHost), key_rest + input_cache_block_size * input_cache_read_pos, correction_float_dev);
+			(invOut, reinterpret_cast<uint32_t*>(testMemoryHost), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
 		#else
 		if (do_xor_key_rest) {
 			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);

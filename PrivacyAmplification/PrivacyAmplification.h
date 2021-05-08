@@ -294,6 +294,7 @@ unsigned A000788(unsigned n);
 /// This function normalizes the IFFT floating point ouput and converts it to binary
 /// while also XORing it with the key rest to optain the Privacy Amplification result.
 __global__ void ToBinaryArray(Real* invOut, uint32_t* binOut, uint32_t* key_rest_local, Real* correction_float_dev);
+__global__ void ToBinaryArrayNoXOR(Real* invOut, uint32_t* binOut, Real* correction_float_dev);
 void unitTestToBinaryArrayVerifyResultThread(uint32_t* binOutTest, uint32_t* key_rest_local, int i, int i_max);
 void unitTestToBinaryArrayVerifyResultThreadNoXOR(uint32_t* binOutTest, int i, int i_max);
 int unitTestToBinaryArray();
