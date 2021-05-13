@@ -64,8 +64,7 @@
       <AdditionalDependencies>..\..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>xcopy /y /d  "..\..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(OutDir)*"
-xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(OutDir)*"</Command>
+      <Command>xcopy /y /d  "..\..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(OutDir)*"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -87,12 +86,14 @@ xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(OutDir)*"</Command>
       <AdditionalDependencies>..\..\libzmq\lib\libzmq-v142-mt-4_3_5.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>xcopy /y /d  "..\..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(OutDir)*"
-xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(OutDir)*"</Command>
+      <Command>xcopy /y /d  "..\..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(OutDir)*"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Matrix.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
