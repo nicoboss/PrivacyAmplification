@@ -985,8 +985,7 @@ void reciveDataSeed() {
 	}
 	else
 	{
-		exit(777);
-		//readMatrixSeedFromFile();
+		readMatrixSeedFromFile();
 	}
 
 	bool recive_toeplitz_matrix_seed = use_matrix_seed_server;
@@ -1048,8 +1047,7 @@ void reciveDataKey() {
 	}
 	else
 	{
-		exit(777);
-		//readKeyFromFile();
+		readKeyFromFile();
 	}
 
 	while (true)
