@@ -55,7 +55,7 @@ using namespace std;
 
 
 //Little endian only!
-//#define TEST
+#define TEST
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1752,7 +1752,7 @@ int main(int argc, char* argv[])
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);
 				assertGPU(count_one_of_global_key, 1, 0);
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
@@ -1785,7 +1785,7 @@ int main(int argc, char* argv[])
 		
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos_key), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
 		#if defined(__NVCC__)
@@ -1899,11 +1899,13 @@ int main(int argc, char* argv[])
 		vuda::launchKernel("SPIRV/elementWiseProduct.spv", "main", ElementWiseProductStream, (int)((dist_freq + 1023) / 1024), min((int)dist_freq, 1024), intermediate_key, intermediate_seed, pre_mul_reduction_dev);
 		#endif
 		cudaStreamSynchronize(ElementWiseProductStream);
+		#if defined(__NVCC__)
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 414613.13602233, 0.5, 83481560389295.703125, 200000000.0));
 		}
+		#endif
 		#endif
 		STOPWATCH_SAVE(stopwatch_elementWiseProduct)
 		#if defined(__NVCC__)
@@ -1935,14 +1937,6 @@ int main(int argc, char* argv[])
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
 				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
-			for (uint32_t i = 0; i < 100; ++i) {
-				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
-				if (i % 8 == 7) std::cout << "\n";
-			}
-			for (uint32_t i = sample_size - 50; i < sample_size + 50; ++i) {
-				printf("%f ", reinterpret_cast<float*>(testMemoryHost)[i] / normalisation_float + *correction_float_dev);
-				if (i % 8 == 7) std::cout << "\n";
-			}
 			println("");
 			#if SHOW_DEBUG_OUTPUT == TRUE
 			FILE* pFile;
@@ -1959,7 +1953,7 @@ int main(int argc, char* argv[])
 			exit(0);
 			#endif
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos), vertical_len / 8, key_rest_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos_key), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
 		}		
 		#endif
