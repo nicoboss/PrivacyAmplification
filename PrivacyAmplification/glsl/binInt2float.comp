@@ -44,8 +44,8 @@ layout( local_size_x_id = 0 ) in;
 layout( constant_id = 1 ) const float32_t h0_local = 0.0;
 layout(set = 0, binding = 0) readonly buffer A { uint32_t binIn[]; };
 layout(set = 0, binding = 1) writeonly buffer B { float32_t realOut[]; };
-layout(set = 0, binding = 2) buffer C { uint count_one_global[]; };
-layout(set = 0, binding = 3) readonly buffer D { float32_t h1_reduced_local[]; };
+layout(set = 0, binding = 2) buffer C { uint count_one_global; };
+layout(set = 0, binding = 3) readonly buffer D { float32_t h1_reduced_local; };
 
 void main(void)
 {
@@ -68,7 +68,7 @@ void main(void)
 	}
 	else
 	{
-		atomicAdd(count_one_global[0], 1);
-		realOut[outPos] = h1_reduced_local[0];
+		atomicAdd(count_one_global, 1);
+		realOut[outPos] = h1_reduced_local;
 	}
 }

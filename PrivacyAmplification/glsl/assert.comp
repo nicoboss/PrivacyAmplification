@@ -3,12 +3,12 @@
 
 layout( local_size_x_id = 0 ) in;
 layout(set = 0, binding = 0) readonly buffer A { uint32_t data[]; };
-layout(set = 0, binding = 1) readonly buffer B { uint32_t value[]; };
-layout(set = 0, binding = 2) writeonly buffer C { uint32_t returnValue[]; };
+layout(set = 0, binding = 1) readonly buffer B { uint32_t value; };
+layout(set = 0, binding = 2) writeonly buffer C { uint32_t returnValue; };
 
 void main(void)
 {
-	if (data[gl_GlobalInvocationID.x] != value[0]) {
-		atomicAdd(returnValue[0], 1);
+	if (data[gl_GlobalInvocationID.x] != value) {
+		atomicAdd(returnValue, 1);
 	}
 }

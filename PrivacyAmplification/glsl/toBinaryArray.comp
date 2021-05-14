@@ -30,19 +30,19 @@ layout(set = 0, binding = 0) readonly buffer A { float32_t invOut[]; };
 layout(set = 0, binding = 1) writeonly buffer B { uint32_t binOut[]; };
 #if XOR_WITH_KEY_REST == TRUE
 layout(set = 0, binding = 2) readonly buffer C { uint32_t key_rest_local[]; };
-layout(set = 0, binding = 3) readonly buffer D { float32_t correction_float_dev[]; };
-layout(set = 0, binding = 4) readonly buffer E { float32_t normalisation_float_dev[]; };
+layout(set = 0, binding = 3) readonly buffer D { float32_t correction_float_dev; };
+layout(set = 0, binding = 4) readonly buffer E { float32_t normalisation_float_dev; };
 #else
-layout(set = 0, binding = 2) readonly buffer C { float32_t correction_float_dev[]; };
-layout(set = 0, binding = 3) readonly buffer D { float32_t normalisation_float_dev[]; };
+layout(set = 0, binding = 2) readonly buffer C { float32_t correction_float_dev; };
+layout(set = 0, binding = 3) readonly buffer D { float32_t normalisation_float_dev; };
 #endif
 
 void main(void)
 {
 	const uint32_t block = gl_WorkGroupID.x;
 	const uint32_t idx = gl_LocalInvocationID.x;
-	const float32_t correction_float = correction_float_dev[0];
-	const float32_t normalisation_float_local = normalisation_float_dev[0];
+	const float32_t correction_float = correction_float_dev;
+	const float32_t normalisation_float_local = normalisation_float_dev;
 	
 	if (idx < 992) {
 		binOutRawBit[idx] = (uint32_t(round(abs(invOut[block * 992 + idx]) / normalisation_float_local + correction_float)) & 1) << ToBinaryBitShiftArray_dev[idx % 32];
