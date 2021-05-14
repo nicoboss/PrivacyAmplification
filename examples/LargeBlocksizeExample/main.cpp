@@ -36,9 +36,11 @@ const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 11
+#define factor 14
+#define factor_chunk 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
+#define chunk_size pwrtwo(factor_chunk)
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
@@ -50,15 +52,65 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 constexpr bool pa_do_xor_key_rest = false;
-unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
+uint32_t* toeplitz_seed = reinterpret_cast<uint32_t*>(malloc(desired_block * sizeof(uint32_t)));
 int32_t reuseSeedAmount = 0;
-unsigned int* key_data = new unsigned int[key_blocks];
+uint32_t* key_data = new uint32_t[key_blocks];
 constexpr uint32_t vertical_bytes = vertical_len / 8;
-unsigned char* ampOutInData = (unsigned char*)malloc(vertical_bytes);
+uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(vertical_bytes));
+
+constexpr uint32_t chunk_size_blocks = chunk_size / 32;
+constexpr uint32_t chunk_vertical_len = chunk_size / 4 + chunk_size / 8;
+constexpr uint32_t chunk_horizontal_len = chunk_size / 2 + chunk_size / 8;
+constexpr uint32_t chunk_vertical_blocks = chunk_vertical_len / 32;
+constexpr uint32_t chunk_horizontal_blocks = chunk_horizontal_len / 32;
+constexpr uint32_t vertical_chunks = vertical_len / chunk_size;
+constexpr uint32_t horizontal_chunks = horizontal_len / chunk_size;
+
+uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(chunk_size_blocks, sizeof(uint32_t)));
+
+//local_key_padded must use calloc!
+//4 time 0x00 bytes at the end for conversion to unsigned int array
+uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(chunk_size_blocks+1, sizeof(uint32_t)));
+
+uint32_t* amp_out_arr = reinterpret_cast<uint32_t*>(calloc(vertical_chunks*(chunk_size_blocks), sizeof(uint32_t)));
 
 atomic<int> seedServerReady = 1;
 atomic<int> keyServerReady = 1;
 mutex printlock;
+
+
+#define GetLocalSeed \
+memcpy(local_seed, toeplitz_seed + r + chunk_size_blocks, 2 * chunk_size_blocks); \
+memcpy(local_seed + (2 * chunk_size_blocks), toeplitz_seed + r, chunk_size_blocks);
+
+//local_key_padded must use calloc!
+#define GetLocalKey \
+memcpy(local_key_padded + 1, toeplitz_seed + keyNr * chunk_size_blocks, chunk_size_blocks);
+
+#define XorWithKeyRest \
+for (uint32_t i = 0; i < (chunk_size_blocks); ++i) \
+{ \
+    amp_out_arr[currentRowNr*(chunk_size_blocks)+i] ^= ampOutInData[i]; \
+}
+
+#define RecieveAmpOut \
+zmq_send(ampOutIn_socket, "SYN", 3, 0); \
+rc = zmq_recv(ampOutIn_socket, ampOutInData, chunk_vertical_len / 8, 0); \
+if (rc != chunk_vertical_len / 8) { \
+	cout << "Error receiving data from PrivacyAmplification Server!" << endl; \
+	cout << "Expected " << chunk_vertical_len / 8 << " bytes but received " << rc << " bytes! Retrying..." << endl; \
+	zmq_close(ampOutIn_socket); \
+	goto reconnect; \
+} \
+ \
+time(&currentTime); \
+cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
+ \
+for (size_t i = 0; i < min(chunk_vertical_len / 8, 4); ++i) \
+{  \
+	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str()); \
+}
+
 
 
 /// @brief Prints a stream in a thread safe way and adds a newline at the end.
@@ -133,7 +185,7 @@ void sendSeed() {
 			println("[Seed] Error sending reuseSeedAmount! Retrying...");
 			continue;
 		}
-		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, desired_block * sizeof(unsigned int), 0) != desired_block * sizeof(unsigned int)) {
+		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, chunk_size_blocks * sizeof(uint32_t), 0) != chunk_size_blocks * sizeof(uint32_t)) {
 			println("[Seed] Error sending data! Retrying...");
 			continue;
 		}
@@ -174,11 +226,12 @@ void sendKey() {
 			println("[Key ] Error sending do_xor_key_rest! Retrying...");
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, &vertical_block, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
+		if (zmq_send(SendKeys_socket, &chunk_vertical_blocks, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
 			println("[Key ] Error sending vertical_blocks! Retrying...");
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, key_data, key_blocks * sizeof(unsigned int), 0) != key_blocks * sizeof(unsigned int)) {
+		println(chunk_size_blocks * sizeof(uint32_t));
+		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_size_blocks + 1) * sizeof(uint32_t)) {
 			println("[Key ] Error sending Key! Retrying...");
 			continue;
 		}
@@ -200,26 +253,90 @@ void sendKey() {
 void seedProvider()
 {
 	binTo4byteLittleEndian(toeplitz_seed_input, toeplitz_seed, desired_len);
-	while (true) {
-		while (seedServerReady == 0) {
-			this_thread::yield();
+
+	while (true)
+	{
+		uint32_t currentRowNr = 0;
+		uint32_t rNr = 0;
+		uint32_t r = 0;
+
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		{
+			currentRowNr = 0;
+			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			{
+				while (seedServerReady == 0) {
+					this_thread::yield();
+				}
+				GetLocalSeed;
+				seedServerReady = 0;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
 		}
-		//getSeedFromFile("toeplitz_seed.bin", toeplitz_seed);
-		seedServerReady = 0;
+
+		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+		{
+			currentRowNr = rowNr;
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			{
+				while (seedServerReady == 0) {
+					this_thread::yield();
+				}
+				GetLocalSeed;
+				seedServerReady = 0;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
+		}
 	}
 }
 
 void keyProvider()
 {
+	//4 time 0x00 bytes at the end for conversion to unsigned int array
+	//Key data alice in little endians
 	binTo4byteLittleEndian(key_input, key_data, desired_len);
-	while (true) {
-		while (keyServerReady == 0) {
-			this_thread::yield();
+
+	while (true)
+	{
+		uint32_t currentRowNr = 0;
+		uint32_t rNr = 0;
+		uint32_t r = 0;
+
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		{
+			currentRowNr = 0;
+			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			{
+				while (keyServerReady == 0) {
+					this_thread::yield();
+				}
+				GetLocalKey;
+				keyServerReady = 0;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
 		}
-		//4 time 0x00 bytes at the end for conversion to unsigned int array
-		//Key data alice in little endians
-		//getKeyFromFile("keyfile.bin", key_data);
-		keyServerReady = 0;
+
+		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+		{
+			currentRowNr = rowNr;
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			{
+				while (keyServerReady == 0) {
+					this_thread::yield();
+				}
+				GetLocalKey;
+				keyServerReady = 0;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
+		}
 	}
 }
 
@@ -243,25 +360,38 @@ void receiveAmpOut()
 	cout << "Waiting for PrivacyAmplification Server..." << endl;
 	zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
 
-	while (true) {
-		zmq_send(ampOutIn_socket, "SYN", 3, 0);
-		rc = zmq_recv(ampOutIn_socket, ampOutInData, vertical_bytes, 0);
-		if (rc != vertical_bytes) {
-			cout << "Error receiving data from PrivacyAmplification Server!" << endl;
-			cout << "Expected " << vertical_bytes << " bytes but received " << rc << " bytes! Retrying..." << endl;
-			zmq_close(ampOutIn_socket);
-			goto reconnect;
+	while (true)
+	{
+		uint32_t currentRowNr = 0;
+		uint32_t rNr = 0;
+		uint32_t r = 0;
+
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		{
+			currentRowNr = 0;
+			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			{
+				RecieveAmpOut;
+				XorWithKeyRest;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
 		}
 
-		time(&currentTime);
-		cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl;
-
-		for (size_t i = 0; i < min(vertical_bytes, 4); ++i)
+		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
-			printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str());
+			currentRowNr = rowNr;
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			{
+				RecieveAmpOut;
+				XorWithKeyRest;
+				++currentRowNr;
+			}
+			r += chunk_size_blocks;
+			++rNr;
 		}
 	}
-
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
 }
@@ -272,6 +402,11 @@ void receiveAmpOut()
 /// before switching to the next toeplitz matrix seed
 int main(int argc, char* argv[])
 {
+	if (sample_size / 8 < chunk_size) {
+		println("Fatal error: sample_size/8 < chunk_size");
+		exit(418); //I’m a teapot
+	}
+
 	uint32_t* out = reinterpret_cast<uint32_t*>(calloc(2, sizeof(uint32_t)));
 	uint8_t in[] = {				//3441227697
 		1, 1, 0, 0, 1, 1, 0, 1,		//205
@@ -286,6 +421,40 @@ int main(int argc, char* argv[])
 	binTo4byteLittleEndian(in, out, 64);
 	for (uint32_t i = 0; i < 2; ++i) {
 		println(out[i]);
+	}
+
+	uint32_t currentRowNr = 0;
+	uint32_t rNr = 0;
+	uint32_t r = 0;
+
+	for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+	{
+		currentRowNr = 0;
+		for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+		{
+			GetLocalSeed;
+			GetLocalKey;
+			//amp_out = permutate(local_seed, local_key_padded)
+			XorWithKeyRest;
+			++currentRowNr;
+		}
+		r += chunk_size_blocks;
+		++rNr;
+	}
+
+	for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+	{
+		currentRowNr = rowNr;
+		for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+		{
+			GetLocalSeed;
+			GetLocalKey;
+			//amp_out = permutate(local_seed, local_key_padded)
+			XorWithKeyRest;
+			++currentRowNr;
+		}
+		r += chunk_size_blocks;
+		++rNr;
 	}
 
 	thread threadSeedProvider(seedProvider);

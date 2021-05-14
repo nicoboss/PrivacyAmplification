@@ -1067,6 +1067,7 @@ void reciveDataKey() {
 			vertical_len = vertical_block * 32;
 			horizontal_len = sample_size - vertical_len;
 			horizontal_block = horizontal_len / 32;
+			println(key_blocks * sizeof(uint32_t));
 			if (do_xor_key_rest) {
 				ZMQ_RECIVE_DATA_KEY(recv_key, key_blocks * sizeof(uint32_t), "data")
 				key2StartRest();
@@ -1075,7 +1076,14 @@ void reciveDataKey() {
 			{
 				uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
 				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
-				ZMQ_RECIVE_DATA_KEY(key_start_block, key_blocks * sizeof(uint32_t), "data")
+				if (zmq_recv(socket_key_in, key_start_block, key_blocks * sizeof(uint32_t), 0) != key_blocks * sizeof(uint32_t)) {
+						println("Error receiving data from Keyserver! Retrying...");
+						zmq_close(context_key_in);
+						socket_key_in = zmq_socket(context_key_in, ZMQ_REQ);
+						zmq_setsockopt(socket_key_in, ZMQ_RCVTIMEO, &timeout_key_in, sizeof(int));
+						zmq_connect(socket_key_in, address_key_in.c_str());
+						goto retry_receiving_key;
+				}
 				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
