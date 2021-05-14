@@ -1135,7 +1135,7 @@ bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uin
 	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
 	rhash_sha3_final(&sha3, calculatedHash);
-	//println(toHexString(calculatedHash, 32));
+	println(toHexString(calculatedHash, 32));
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
@@ -1805,8 +1805,8 @@ int main(int argc, char* argv[])
 		
 		#ifdef TEST
 		if (doTest) {
-			assertGPU(count_one_of_global_key, 1, 41947248);
-			assertGPU(count_one_of_global_seed, 1, 67113455);
+			assertGPU(count_one_of_global_key, 1, 5168);
+			assertGPU(count_one_of_global_seed, 1, 8169);
 		}
 		#endif
 		#if defined(__NVCC__)
@@ -1870,9 +1870,9 @@ int main(int argc, char* argv[])
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
 				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 169418278.63041568, 200.0, 11374845421549196.0, 20000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 235.36460560, 0.02, 1978260.47736773, 2000000.0));
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214211928.23554835, 200.0, 14378010673396208.0, 20000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 293.48314198, 0.02, 2440237.09097198, 2000000.0));
 		}
 		#endif
 		#if defined(__NVCC__)
@@ -1888,9 +1888,9 @@ int main(int argc, char* argv[])
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
 				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 169397796.57572800, 200.0, 11372096366664388.0, 20000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 232.84116810, 0.02, 1936911.43049273, 2000000.0));
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 214179157.99336109, 200.0, 14373612325878530.0, 20000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 289.49437245, 0.02, 2374877.11343295, 2000000.0));
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_setFirstElementToZero)
@@ -1903,7 +1903,7 @@ int main(int argc, char* argv[])
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 414613.13602233, 0.5, 83481560389295.703125, 200000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1) * 2, 0.00629577, 0.00005, 155.68770136, 20000.0));
 		}
 		#endif
 		#endif
@@ -1952,10 +1952,13 @@ int main(int argc, char* argv[])
 			fclose(pFile);
 			exit(0);
 			#endif
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 1.44599472, 0.02, 12075.92054538, 2000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos_key), vertical_len / 8, key_rest_hash));
-			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
-		}		
+			float* correction_float_from_gpu = reinterpret_cast<float*>(calloc(1, sizeof(float)));
+			cudaMemcpy(correction_float_from_gpu, correction_float_dev, 4, cudaMemcpyDeviceToHost);
+			println(*correction_float_from_gpu);
+			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F3EC000); //0.745117
+		}
 		#endif
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
