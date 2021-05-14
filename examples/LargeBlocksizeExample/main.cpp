@@ -36,7 +36,7 @@ const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 14
+#define factor 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define min(a,b) (((a) < (b)) ? (a) : (b))
@@ -49,7 +49,7 @@ constexpr uint32_t horizontal_block = horizontal_len / 32;
 constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
-constexpr bool pa_do_xor_key_rest = true;
+constexpr bool pa_do_xor_key_rest = false;
 unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
 int32_t reuseSeedAmount = 0;
 unsigned int* key_data = new unsigned int[key_blocks];
