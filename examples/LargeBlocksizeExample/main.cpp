@@ -66,11 +66,11 @@ constexpr uint32_t chunk_horizontal_blocks = chunk_horizontal_len / 32;
 constexpr uint32_t vertical_chunks = vertical_len / chunk_size;
 constexpr uint32_t horizontal_chunks = horizontal_len / chunk_size;
 
-uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(chunk_size_blocks, sizeof(uint32_t)));
+uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(2*chunk_size_blocks, sizeof(uint32_t)));
 
 //local_key_padded must use calloc!
 //4 time 0x00 bytes at the end for conversion to unsigned int array
-uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(chunk_size_blocks+1, sizeof(uint32_t)));
+uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(2*chunk_size_blocks+1, sizeof(uint32_t)));
 
 uint32_t* amp_out_arr = reinterpret_cast<uint32_t*>(calloc(vertical_chunks*(chunk_size_blocks), sizeof(uint32_t)));
 
@@ -80,12 +80,19 @@ mutex printlock;
 
 
 #define GetLocalSeed \
-memcpy(local_seed, toeplitz_seed + r + chunk_size_blocks, 2 * chunk_size_blocks); \
-memcpy(local_seed + (2 * chunk_size_blocks), toeplitz_seed + r, chunk_size_blocks);
+memcpy(local_seed, toeplitz_seed + r + chunk_size_blocks, chunk_size / 8); \
+memcpy(local_seed + chunk_size_blocks, toeplitz_seed + r, chunk_size / 8); \
+//printBin(local_seed, local_seed+2*chunk_size_blocks);
 
 //local_key_padded must use calloc!
 #define GetLocalKey \
-memcpy(local_key_padded + 1, toeplitz_seed + keyNr * chunk_size_blocks, chunk_size_blocks);
+uint32_t* key_data_offset = key_data+keyNr*(chunk_size / 32); \
+local_key_padded[0] = key_data_offset[0] >> 1; \
+for (uint32_t i = 1; i < chunk_size / 32; ++i) { \
+	local_key_padded[i] = (((key_data_offset[i - 1] & 1) << 31) | (key_data_offset[i] >> 1)); \
+} \
+local_key_padded[(chunk_size / 32)] = ((key_data_offset[(chunk_size / 32) - 1] & 1) << 31); \
+//printBin(local_key_padded, local_key_padded+2*chunk_size_blocks);
 
 #define XorWithKeyRest \
 for (uint32_t i = 0; i < (chunk_size_blocks); ++i) \
@@ -135,6 +142,24 @@ void fatalPrint(ostream& os) {
 	cout << dynamic_cast<ostringstream&>(os).str() << endl;
 	exit(1);
 	abort();
+}
+
+
+void printBin(const uint8_t* position, const uint8_t* end) {
+	while (position < end) {
+		printf("%s", bitset<8>(*position).to_string().c_str());
+		++position;
+	}
+	cout << endl;
+}
+
+
+void printBin(const uint32_t* position, const uint32_t* end) {
+	while (position < end) {
+		printf("%s", bitset<32>(*position).to_string().c_str());
+		++position;
+	}
+	cout << endl;
 }
 
 
@@ -306,7 +331,7 @@ void keyProvider()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
 		{
 			currentRowNr = 0;
 			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
@@ -406,57 +431,6 @@ int main(int argc, char* argv[])
 		println("Fatal error: sample_size/8 < chunk_size");
 		exit(418); //I’m a teapot
 	}
-
-	uint32_t* out = reinterpret_cast<uint32_t*>(calloc(2, sizeof(uint32_t)));
-	uint8_t in[] = {				//3441227697
-		1, 1, 0, 0, 1, 1, 0, 1,		//205
-		0, 0, 0, 1, 1, 1, 0, 0,		// 28
-		1, 1, 1, 1, 0, 1, 1, 1,		//247
-		1, 0, 1, 1, 0, 0, 0, 1,		//177
-		1, 1, 0, 0, 1, 1, 0, 1,		//11001101
-		0, 0, 0, 1, 1, 1, 0, 0,		//00011100
-		1, 1, 1, 1, 0, 1, 1, 1,		//11110111
-		1, 0, 1, 1, 0, 0, 0, 1};	//10110001
-
-	binTo4byteLittleEndian(in, out, 64);
-	for (uint32_t i = 0; i < 2; ++i) {
-		println(out[i]);
-	}
-
-	uint32_t currentRowNr = 0;
-	uint32_t rNr = 0;
-	uint32_t r = 0;
-
-	for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
-	{
-		currentRowNr = 0;
-		for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
-		{
-			GetLocalSeed;
-			GetLocalKey;
-			//amp_out = permutate(local_seed, local_key_padded)
-			XorWithKeyRest;
-			++currentRowNr;
-		}
-		r += chunk_size_blocks;
-		++rNr;
-	}
-
-	for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
-	{
-		currentRowNr = rowNr;
-		for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
-		{
-			GetLocalSeed;
-			GetLocalKey;
-			//amp_out = permutate(local_seed, local_key_padded)
-			XorWithKeyRest;
-			++currentRowNr;
-		}
-		r += chunk_size_blocks;
-		++rNr;
-	}
-
 	thread threadSeedProvider(seedProvider);
 	threadSeedProvider.detach();
 	thread threadKeyProvider(keyProvider);

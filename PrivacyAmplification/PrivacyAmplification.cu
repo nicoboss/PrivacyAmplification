@@ -1000,6 +1000,11 @@ void reciveDataSeed() {
 			zmq_send(socket_seed_in, "SYN", 3, 0);
 			ZMQ_RECIVE_DATA_SEED(reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), "reuse_seed_amount_array")
 			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_block * sizeof(uint32_t), "data")
+			printlock.lock();
+			cout << "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS" << endl;
+			printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
+			cout << "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS" << endl;
+			printlock.unlock();
 			if (show_zeromq_status) {
 				println("Seed Block recived");
 			}
@@ -1085,6 +1090,11 @@ void reciveDataKey() {
 						goto retry_receiving_key;
 				}
 				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
+				printlock.lock();
+				cout << "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" << endl;
+				printBin(key_start_block, key_start_block + horizontal_block);
+				cout << "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" << endl;
+				printlock.unlock();
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
 				{
