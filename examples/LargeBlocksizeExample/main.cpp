@@ -285,7 +285,7 @@ void seedProvider()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
 		{
 			currentRowNr = 0;
 			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
@@ -391,7 +391,7 @@ void receiveAmpOut()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
+		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
 		{
 			currentRowNr = 0;
 			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
