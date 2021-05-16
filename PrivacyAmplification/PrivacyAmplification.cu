@@ -190,7 +190,9 @@ uint32_t* key_rest_zero_pos;
 uint8_t* Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
+#ifdef TEST
 uint8_t* testMemoryHost;
+#endif
 bool do_xor_key_rest = true;
 
 #if SHOW_DEBUG_OUTPUT == TRUE
@@ -1203,7 +1205,7 @@ void sendData() {
 		}
 		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
-		uint8_t* output_block = testMemoryHost;
+		uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
 
 		if (verify_ampout)
 		{
@@ -1571,9 +1573,9 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&assertKernelValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&assertKernelReturnValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&value_dev, sizeof(uint8_t));
-	//#ifdef TEST
+	#ifdef TEST
 	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-	//#endif
+	#endif
 	#if SHOW_DEBUG_OUTPUT == TRUE
 	cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache);
 	#endif
@@ -1980,12 +1982,12 @@ int main(int argc, char* argv[])
 		#endif
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-			(invOut, reinterpret_cast<uint32_t*>(testMemoryHost), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
+			(invOut, reinterpret_cast<uint32_t*>(binOut), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
 		#else
 		if (do_xor_key_rest) {
-			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
 		} else {
-			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, testMemoryHost, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
 		}
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
@@ -2052,6 +2054,8 @@ int main(int argc, char* argv[])
 	cudaFree(do2);
 	#endif
 	cudaFree(Output);
+	#ifdef TEST
 	cudaFree(testMemoryHost);
+	#endif
 	return 0;
 }
