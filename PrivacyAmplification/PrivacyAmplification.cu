@@ -1092,7 +1092,7 @@ void reciveDataKey() {
 				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
 				printlock.lock();
 				cout << "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" << endl;
-				printBin(key_start_block, key_start_block + horizontal_block);
+				printBin(key_start_block, key_start_block + key_blocks);
 				cout << "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" << endl;
 				printlock.unlock();
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;

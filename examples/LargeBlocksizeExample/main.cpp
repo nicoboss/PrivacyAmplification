@@ -41,6 +41,7 @@ const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 #define chunk_size pwrtwo(factor_chunk)
+#define chunk_side chunk_size/2
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
@@ -59,20 +60,21 @@ constexpr uint32_t vertical_bytes = vertical_len / 8;
 uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(vertical_bytes));
 
 constexpr uint32_t chunk_size_blocks = chunk_size / 32;
-constexpr uint32_t chunk_vertical_len = chunk_size / 4 + chunk_size / 8;
-constexpr uint32_t chunk_horizontal_len = chunk_size / 2 + chunk_size / 8;
+constexpr uint32_t chunk_side_blocks = chunk_side / 32;
+constexpr uint32_t chunk_vertical_len = chunk_side / 4 + chunk_side / 8;
+constexpr uint32_t chunk_horizontal_len = chunk_side / 2 + chunk_side / 8;
 constexpr uint32_t chunk_vertical_blocks = chunk_vertical_len / 32;
 constexpr uint32_t chunk_horizontal_blocks = chunk_horizontal_len / 32;
-constexpr uint32_t vertical_chunks = vertical_len / chunk_size;
-constexpr uint32_t horizontal_chunks = horizontal_len / chunk_size;
+constexpr uint32_t vertical_chunks = vertical_len / chunk_side;
+constexpr uint32_t horizontal_chunks = horizontal_len / chunk_side;
 
-uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(2*chunk_size_blocks, sizeof(uint32_t)));
+uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(2*chunk_side_blocks, sizeof(uint32_t)));
 
 //local_key_padded must use calloc!
 //4 time 0x00 bytes at the end for conversion to unsigned int array
-uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(2*chunk_size_blocks+1, sizeof(uint32_t)));
+uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(2*chunk_side_blocks+1, sizeof(uint32_t)));
 
-uint32_t* amp_out_arr = reinterpret_cast<uint32_t*>(calloc(vertical_chunks*(chunk_size_blocks), sizeof(uint32_t)));
+uint32_t* amp_out_arr = reinterpret_cast<uint32_t*>(calloc(vertical_chunks*(chunk_side_blocks), sizeof(uint32_t)));
 
 atomic<int> seedServerReady = 1;
 atomic<int> keyServerReady = 1;
@@ -80,24 +82,24 @@ mutex printlock;
 
 
 #define GetLocalSeed \
-memcpy(local_seed, toeplitz_seed + r + chunk_size_blocks, chunk_size / 8); \
-memcpy(local_seed + chunk_size_blocks, toeplitz_seed + r, chunk_size / 8); \
-//printBin(local_seed, local_seed+2*chunk_size_blocks);
+memcpy(local_seed, toeplitz_seed + r + chunk_side_blocks, chunk_side / 8); \
+memcpy(local_seed + chunk_side_blocks, toeplitz_seed + r, chunk_side / 8); \
+//printBin(local_seed, local_seed+2*chunk_side_blocks);
 
 //local_key_padded must use calloc!
 #define GetLocalKey \
-uint32_t* key_data_offset = key_data+keyNr*(chunk_size / 32); \
+uint32_t* key_data_offset = key_data+keyNr*(chunk_side / 32); \
 local_key_padded[0] = key_data_offset[0] >> 1; \
-for (uint32_t i = 1; i < chunk_size / 32; ++i) { \
+for (uint32_t i = 1; i < chunk_side / 32; ++i) { \
 	local_key_padded[i] = (((key_data_offset[i - 1] & 1) << 31) | (key_data_offset[i] >> 1)); \
 } \
-local_key_padded[(chunk_size / 32)] = ((key_data_offset[(chunk_size / 32) - 1] & 1) << 31); \
-//printBin(local_key_padded, local_key_padded+2*chunk_size_blocks);
+local_key_padded[(chunk_side / 32)] = ((key_data_offset[(chunk_side / 32) - 1] & 1) << 31); \
+//printBin(local_key_padded, local_key_padded+2*chunk_side_blocks);
 
 #define XorWithKeyRest \
-for (uint32_t i = 0; i < (chunk_size_blocks); ++i) \
+for (uint32_t i = 0; i < (chunk_side_blocks); ++i) \
 { \
-    amp_out_arr[currentRowNr*(chunk_size_blocks)+i] ^= ampOutInData[i]; \
+    amp_out_arr[currentRowNr*(chunk_side_blocks)+i] ^= ampOutInData[i]; \
 }
 
 #define RecieveAmpOut \
@@ -210,7 +212,7 @@ void sendSeed() {
 			println("[Seed] Error sending reuseSeedAmount! Retrying...");
 			continue;
 		}
-		if (zmq_send(MatrixSeedServer_socket, toeplitz_seed, chunk_size_blocks * sizeof(uint32_t), 0) != chunk_size_blocks * sizeof(uint32_t)) {
+		if (zmq_send(MatrixSeedServer_socket, local_seed, chunk_size_blocks * sizeof(uint32_t), 0) != chunk_side_blocks * sizeof(uint32_t)) {
 			println("[Seed] Error sending data! Retrying...");
 			continue;
 		}
@@ -255,8 +257,8 @@ void sendKey() {
 			println("[Key ] Error sending vertical_blocks! Retrying...");
 			continue;
 		}
-		println(chunk_size_blocks * sizeof(uint32_t));
-		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_size_blocks + 1) * sizeof(uint32_t)) {
+		println(chunk_side_blocks * sizeof(uint32_t));
+		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_side_blocks + 1) * sizeof(uint32_t)) {
 			println("[Key ] Error sending Key! Retrying...");
 			continue;
 		}
@@ -297,14 +299,14 @@ void seedProvider()
 				seedServerReady = 0;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 
 		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				while (seedServerReady == 0) {
 					this_thread::yield();
@@ -313,7 +315,7 @@ void seedProvider()
 				seedServerReady = 0;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 	}
@@ -343,14 +345,14 @@ void keyProvider()
 				keyServerReady = 0;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 
 		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				while (keyServerReady == 0) {
 					this_thread::yield();
@@ -359,7 +361,7 @@ void keyProvider()
 				keyServerReady = 0;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 	}
@@ -400,20 +402,20 @@ void receiveAmpOut()
 				XorWithKeyRest;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 
 		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_size_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
 				XorWithKeyRest;
 				++currentRowNr;
 			}
-			r += chunk_size_blocks;
+			r += chunk_side_blocks;
 			++rNr;
 		}
 	}
@@ -427,8 +429,8 @@ void receiveAmpOut()
 /// before switching to the next toeplitz matrix seed
 int main(int argc, char* argv[])
 {
-	if (sample_size / 8 < chunk_size) {
-		println("Fatal error: sample_size/8 < chunk_size");
+	if (sample_size / 8 < chunk_side) {
+		println("Fatal error: sample_size/8 < chunk_side");
 		exit(418); //I’m a teapot
 	}
 	thread threadSeedProvider(seedProvider);
