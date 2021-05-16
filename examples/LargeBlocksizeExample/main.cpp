@@ -212,12 +212,12 @@ void sendSeed() {
 			println("[Seed] Error sending reuseSeedAmount! Retrying...");
 			continue;
 		}
-		if (zmq_send(MatrixSeedServer_socket, local_seed, chunk_size_blocks * sizeof(uint32_t), 0) != chunk_side_blocks * sizeof(uint32_t)) {
-			println("[Seed] Error sending data! Retrying...");
+		if (zmq_send(MatrixSeedServer_socket, local_seed, chunk_size_blocks * sizeof(uint32_t), 0) != chunk_size_blocks * sizeof(uint32_t)) {
+			println("[Seed] Error sending seed! Retrying...");
 			continue;
 		}
 		time(&currentTime);
-		println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
+		//println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
 
 		seedServerReady = 1;
 		while (seedServerReady != 0) {
@@ -257,13 +257,12 @@ void sendKey() {
 			println("[Key ] Error sending vertical_blocks! Retrying...");
 			continue;
 		}
-		println(chunk_side_blocks * sizeof(uint32_t));
-		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_side_blocks + 1) * sizeof(uint32_t)) {
+		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_size_blocks + 1) * sizeof(uint32_t)) {
 			println("[Key ] Error sending Key! Retrying...");
 			continue;
 		}
 		time(&currentTime);
-		println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
+		//println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
 
 		keyServerReady = 1;
 		while (keyServerReady != 0) {
@@ -287,10 +286,10 @@ void seedProvider()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
+		for (int32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
 		{
 			currentRowNr = 0;
-			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				while (seedServerReady == 0) {
 					this_thread::yield();
@@ -303,10 +302,10 @@ void seedProvider()
 			++rNr;
 		}
 
-		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+		for (int32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				while (seedServerReady == 0) {
 					this_thread::yield();
@@ -337,14 +336,15 @@ void keyProvider()
 			println("Fatal error: horizontal_chunks <= 1");
 			exit(418); //I'm a teapot
 		}
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
+		for (int32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
 		{
 			currentRowNr = 0;
-			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
+				println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
 				++currentRowNr;
@@ -353,14 +353,15 @@ void keyProvider()
 			++rNr;
 		}
 
-		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+		for (int32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
+				println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
 				++currentRowNr;
@@ -388,7 +389,7 @@ void receiveAmpOut()
 	void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
 	zmq_setsockopt(ampOutIn_socket, ZMQ_RCVTIMEO, &timeout, sizeof(int));
 
-	cout << "Waiting for PrivacyAmplification Server..." << endl;
+	println("Waiting for PrivacyAmplification Server...");
 	zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
 
 	while (true)
@@ -397,10 +398,10 @@ void receiveAmpOut()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
-		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
+		for (int32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
 		{
 			currentRowNr = 0;
-			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
+			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				RecieveAmpOut;
 				XorWithRow;
@@ -410,10 +411,10 @@ void receiveAmpOut()
 			++rNr;
 		}
 
-		for (uint32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
+		for (int32_t rowNr = 1; rowNr < vertical_chunks; ++rowNr)
 		{
 			currentRowNr = rowNr;
-			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
+			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
 				XorWithRow;
