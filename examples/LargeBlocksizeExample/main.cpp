@@ -96,7 +96,7 @@ for (uint32_t i = 1; i < chunk_side / 32; ++i) { \
 local_key_padded[(chunk_side / 32)] = ((key_data_offset[(chunk_side / 32) - 1] & 1) << 31); \
 //printBin(local_key_padded, local_key_padded+2*chunk_side_blocks);
 
-#define XorWithKeyRest \
+#define XorWithRow \
 for (uint32_t i = 0; i < (chunk_side_blocks); ++i) \
 { \
     amp_out_arr[currentRowNr*(chunk_side_blocks)+i] ^= ampOutInData[i]; \
@@ -403,7 +403,7 @@ void receiveAmpOut()
 			for (uint32_t keyNr = columnNr; columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++columnNr)
 			{
 				RecieveAmpOut;
-				XorWithKeyRest;
+				XorWithRow;
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -416,12 +416,18 @@ void receiveAmpOut()
 			for (uint32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
-				XorWithKeyRest;
+				XorWithRow;
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
 			++rNr;
 		}
+		uint32_t* key_rest = key_data + horizontal_len / 32;
+		for (int32_t i = 0; i < vertical_len / 32; ++i)
+		{
+			amp_out_arr[i] ^= key_rest[i];
+		}
+		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
 	}
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
