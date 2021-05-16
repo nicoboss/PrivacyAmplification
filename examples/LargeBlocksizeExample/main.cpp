@@ -40,8 +40,8 @@ const char* privacyAmplificationServer_address = "tcp://127.0.0.1:48888";
 #define factor_chunk 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
-#define chunk_size pwrtwo(factor_chunk)
-#define chunk_side chunk_size/2
+constexpr uint32_t chunk_size = pwrtwo(factor_chunk);
+constexpr uint32_t chunk_side = chunk_size / 2;
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
@@ -333,6 +333,10 @@ void keyProvider()
 		uint32_t rNr = 0;
 		uint32_t r = 0;
 
+		if (horizontal_chunks <= 1) {
+			println("Fatal error: horizontal_chunks <= 1");
+			exit(418); //I'm a teapot
+		}
 		for (uint32_t columnNr = horizontal_chunks - 1; columnNr >= 0; --columnNr)
 		{
 			currentRowNr = 0;
@@ -431,7 +435,7 @@ int main(int argc, char* argv[])
 {
 	if (sample_size / 8 < chunk_side) {
 		println("Fatal error: sample_size/8 < chunk_side");
-		exit(418); //I’m a teapot
+		exit(418); //I'm a teapot
 	}
 	thread threadSeedProvider(seedProvider);
 	threadSeedProvider.detach();
