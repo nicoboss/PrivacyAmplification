@@ -103,12 +103,10 @@ for (uint32_t i = 0; i < (chunk_side_blocks); ++i) \
 }
 
 #define RecieveAmpOut \
-zmq_send(ampOutIn_socket, "SYN", 3, 0); \
 rc = zmq_recv(ampOutIn_socket, ampOutInData, chunk_vertical_len / 8, 0); \
 if (rc != chunk_vertical_len / 8) { \
 	cout << "Error receiving data from PrivacyAmplification Server!" << endl; \
 	cout << "Expected " << chunk_vertical_len / 8 << " bytes but received " << rc << " bytes! Retrying..." << endl; \
-	zmq_close(ampOutIn_socket); \
 	goto reconnect; \
 } \
  \
@@ -193,21 +191,17 @@ void binTo4byteLittleEndian(uint8_t* in_arg, uint32_t* out, uint32_t inSize) {
 /// @brief Send data to the Clients connected to the matrix seed server.
 void sendSeed() {
 	void* context = zmq_ctx_new();
-	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_REP);
+	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_PUSH);
+	int hwm = 1;
+	zmq_setsockopt(MatrixSeedServer_socket, ZMQ_SNDHWM, &hwm, sizeof(int));
 	while (zmq_bind(MatrixSeedServer_socket, address_seed_server) != 0) {
 		println("Binding to \"" << address_seed_server << "\" failed! Retrying...");
 	}
-	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 
 	println("[Seed] Waiting for Client...");
 	while (true) {
-		rc = zmq_recv(MatrixSeedServer_socket, syn, 3, 0);
-		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			println("[Seed] Error receiving SYN! Retrying...");
-			continue;
-		}
 		if (zmq_send(MatrixSeedServer_socket, &reuseSeedAmount, sizeof(int32_t), ZMQ_SNDMORE) != sizeof(int32_t)) {
 			println("[Seed] Error sending reuseSeedAmount! Retrying...");
 			continue;
@@ -233,22 +227,18 @@ void sendSeed() {
 
 void sendKey() {
 	void* context = zmq_ctx_new();
-	void* SendKeys_socket = zmq_socket(context, ZMQ_REP);
+	void* SendKeys_socket = zmq_socket(context, ZMQ_PUSH);
+	int hwm = 1;
+	zmq_setsockopt(SendKeys_socket, ZMQ_SNDHWM, &hwm, sizeof(int));
 	while (zmq_bind(SendKeys_socket, address_key_server) != 0) {
 		println("[Key ] Binding to \"" << address_key_server << "\" failed! Retrying...");
 	}
 
-	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 	println("[Key ] Waiting for clients...");
 
 	while (true) {
-		rc = zmq_recv(SendKeys_socket, syn, 3, 0);
-		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			println("[Key ] Error receiving SYN! Retrying...");
-			continue;
-		}
 		if (zmq_send(SendKeys_socket, &pa_do_xor_key_rest, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
 			println("[Key ] Error sending do_xor_key_rest! Retrying...");
 			continue;
@@ -344,7 +334,7 @@ void keyProvider()
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
-				println("Key to generate: " << currentRowNr << ", " << keyNr);
+				//println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
 				++currentRowNr;
@@ -361,7 +351,7 @@ void keyProvider()
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
-				println("Key to generate: " << currentRowNr << ", " << keyNr);
+				//println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
 				++currentRowNr;
@@ -383,11 +373,11 @@ void receiveAmpOut()
 	int32_t rc;
 	time_t currentTime;
 	void* context = zmq_ctx_new();
-	int timeout = 1000;
 
 	reconnect:;
-	void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
-	zmq_setsockopt(ampOutIn_socket, ZMQ_RCVTIMEO, &timeout, sizeof(int));
+	void* ampOutIn_socket = zmq_socket(context, ZMQ_PULL);
+	int hwm = 1;
+	zmq_setsockopt(ampOutIn_socket, ZMQ_RCVHWM, &hwm, sizeof(int));
 
 	println("Waiting for PrivacyAmplification Server...");
 	zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
@@ -423,12 +413,17 @@ void receiveAmpOut()
 			r += chunk_side_blocks;
 			++rNr;
 		}
+		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE")
+		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
+		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE")
 		uint32_t* key_rest = key_data + horizontal_len / 32;
 		for (int32_t i = 0; i < vertical_len / 32; ++i)
 		{
 			amp_out_arr[i] ^= key_rest[i];
 		}
+		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT")
 		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
+		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT")
 	}
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
