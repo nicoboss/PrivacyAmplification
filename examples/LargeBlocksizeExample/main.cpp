@@ -75,7 +75,7 @@ uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(2*chunk_side_blocks, s
 //4 time 0x00 bytes at the end for conversion to unsigned int array
 uint32_t* local_key_padded = reinterpret_cast<uint32_t*>(calloc(2*chunk_side_blocks+1, sizeof(uint32_t)));
 
-uint32_t* amp_out_arr = reinterpret_cast<uint32_t*>(calloc(vertical_chunks*(chunk_side_blocks), sizeof(uint32_t)));
+uint8_t* amp_out_arr = reinterpret_cast<uint8_t*>(calloc(vertical_chunks*(chunk_side / 8), sizeof(uint8_t)));
 
 atomic<int> seedServerReady = 1;
 atomic<int> keyServerReady = 1;
@@ -98,10 +98,12 @@ local_key_padded[(chunk_side / 32)] = ((key_data_offset[(chunk_side / 32) - 1] &
 //printBin(local_key_padded, local_key_padded+2*chunk_side_blocks);
 
 #define XorWithRow \
-for (uint32_t i = 0; i < chunk_side_blocks; ++i) \
+println(currentRowNr); \
+for (uint8_t i = 0; i < chunk_side / 8; ++i) \
 { \
-    amp_out_arr[currentRowNr*chunk_side_blocks+i] ^= ampOutInData_U32[i]; \
+    amp_out_arr[currentRowNr*(chunk_side / 8)+i] ^= ampOutInData[i]; \
 }
+
 
 #define RecieveAmpOut \
 rc = zmq_recv(ampOutIn_socket, ampOutInData, chunk_side / 8, 0); \
@@ -395,7 +397,13 @@ void receiveAmpOut()
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				RecieveAmpOut;
+				println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+				printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
+				println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 				XorWithRow;
+				println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+				printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
+				println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -415,15 +423,21 @@ void receiveAmpOut()
 			++rNr;
 		}
 		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
-		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
+		printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
 		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
-		uint32_t* key_rest = key_data + horizontal_len / 32;
-		for (int32_t i = 0; i < vertical_len / 32; ++i)
+		uint8_t* key_rest = reinterpret_cast<uint8_t*>(key_data) + horizontal_len / 8;
+		println("RESTRESTRESTRESTRESTRESTRESTRESTRESTRESTRESTREST");
+		printBin(key_rest, key_rest + vertical_len / 8);
+		println("RESTRESTRESTRESTRESTRESTRESTRESTRESTRESTRESTREST");
+		for (int32_t i = 0; i < vertical_len / 8; i+=4)
 		{
-			amp_out_arr[i] ^= key_rest[i];
+			amp_out_arr[i] ^= key_rest[i+3];
+			amp_out_arr[i+1] ^= key_rest[i+2];
+			amp_out_arr[i+2] ^= key_rest[i+1];
+			amp_out_arr[i+3] ^= key_rest[i];
 		}
 		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
-		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
+		printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
 		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
 		memset(amp_out_arr, 0x00, vertical_chunks * (chunk_side_blocks) * sizeof(uint32_t));
 	}
