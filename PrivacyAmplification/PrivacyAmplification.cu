@@ -178,6 +178,7 @@ uint32_t horizontal_len;
 uint32_t vertical_block;
 uint32_t horizontal_block;
 uint32_t desired_block;
+uint32_t desired_bytes;
 uint32_t key_blocks;
 uint32_t input_cache_block_size;
 uint32_t output_cache_block_size;
@@ -707,10 +708,8 @@ int unitTestToBinaryArray() {
 		memset(binOutTest, 0xCC, (pow(2, 27) / 32) * sizeof(uint32_t));
 		#if defined(__NVCC__)
 		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTest, key_rest_test, correction_float_dev_test);
-		ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTestNoXOR, correction_float_dev_test);
 		#else
 		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
-		vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTestNoXOR, correction_float_dev_test, normalisation_float_test_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
@@ -905,16 +904,16 @@ inline void readMatrixSeedFromFile() {
 	size_t seedfile_length = seedfile.tellg();
 	seedfile.seekg(0, ios::beg);
 
-	if (seedfile_length < desired_block * sizeof(uint32_t))
+	if (seedfile_length < desired_bytes)
 	{
 		cout << "File \"" << toeplitz_seed_path << "\" is with " << seedfile_length << " bytes too short!" << endl;
-		cout << "it is required to be at least " << desired_block * sizeof(uint32_t) << " bytes => terminating!" << endl;
+		cout << "it is required to be at least " << desired_bytes << " bytes => terminating!" << endl;
 		exit(104);
 		abort();
 	}
 
 	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed);
-	seedfile.read(toeplitz_seed_char, desired_block * sizeof(uint32_t));
+	seedfile.read(toeplitz_seed_char, desired_bytes);
 	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
 		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
 		memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
@@ -996,7 +995,7 @@ void reciveDataSeed() {
 		if (recive_toeplitz_matrix_seed) {
 		retry_receiving_seed:
 			ZMQ_RECIVE_DATA_SEED(reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), "reuse_seed_amount_array")
-			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_block * sizeof(uint32_t), "data")
+			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_bytes, "data")
 			if (show_zeromq_status) {
 				println("Seed Block recived");
 			}
@@ -1143,7 +1142,6 @@ void verifyData(const uint8_t* dataToVerify) {
 
 void sendData() {
 	int32_t rc;
-	char syn[3];
 	void* amp_out_socket = nullptr;
 	if (host_ampout_server)
 	{
@@ -1188,7 +1186,7 @@ void sendData() {
 			if (ampOutsToStore > 0) {
 				--ampOutsToStore;
 			}
-			ampout_file.write((char*)&output_block[0], vertical_len / 8);
+			ampout_file.write((char*)&output_block[0], desired_bytes / 2);
 			ampout_file.flush();
 			if (ampOutsToStore == 0) {
 				ampout_file.close();
@@ -1198,7 +1196,8 @@ void sendData() {
 		if (host_ampout_server)
 		{
 			retry_sending_amp_out:
-			if (zmq_send(amp_out_socket, output_block, vertical_len / 8, 0) != vertical_len / 8) {
+			println("zmq_send: " << desired_bytes / 2);
+			if (zmq_send(amp_out_socket, output_block, desired_bytes / 2, 0) != desired_bytes / 2) {
 				println("Error sending data to AMPOUT client! Retrying...");
 				goto retry_sending_amp_out;
 			}
@@ -1217,7 +1216,7 @@ void sendData() {
 			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (sample_size / 1000000.0) << " Mbit/s" << endl;
 			if (show_ampout > 0)
 			{
-				for (size_t i = 0; i < min_template(vertical_block * sizeof(uint32_t), show_ampout); ++i)
+				for (size_t i = 0; i < min_template((desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
 				{
 					printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
 				}
@@ -1275,6 +1274,7 @@ void readConfig() {
 	vertical_block = vertical_len / 32;
 	horizontal_block = horizontal_len / 32;
 	desired_block = sample_size / 32;
+	desired_bytes = sample_size / 8;
 	key_blocks = desired_block + 1;
 	input_cache_block_size = desired_block;
 	output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
@@ -1661,6 +1661,7 @@ int main(int argc, char* argv[])
 					vertical_block = vertical_len / 32;
 					horizontal_block = horizontal_len / 32;
 					desired_block = sample_size / 32;
+					desired_bytes = sample_size / 8;
 					key_blocks = desired_block + 1;
 					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
 					dist_freq = sample_size / 2 + 1;
@@ -1739,7 +1740,7 @@ int main(int argc, char* argv[])
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);
 				assertGPU(count_one_of_global_key, 1, 0);
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed), desired_block * sizeof(uint32_t), binInt2float_seed_binIn_hash));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed), desired_bytes, binInt2float_seed_binIn_hash));
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
@@ -1947,16 +1948,21 @@ int main(int argc, char* argv[])
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F3EC000); //0.745117
 		}
 		#endif
-		#if defined(__NVCC__)
-		ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-			(invOut, reinterpret_cast<uint32_t*>(binOut), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
-		#else
 		if (do_xor_key_rest) {
+			#if defined(__NVCC__)
+			ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
+				(invOut, reinterpret_cast<uint32_t*>(binOut), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
+			#else
 			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
+			#endif
 		} else {
-			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
+			#if defined(__NVCC__)
+				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
+					(invOut, reinterpret_cast<uint32_t*>(binOut), correction_float_dev);
+			#else
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
+			#endif
 		}
-		#endif
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {

@@ -58,6 +58,7 @@ int32_t reuseSeedAmount = 0;
 uint32_t* key_data = new uint32_t[key_blocks];
 constexpr uint32_t vertical_bytes = vertical_len / 8;
 uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(vertical_bytes));
+uint32_t* ampOutInData_U32 = reinterpret_cast<uint32_t*>(ampOutInData);
 
 constexpr uint32_t chunk_size_blocks = chunk_size / 32;
 constexpr uint32_t chunk_side_blocks = chunk_side / 32;
@@ -97,16 +98,16 @@ local_key_padded[(chunk_side / 32)] = ((key_data_offset[(chunk_side / 32) - 1] &
 //printBin(local_key_padded, local_key_padded+2*chunk_side_blocks);
 
 #define XorWithRow \
-for (uint32_t i = 0; i < (chunk_side_blocks); ++i) \
+for (uint32_t i = 0; i < chunk_side_blocks; ++i) \
 { \
-    amp_out_arr[currentRowNr*(chunk_side_blocks)+i] ^= ampOutInData[i]; \
+    amp_out_arr[currentRowNr*chunk_side_blocks+i] ^= ampOutInData_U32[i]; \
 }
 
 #define RecieveAmpOut \
-rc = zmq_recv(ampOutIn_socket, ampOutInData, chunk_vertical_len / 8, 0); \
-if (rc != chunk_vertical_len / 8) { \
+rc = zmq_recv(ampOutIn_socket, ampOutInData, chunk_side / 8, 0); \
+if (rc != chunk_side / 8) { \
 	cout << "Error receiving data from PrivacyAmplification Server!" << endl; \
-	cout << "Expected " << chunk_vertical_len / 8 << " bytes but received " << rc << " bytes! Retrying..." << endl; \
+	cout << "Expected " << chunk_side / 8 << " bytes but received " << rc << " bytes! Retrying..." << endl; \
 	goto reconnect; \
 } \
  \
@@ -413,17 +414,18 @@ void receiveAmpOut()
 			r += chunk_side_blocks;
 			++rNr;
 		}
-		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE")
+		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
 		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
-		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE")
+		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
 		uint32_t* key_rest = key_data + horizontal_len / 32;
 		for (int32_t i = 0; i < vertical_len / 32; ++i)
 		{
 			amp_out_arr[i] ^= key_rest[i];
 		}
-		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT")
+		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
 		printBin(amp_out_arr, amp_out_arr + vertical_len / 32);
-		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT")
+		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
+		memset(amp_out_arr, 0x00, vertical_chunks * (chunk_side_blocks) * sizeof(uint32_t));
 	}
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
