@@ -55,7 +55,8 @@ using namespace std;
 
 
 //Little endian only!
-//#define TEST
+#define TEST
+bool doTest = true;
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1929,10 +1930,10 @@ inline void mainloop(bool speedtest)
 			#endif
 		} else {
 			#if defined(__NVCC__)
-				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(do_compress ? vertical_block / 8 : desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
+				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(do_compress ? vertical_block : desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 					(invOut, reinterpret_cast<uint32_t*>(binOut), correction_float_dev);
 			#else
-			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(do_compress ? vertical_block / 8 : desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(do_compress ? vertical_block : desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
 			#endif
 		}
 		cudaStreamSynchronize(ToBinaryArrayStream);

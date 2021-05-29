@@ -36,7 +36,7 @@ const char* address_bob = "tcp://127.0.0.1:46666";
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 11
+#define factor 27
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 
