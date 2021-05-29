@@ -18,7 +18,7 @@ const char* address = "tcp://127.0.0.1:47777";
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 27
+#define factor 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 
@@ -31,6 +31,7 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* key_data = new unsigned int[key_blocks];
+constexpr bool pa_do_xor_key_rest = true;
 
 
 /// @brief Prints an error then terminates with error code 01.
@@ -86,12 +87,13 @@ void fromFile(const char* filepath, unsigned int* recv_key) {
 int main(int argc, char* argv[])
 {
 	void* context = zmq_ctx_new();
-	void* SendKeys_socket = zmq_socket(context, ZMQ_REP);
+	void* SendKeys_socket = zmq_socket(context, ZMQ_PUSH);
+	int hwm = 1;
+	zmq_setsockopt(SendKeys_socket, ZMQ_SNDHWM, &hwm, sizeof(int));
 	while (zmq_bind(SendKeys_socket, address) != 0) {
 		cout << "Binding to \"" << address << "\" failed! Retrying..." << endl;
 	}
 
-	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 	cout << "Waiting for clients..." << endl;
@@ -101,11 +103,9 @@ int main(int argc, char* argv[])
 	fromFile("keyfile.bin", key_data);
 
 	while (true) {
-
-		rc = zmq_recv(SendKeys_socket, syn, 3, 0);
-		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			cout << "Error receiving SYN! Retrying..." << endl;
-			continue;
+		if (zmq_send(SendKeys_socket, &pa_do_xor_key_rest, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
+			cout << "[Key ] Error sending do_xor_key_rest! Retrying..." << endl;
+			continue;	
 		}
 		if (zmq_send(SendKeys_socket, &vertical_block, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
 			cout << "Error sending vertical_blocks! Retrying..." << endl;

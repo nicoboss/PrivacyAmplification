@@ -36,7 +36,7 @@ const char* address_bob = "tcp://127.0.0.1:46666";
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 27
+#define factor 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 
@@ -122,21 +122,17 @@ void fromFile(const char* filepath, unsigned int* recv_seed) {
 /// @brief Send data to the Clients connected to the matrix seed server.
 void sendData(const char* address, atomic<int>* ready, const char* client_name) {
 	void* context = zmq_ctx_new();
-	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_REP);
+	void* MatrixSeedServer_socket = zmq_socket(context, ZMQ_PUSH);
+	int hwm = 1;
+	zmq_setsockopt(MatrixSeedServer_socket, ZMQ_SNDHWM, &hwm, sizeof(int));
 	while (zmq_bind(MatrixSeedServer_socket, address) != 0) {
 		println("Binding to \"" << address << "\" failed! Retrying...");
 	}
-	char syn[3];
 	int32_t rc;
 	time_t currentTime;
 
 	println("Waiting for Client " << client_name << " ...");
 	while (true) {
-		rc = zmq_recv(MatrixSeedServer_socket, syn, 3, 0);
-		if (rc != 3 || syn[0] != 'S' || syn[1] != 'Y' || syn[2] != 'N') {
-			println("Error receiving SYN! Retrying...");
-			continue;
-		}
 		if (zmq_send(MatrixSeedServer_socket, &reuseSeedAmount, sizeof(int32_t), ZMQ_SNDMORE) != sizeof(int32_t)) {
 			cout << "Error sending reuseSeedAmount! Retrying..." << endl;
 			continue;

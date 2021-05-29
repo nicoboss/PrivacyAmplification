@@ -10,7 +10,7 @@ using namespace std;
 /*Privacy Amplification input size in bits
   Has to be 2^x and 2^27 is the maximum
   Needs to match with the one specified in other components*/
-#define factor 27
+#define factor 11
 #define pwrtwo(x) (1 << (x))
 #define sample_size pwrtwo(factor)
 
@@ -33,17 +33,16 @@ int main(int argc, char* argv[])
 	int32_t rc;
 	time_t currentTime;
 	void* context = zmq_ctx_new();
-	int timeout = 1000;
 
 	reconnect:;
-	void* ampOutIn_socket = zmq_socket(context, ZMQ_REQ);
-	zmq_setsockopt(ampOutIn_socket, ZMQ_RCVTIMEO, &timeout, sizeof(int));
+	void* ampOutIn_socket = zmq_socket(context, ZMQ_PULL);
+	int hwm = 1;
+	zmq_setsockopt(ampOutIn_socket, ZMQ_RCVHWM, &hwm, sizeof(int));
 
 	cout << "Waiting for PrivacyAmplification Server..." << endl;
 	zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
 
 	while (true) {
-		zmq_send(ampOutIn_socket, "SYN", 3, 0);
 		rc = zmq_recv(ampOutIn_socket, ampOutInData, vertical_bytes, 0);
 		if (rc != vertical_bytes) {
 			cout << "Error receiving data from PrivacyAmplification Server!" << endl;
