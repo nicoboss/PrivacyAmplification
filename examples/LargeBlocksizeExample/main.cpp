@@ -53,6 +53,8 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 constexpr bool pa_do_xor_key_rest = false;
+constexpr bool pa_do_compress = false;
+
 uint32_t* toeplitz_seed = reinterpret_cast<uint32_t*>(malloc(desired_block * sizeof(uint32_t)));
 int32_t reuseSeedAmount = 0;
 uint32_t* key_data = new uint32_t[key_blocks];
@@ -88,6 +90,7 @@ memcpy(local_seed + chunk_side_blocks, toeplitz_seed + r, chunk_side / 8); \
 //printBin(local_seed, local_seed+2*chunk_side_blocks);
 
 //local_key_padded must use calloc!
+//ToDo: Komentar!
 #define GetLocalKey \
 uint32_t* key_data_offset = key_data+keyNr*(chunk_side / 32); \
 local_key_padded[0] = key_data_offset[0] >> 1; \
@@ -244,6 +247,10 @@ void sendKey() {
 	while (true) {
 		if (zmq_send(SendKeys_socket, &pa_do_xor_key_rest, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
 			println("[Key ] Error sending do_xor_key_rest! Retrying...");
+			continue;
+		}
+		if (zmq_send(SendKeys_socket, &pa_do_compress, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
+			cout << "[Key ] Error sending do_compress! Retrying..." << endl;
 			continue;
 		}
 		if (zmq_send(SendKeys_socket, &chunk_vertical_blocks, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
