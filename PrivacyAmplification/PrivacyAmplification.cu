@@ -993,7 +993,6 @@ void reciveDataSeed() {
 		}
 		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed;
 		if (recive_toeplitz_matrix_seed) {
-		retry_receiving_seed:
 			ZMQ_RECIVE_DATA_SEED(reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), "reuse_seed_amount_array")
 			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_bytes, "data")
 			if (show_zeromq_status) {
@@ -1141,7 +1140,6 @@ void verifyData(const uint8_t* dataToVerify) {
 
 
 void sendData() {
-	int32_t rc;
 	void* amp_out_socket = nullptr;
 	if (host_ampout_server)
 	{
@@ -1444,41 +1442,7 @@ int main(int argc, char* argv[])
 	output_cache_read_pos = input_blocks_to_cache - 1;
 	output_cache_write_pos = 0;
 
-	uint32_t* count_one_arr;
-	uint32_t* count_one_of_global_seed;
-	uint32_t* count_one_of_global_key;
-	float* correction_float_dev;
-	Real* di1; //Device Input 1
-	Real* di2; //Device Input 2
-	Real* invOut;  //Result of the IFFT (uses the same memory as do2)
 	#if defined(__NVCC__)
-	Complex* do1;  //Device Output 1 and result of ElementWiseProduct
-	Complex* do2;  //Device Output 2 and result of the IFFT
-	#endif
-
-
-	#if STOPWATCH == TRUE
-	uint64_t stopwatch_wait_for_input_buffer = 0;
-	uint64_t stopwatch_cleaned_memory = 0;
-	uint64_t stopwatch_set_count_one_to_zero = 0;
-	uint64_t stopwatch_binInt2float_key = 0;
-	uint32_t stopwatch_binInt2float_seed = 0;
-	uint64_t stopwatch_calculateCorrectionFloat = 0;
-	uint64_t stopwatch_fft_key = 0;
-	uint64_t stopwatch_fft_seed = 0;
-	uint64_t stopwatch_setFirstElementToZero = 0;
-	uint64_t stopwatch_elementWiseProduct = 0;
-	uint64_t stopwatch_ifft = 0;
-	uint64_t stopwatch_wait_for_output_buffer = 0;
-	uint64_t stopwatch_toBinaryArray = 0;
-	uint64_t stopwatch_total = 0;
-	uint64_t stopwatch_total_max = UINT64_MAX;
-	#endif
-
-	#if defined(__NVCC__)
-	cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
-		cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
-		SetFirstElementToZeroStream, ElementWiseProductStream, ToBinaryArrayStream;
 	cudaStreamCreate(&FFTStream);
 	cudaStreamCreate(&BinInt2floatKeyStream);
 	cudaStreamCreate(&BinInt2floatSeedStream);
@@ -1491,30 +1455,16 @@ int main(int argc, char* argv[])
 	cudaStreamCreate(&ElementWiseProductStream);
 	cudaStreamCreate(&ToBinaryArrayStream);
 	#else
-	const int cudaStream_t = 0;
-	const int FFTStream = 0;
-	const int BinInt2floatKeyStream = 0;
-	const int BinInt2floatSeedStream = 0;
-	const int CalculateCorrectionFloatStream = 0;
-	const int cpu2gpuKeyStartStream = 0;
-	const int cpu2gpuKeyRestStream = 0;
-	const int cpu2gpuSeedStream = 0;
-	const int gpu2cpuStream = 0;
-	const int ElementWiseProductStream = 0;
-	const int ToBinaryArrayStream = 0;
-
-	VkGPU vkGPU = {};
 	vkGPU.device_id = 0;
 	cudaSetDevice(vkGPU.device_id);
 	vkGPU.instance = vuda::detail::Instance::GetVkInstance();
 	vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(vkGPU.device_id);
-	vuda::detail::logical_device* logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
+	logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
 	const vuda::detail::thrdcmdpool* thrdcmdpool = logical_device->GetPool(std::this_thread::get_id());
 	vkGPU.device = logical_device->GetDeviceHandle();
 	vkGPU.commandPool = thrdcmdpool->GetCommandPool();
 	vkGPU.queue = logical_device->GetQueue(0);
 	vkGPU.fence = thrdcmdpool->GetFence(0);
-	VkFFTResult resFFT;
 
 	#if(VKFFT_BACKEND==0)
 	glslang_initialize_process();
@@ -1540,12 +1490,12 @@ int main(int argc, char* argv[])
 	cudaMallocHost((void**)&assertKernelValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&assertKernelReturnValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&value_dev, sizeof(uint8_t));
-	#ifdef TEST
+#ifdef TEST
 	cudaMallocHost((void**)&testMemoryHost, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-	#endif
-	#if SHOW_DEBUG_OUTPUT == TRUE
+#endif
+#if SHOW_DEBUG_OUTPUT == TRUE
 	cudaMallocHost((void**)&OutputFloat, sample_size * sizeof(float) * output_blocks_to_cache);
-	#endif
+#endif
 
 	//Set key_start_zero_pos and key_rest_zero_pos to their default values
 	fill(key_start_zero_pos, key_start_zero_pos + input_blocks_to_cache, desired_block);
@@ -1558,55 +1508,46 @@ int main(int argc, char* argv[])
 	count_one_of_global_seed = count_one_arr + 1;
 
 	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
-	
+
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
 	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
 
-	#if defined(__NVCC__)
+#if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
 	cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
 
 	/*Toeplitz Seed FFT output but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-	#endif
+#endif
 
-	const uint32_t total_reduction = reduction * pre_mul_reduction;
-	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+	
 	const Real float0 = 0.0f;
 	const Real float1_reduced = 1.0f / reduction;
-	#if defined(__NVCC__)
+#if defined(__NVCC__)
 	const Complex complex0 = make_float2(0.0f, 0.0f);
 
 	/*Copy constant variables from RAM to GPUs constant memory*/
 	cudaMemcpyToSymbol(c0_dev, &complex0, sizeof(Complex));
 	cudaMemcpyToSymbol(h0_dev, &float0, sizeof(float));
 	cudaMemcpyToSymbol(h1_reduced_dev, &float1_reduced, sizeof(float));
-	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
 	cudaMemcpyToSymbol(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t));
-	#else
-	float* float1_reduced_dev;
+#else
 	cudaMalloc((void**)&float1_reduced_dev, sizeof(float));
 	cudaMemcpy(float1_reduced_dev, &float1_reduced, sizeof(float), cudaMemcpyHostToDevice);
 
-	float* normalisation_float_dev;
 	cudaMalloc((void**)&normalisation_float_dev, sizeof(float));
-	cudaMemcpy(normalisation_float_dev, &normalisation_float, sizeof(float), cudaMemcpyHostToDevice);
-
-	uint32_t* sample_size_dev;
 	cudaMalloc((void**)&sample_size_dev, sizeof(uint32_t));
-	cudaMemcpy(sample_size_dev, &sample_size, sizeof(uint32_t), cudaMemcpyHostToDevice);
 
-	uint32_t* pre_mul_reduction_dev;
 	cudaMalloc((void**)&pre_mul_reduction_dev, sizeof(uint32_t));
 	cudaMemcpy(pre_mul_reduction_dev, &pre_mul_reduction, sizeof(uint32_t), cudaMemcpyHostToDevice);
 
 	uint32_t* zero_dev;
 	cudaMalloc((void**)&zero_dev, sizeof(uint32_t));
 	cudaMemcpy(zero_dev, &zero_cpu, sizeof(uint32_t), cudaMemcpyHostToDevice);
-	#endif
+#endif
 
 	/*The reciveData function is parallelly executed on a separate thread which we start now*/
 	thread threadReciveSeedObj(reciveDataSeed);
@@ -1618,30 +1559,12 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
-	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
-	uint32_t relevant_keyBlocks = horizontal_block + 1;
-	uint32_t relevant_keyBlocks_old = 0;
-	uint32_t dist_freq = sample_size / 2 + 1;
-
-	#if defined(__NVCC__)
-	/*Plan fast fourier transformations*/
-	cufftHandle plan_forward_R2C;
-	cufftHandle plan_inverse_C2R;
-	PLAN_CUFFT;
-	#else
-	/*Plan fast fourier transformations*/
-	VkFFTApplication plan_forward_R2C_seed = {};
-	VkFFTApplication plan_forward_R2C_key = {};
-	VkFFTApplication plan_inverse_C2R = {};
-	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
-	#endif
-	
 	//unitTestCalculateCorrectionFloat();
 	//unitTestSetFirstElementToZero();
 	//unitTestElementWiseProduct();
 	//unitTestBinInt2float();
 	//unitTestToBinaryArray();
-	
+
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
 			speedtest = true;
@@ -1651,34 +1574,13 @@ int main(int argc, char* argv[])
 
 			for (int i = 0; i < 2; ++i) {
 				switch (i) {
-					case 0: reuse_seed_amount = 0; break;
-					case 1: reuse_seed_amount = -1; break;
+				case 0: reuse_seed_amount = 0; break;
+				case 1: reuse_seed_amount = -1; break;
 				}
 				for (int j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
-					vertical_len = sample_size / 4 + sample_size / 8;
-					horizontal_len = sample_size / 2 + sample_size / 8;
-					vertical_block = vertical_len / 32;
-					horizontal_block = horizontal_len / 32;
-					desired_block = sample_size / 32;
-					desired_bytes = sample_size / 8;
-					key_blocks = desired_block + 1;
-					normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
-					dist_freq = sample_size / 2 + 1;
-					#if defined(__NVCC__)
-					cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
-					cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-					PLAN_CUFFT;
-					#else
-					*normalisation_float_dev = normalisation_float;
-					*sample_size_dev = sample_size;
-					planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_seed, &plan_forward_R2C_key, &plan_inverse_C2R, di1, di2);
-					#endif
 					for (int k = 0; k < 10; ++k) {
-						//GOSUB reimplementation - Function call in same stackframe
-						goto mainloop;
-						return_speedtest:;
-
+						mainloop(true);
 						stop = chrono::high_resolution_clock::now();
 						auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
 						start = chrono::high_resolution_clock::now();
@@ -1690,21 +1592,93 @@ int main(int argc, char* argv[])
 		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;
 		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
-		#if defined(__NVCC__)
+#if defined(__NVCC__)
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
-		#endif
+#endif
 		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
 		if (strcmp(*arg, "unitTestBinInt2float") == 0) exit(unitTestBinInt2float());
 		if (strcmp(*arg, "unitTestToBinaryArray") == 0) exit(unitTestToBinaryArray());
 	}
 
+	mainloop(false);
 
+	// Deallocate memoriey on GPU and RAM
+	cudaFree(di1);
+	cudaFree(di2);
+	cudaFree(invOut);
+#if defined(__NVCC__)
+	cudaFree(do1);
+	cudaFree(do2);
+#endif
+	cudaFree(Output);
+#ifdef TEST
+	cudaFree(testMemoryHost);
+#endif
+	return 0;
 
-	//##########################
-	// Mainloop of main thread #
-	//##########################
-	while (true) {
-		mainloop:;
+}
+	
+//##########################
+// Mainloop of main thread #
+//##########################
+inline void mainloop(bool speedtest)
+{
+
+	#if STOPWATCH == TRUE
+	uint64_t stopwatch_wait_for_input_buffer = 0;
+	uint64_t stopwatch_cleaned_memory = 0;
+	uint64_t stopwatch_set_count_one_to_zero = 0;
+	uint64_t stopwatch_binInt2float_key = 0;
+	uint32_t stopwatch_binInt2float_seed = 0;
+	uint64_t stopwatch_calculateCorrectionFloat = 0;
+	uint64_t stopwatch_fft_key = 0;
+	uint64_t stopwatch_fft_seed = 0;
+	uint64_t stopwatch_setFirstElementToZero = 0;
+	uint64_t stopwatch_elementWiseProduct = 0;
+	uint64_t stopwatch_ifft = 0;
+	uint64_t stopwatch_wait_for_output_buffer = 0;
+	uint64_t stopwatch_toBinaryArray = 0;
+	uint64_t stopwatch_total = 0;
+	uint64_t stopwatch_total_max = UINT64_MAX;
+	#endif
+
+	/*relevant_keyBlocks variables are used to detect dirty memory regions*/
+	uint32_t relevant_keyBlocks = horizontal_block + 1;
+	uint32_t relevant_keyBlocks_old = 0;
+	uint32_t dist_freq = sample_size / 2 + 1;
+
+	#if defined(__NVCC__)
+	/*Plan fast fourier transformations*/
+	cufftHandle plan_forward_R2C;
+	cufftHandle plan_inverse_C2R;
+	#else
+	/*Plan fast fourier transformations*/
+	VkFFTApplication plan_forward_R2C_seed = {};
+	VkFFTApplication plan_forward_R2C_key = {};
+	VkFFTApplication plan_inverse_C2R = {};
+	#endif
+
+	vertical_len = sample_size / 4 + sample_size / 8;
+	horizontal_len = sample_size / 2 + sample_size / 8;
+	vertical_block = vertical_len / 32;
+	horizontal_block = horizontal_len / 32;
+	desired_block = sample_size / 32;
+	desired_bytes = sample_size / 8;
+	key_blocks = desired_block + 1;
+	const uint32_t total_reduction = reduction * pre_mul_reduction;
+	normalisation_float = ((float)sample_size) / ((float)total_reduction) / ((float)total_reduction);
+	#if defined(__NVCC__)
+	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
+	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
+	PLAN_CUFFT;
+	#else
+	cudaMemcpy(normalisation_float_dev, &normalisation_float, sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(sample_size_dev, &sample_size, sizeof(uint32_t), cudaMemcpyHostToDevice);
+	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
+	#endif
+
+	while(true)
+	{
 		STOPWATCH_START
 		/*Spinlock waiting for data provider*/
 		chrono::steady_clock::time_point begin = std::chrono::high_resolution_clock::now();
@@ -1999,7 +1973,7 @@ int main(int argc, char* argv[])
 
 
 		if (speedtest) {
-			goto return_speedtest;
+			return;
 		}
 		else
 		{
@@ -2018,17 +1992,4 @@ int main(int argc, char* argv[])
 	deleteVkFFT(&plan_forward_R2C_key);
 	#endif
 
-	// Deallocate memoriey on GPU and RAM
-	cudaFree(di1);
-	cudaFree(di2);
-	cudaFree(invOut);
-	#if defined(__NVCC__)
-	cudaFree(do1);
-	cudaFree(do2);
-	#endif
-	cudaFree(Output);
-	#ifdef TEST
-	cudaFree(testMemoryHost);
-	#endif
-	return 0;
 }

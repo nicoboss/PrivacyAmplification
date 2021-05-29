@@ -400,3 +400,38 @@ void setConsoleDesign();
 /// It handles and conrolls everything that happens in the main thread.
 /// It also contains the whole memory management on both RAM and GPU.
 int main(int argc, char* argv[]);
+
+void mainloop(bool speedtest);
+
+
+uint32_t* count_one_arr;
+uint32_t* count_one_of_global_seed;
+uint32_t* count_one_of_global_key;
+float* correction_float_dev;
+Real* di1; //Device Input 1
+Real* di2; //Device Input 2
+Real* invOut;  //Result of the IFFT (uses the same memory as do2)
+#if defined(__NVCC__)
+Complex* do1;  //Device Output 1 and result of ElementWiseProduct
+Complex* do2;  //Device Output 2 and result of the IFFT
+cudaStream_t FFTStream, BinInt2floatKeyStream, BinInt2floatSeedStream, CalculateCorrectionFloatStream,
+cpu2gpuKeyStartStream, cpu2gpuKeyRestStream, cpu2gpuSeedStream, gpu2cpuStream,
+SetFirstElementToZeroStream, ElementWiseProductStream, ToBinaryArrayStream;
+#else
+VkGPU vkGPU = {};
+vuda::detail::logical_device* logical_device;
+float* float1_reduced_dev;
+float* normalisation_float_dev;
+uint32_t* sample_size_dev;
+uint32_t* pre_mul_reduction_dev;
+const int FFTStream = 0;
+const int BinInt2floatKeyStream = 0;
+const int BinInt2floatSeedStream = 0;
+const int CalculateCorrectionFloatStream = 0;
+const int cpu2gpuKeyStartStream = 0;
+const int cpu2gpuKeyRestStream = 0;
+const int cpu2gpuSeedStream = 0;
+const int gpu2cpuStream = 0;
+const int ElementWiseProductStream = 0;
+const int ToBinaryArrayStream = 0;
+#endif
