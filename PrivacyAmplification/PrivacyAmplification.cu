@@ -1939,10 +1939,10 @@ inline void mainloop(bool speedtest)
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(testMemoryHost), vertical_len / 8, ampout_sha3));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(binOut), vertical_len / 8, ampout_sha3));
 		}
 		#endif
-		//printBin(reinterpret_cast<uint8_t*>(testMemoryHost), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
+		//printBin(reinterpret_cast<uint8_t*>(binOut), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
 		STOPWATCH_SAVE(stopwatch_toBinaryArray)
 		STOPWATCH_TOTAL(stopwatch_total)
 
