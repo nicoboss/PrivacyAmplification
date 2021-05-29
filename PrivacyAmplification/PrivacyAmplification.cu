@@ -195,6 +195,7 @@ uint32_t* assertKernelReturnValue;
 uint8_t* testMemoryHost;
 #endif
 bool do_xor_key_rest = true;
+bool do_compress = true;
 
 #if SHOW_DEBUG_OUTPUT == TRUE
 Real* OutputFloat;
@@ -1050,6 +1051,7 @@ void reciveDataKey() {
 		{
 		retry_receiving_key:
 			ZMQ_RECIVE_DATA_KEY(&do_xor_key_rest, sizeof(bool), "do_xor_key_rest")
+			ZMQ_RECIVE_DATA_KEY(&do_compress, sizeof(bool), "do_compress")
 			ZMQ_RECIVE_DATA_KEY(&vertical_block, sizeof(uint32_t), "vertical_blocks")
 			vertical_len = vertical_block * 32;
 			horizontal_len = sample_size - vertical_len;
@@ -1184,7 +1186,7 @@ void sendData() {
 			if (ampOutsToStore > 0) {
 				--ampOutsToStore;
 			}
-			ampout_file.write((char*)&output_block[0], desired_bytes / 2);
+			ampout_file.write((char*)&output_block[0], do_compress ? vertical_len / 8 : desired_bytes / 2);
 			ampout_file.flush();
 			if (ampOutsToStore == 0) {
 				ampout_file.close();
@@ -1193,9 +1195,9 @@ void sendData() {
 
 		if (host_ampout_server)
 		{
-			retry_sending_amp_out:
-			println("zmq_send: " << desired_bytes / 2);
-			if (zmq_send(amp_out_socket, output_block, desired_bytes / 2, 0) != desired_bytes / 2) {
+		retry_sending_amp_out:
+			println("zmq_send: " << (do_compress ? vertical_len / 8 : desired_bytes / 2));
+			if (zmq_send(amp_out_socket, output_block, do_compress ? vertical_len / 8 : desired_bytes / 2, 0) != (do_compress ? vertical_len / 8 : desired_bytes / 2)) {
 				println("Error sending data to AMPOUT client! Retrying...");
 				goto retry_sending_amp_out;
 			}
@@ -1214,7 +1216,7 @@ void sendData() {
 			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (sample_size / 1000000.0) << " Mbit/s" << endl;
 			if (show_ampout > 0)
 			{
-				for (size_t i = 0; i < min_template((desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
+				for (size_t i = 0; i < min_template((do_compress ? vertical_len / 8 : desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
 				{
 					printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
 				}
@@ -1927,10 +1929,10 @@ inline void mainloop(bool speedtest)
 			#endif
 		} else {
 			#if defined(__NVCC__)
-				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
+				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(do_compress ? vertical_block / 8 : desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
 					(invOut, reinterpret_cast<uint32_t*>(binOut), correction_float_dev);
 			#else
-			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(do_compress ? vertical_block / 8 : desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
 			#endif
 		}
 		cudaStreamSynchronize(ToBinaryArrayStream);

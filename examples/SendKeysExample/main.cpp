@@ -32,6 +32,7 @@ constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* key_data = new unsigned int[key_blocks];
 constexpr bool pa_do_xor_key_rest = true;
+constexpr bool pa_do_compress = true;
 
 
 /// @brief Prints an error then terminates with error code 01.
@@ -106,6 +107,10 @@ int main(int argc, char* argv[])
 		if (zmq_send(SendKeys_socket, &pa_do_xor_key_rest, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
 			cout << "[Key ] Error sending do_xor_key_rest! Retrying..." << endl;
 			continue;	
+		}
+		if (zmq_send(SendKeys_socket, &pa_do_compress, sizeof(bool), ZMQ_SNDMORE) != sizeof(bool)) {
+			cout << "[Key ] Error sending do_compress! Retrying..." << endl;
+			continue;
 		}
 		if (zmq_send(SendKeys_socket, &vertical_block, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
 			cout << "Error sending vertical_blocks! Retrying..." << endl;
