@@ -147,9 +147,9 @@ assertTrue(error == cudaSuccess); \
 }
 
 #if STOPWATCH == TRUE
-chrono::steady_clock::time_point start;
-chrono::steady_clock::time_point checkpoint;
-chrono::steady_clock::time_point new_checkpoint;
+chrono::high_resolution_clock::time_point start;
+chrono::high_resolution_clock::time_point checkpoint;
+chrono::high_resolution_clock::time_point new_checkpoint;
 
 #define STOPWATCH_START \
 start = std::chrono::high_resolution_clock::now(); \
@@ -1677,7 +1677,7 @@ inline void mainloop(bool speedtest)
 	{
 		STOPWATCH_START
 		/*Spinlock waiting for data provider*/
-		chrono::steady_clock::time_point begin = std::chrono::high_resolution_clock::now();
+		chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
 		if (reuse_seed_amount == 0) {
 			while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
 				this_thread::yield();
