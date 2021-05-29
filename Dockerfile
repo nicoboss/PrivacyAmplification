@@ -1,6 +1,4 @@
-#FROM nvidia/cuda:11.0-devel-ubuntu20.04
-FROM nvidia/cuda:10.2-devel
-#FROM nvidia/cuda:10.1-devel
+FROM nvidia/11.3.0-devel-ubuntu20.04
 MAINTAINER Nico Bosshard
 LABEL version="1.0"
 LABEL description="Fast Privacy Amplification implementation using CUDA"
@@ -28,7 +26,7 @@ RUN echo "alias tmux='tmux -u'" >> ~/.bashrc && \
 RUN mkdir .ssh && chmod 700 .ssh
 COPY PrivacyAmplificationDocker.pub .ssh/authorized_keys
 RUN chmod 755 .ssh/authorized_keys
-RUN git clone --recursive https://oauth2:_tqToxodj7-zxRsANcyD@gitlab.enterpriselab.ch/fm-20hs/privacyamplification.git \
+RUN git clone --recursive https://oauth2:3_wtn2uTreSXt9q1ihXV@gitlab.enterpriselab.ch/qkd/gpu/privacyamplification.git \
     && chmod +x privacyamplification/run.sh
 WORKDIR /root/privacyamplification
 RUN make -j 4
