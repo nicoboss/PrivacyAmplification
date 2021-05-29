@@ -1,4 +1,4 @@
-FROM nvidia/11.3.0-devel-ubuntu20.04
+FROM nvidia/cuda:11.3.0-devel-ubuntu20.04
 MAINTAINER Nico Bosshard
 LABEL version="1.0"
 LABEL description="Fast Privacy Amplification implementation using CUDA"
