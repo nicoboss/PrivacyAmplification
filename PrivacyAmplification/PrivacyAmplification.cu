@@ -39,9 +39,9 @@
 #include "glslang_c_interface.h"
 //#include "half_lib/half.hpp"
 #include <vuda/vuda_runtime.hpp>
-#endif
 #include "vkFFT/vkFFT.h"
 #include "vkFFT/vkFFT_helper.h"
+#endif
 
 #if !defined(NDEBUG)
 #define VUDA_STD_LAYER_ENABLED
