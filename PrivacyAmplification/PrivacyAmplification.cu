@@ -207,10 +207,10 @@ atomic<uint32_t> output_cache_read_pos;
 atomic<uint32_t> output_cache_write_pos;
 mutex printlock;
 float normalisation_float;
-atomic<bool> unitTestsFailed = false;
-atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed = false;
-atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed = false;
-atomic<bool> cuFFT_planned = false;
+atomic<bool> unitTestsFailed(false);
+atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed(false);
+atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed(false);
+atomic<bool> cuFFT_planned(false);
 
 #if defined(__NVCC__)
 __device__ __constant__ Complex c0_dev;
@@ -511,7 +511,7 @@ void unitTestBinInt2floatVerifyResultThread(float* floatOutTest, int i, int i_ma
 
 int unitTestBinInt2float() {
 	println("Started TestBinInt2float Unit Test...");
-	atomic<bool> unitTestsFailedLocal = false;
+	atomic<bool> unitTestsFailedLocal(false);
 	#if defined(__NVCC__)
 	cudaStream_t BinInt2floatStreamTest;
 	cudaStreamCreate(&BinInt2floatStreamTest);
@@ -664,7 +664,7 @@ void unitTestToBinaryArrayVerifyResultThreadNoXOR(uint32_t* binOutTest, int i, i
 
 int unitTestToBinaryArray() {
 	println("Started ToBinaryArray Unit Test...");
-	atomic<bool> unitTestsFailedLocal = false;
+	atomic<bool> unitTestsFailedLocal(false);
 	#if defined(__NVCC__)
 	cudaStream_t ToBinaryArrayStreamTest;
 	cudaStreamCreate(&ToBinaryArrayStreamTest);
@@ -1419,8 +1419,6 @@ int main(int argc, char* argv[])
 	cout << border << endl << about << endl << border << endl << endl;
 
 	readConfig();
-	bool speedtest = false;
-	bool doTest = true;
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
 			verify_ampout = false;
@@ -1567,8 +1565,6 @@ int main(int argc, char* argv[])
 
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
-			speedtest = true;
-			doTest = false;
 			auto start = chrono::high_resolution_clock::now();
 			auto stop = chrono::high_resolution_clock::now();
 
