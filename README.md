@@ -16,15 +16,13 @@ config file will be in C:\Program Files\PrivacyAmplification\PrivacyAmplificatio
 
 **Linux:**
 
-Install NVidia Drivers, Install NVidia Docker, git clone --recursive https://oauth2:_tqToxodj7-
-zxRsANcyD@gitlab.enterpriselab.ch/fm-20hs/privacyamplification.git and execute ./run_docker.sh.
+Install NVidia Drivers, Install NVidia Docker, git clone --recursive https://oauth2:3_wtn2uTreSXt9q1ihXV@gitlab.enterpriselab.ch/qkd/gpu/privacyamplification.git and execute ./run_docker.sh.
 After Docker has started you will be in the Container and see everything running.
 
 ## How to modify
 
 ### Windows:
-Open a git Client and enter: git clone --recursive https://oauth2:_tqToxodj7-
-zxRsANcyD@gitlab.enterpriselab.ch/fm-20hs/privacyamplification.git
+Open a git Client and enter: git clone --recursive https://oauth2:3_wtn2uTreSXt9q1ihXV@gitlab.enterpriselab.ch/qkd/gpu/privacyamplification.git
 
 Optionally: Open examples/MatrixSeedServerExample/MatrixSeedServerExample.sln with Visual
 Studio 2019 and make it interface with your RNG generator. For this replace
