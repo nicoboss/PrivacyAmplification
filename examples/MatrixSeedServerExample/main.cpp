@@ -49,7 +49,7 @@ constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
 constexpr uint32_t desired_block = vertical_block + horizontal_block;
 constexpr uint32_t desired_len = vertical_len + horizontal_len;
 unsigned int* toeplitz_seed = (unsigned int*)malloc(desired_block * sizeof(uint32_t));
-int32_t reuseSeedAmount = -1;
+int32_t reuseSeedAmount = 0;
 
 atomic<int> aliceReady = 1;
 atomic<int> bobReady = 1;
