@@ -55,8 +55,8 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
-bool doTest = true;
+//#define TEST
+//bool doTest = true;
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>

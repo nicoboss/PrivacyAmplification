@@ -60,7 +60,7 @@ show_zeromq_status: false
 #however this only makes sense if dynamic_toeplitz_matrix_seed is disabled
 #or for testcases as only one block worth of data will be ever read from that file and
 #copied input_blocks_to_cache times to fill the input cache.
-use_matrix_seed_server: false
+use_matrix_seed_server: true
 address_seed_in: 'tcp://127.0.0.1:45555'
 toeplitz_seed_path: 'toeplitz_seed.bin'
 
@@ -70,7 +70,7 @@ toeplitz_seed_path: 'toeplitz_seed.bin'
 #If disabled the key will be read from the path specified in keyfile_path however this
 #only makes sense for testcases as only one block worth of data will be ever read from
 #that file and copied input_blocks_to_cache to fill the input cache.
-use_key_server: false
+use_key_server: true
 address_key_in: 'tcp://127.0.0.1:47777'
 keyfile_path: 'keyfile.bin'
 
@@ -80,7 +80,7 @@ keyfile_path: 'keyfile.bin'
 #If disabled no output will be sent anywhere which only makes sense for debugging
 #if either verify_ampout, store_first_ampouts_in_file, show_ampout is enabled or
 #the preprocessor definition SHOW_DEBUG_OUTPUT is set.
-host_ampout_server: false
+host_ampout_server: true
 address_amp_out: 'tcp://127.0.0.1:48888'
 
 #Stors the first n Privace amplification outputs to ampout.bin
