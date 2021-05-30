@@ -1779,30 +1779,53 @@ inline void mainloop(bool speedtest)
 		cudaStreamSynchronize(CalculateCorrectionFloatStream);
 		STOPWATCH_SAVE(stopwatch_calculateCorrectionFloat)
 		#if defined(__NVCC__)
-		cufftExecR2C(plan_forward_R2C, di1, do1);
+			cufftExecR2C(plan_forward_R2C, di1, do1);
 		cudaDeviceSynchronize();
 		STOPWATCH_SAVE(stopwatch_fft_key)
-		
-		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
-			cufftExecR2C(plan_forward_R2C, di2, do2);
-			if (reuse_seed_amount == -1)
-			{
-				reuse_seed_amount = -2;
+
+			if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
+				cufftExecR2C(plan_forward_R2C, di2, do2);
+				if (reuse_seed_amount == -1)
+				{
+					reuse_seed_amount = -2;
+				}
+				cudaDeviceSynchronize();
+				STOPWATCH_SAVE(stopwatch_fft_seed)
 			}
-			cudaDeviceSynchronize();
-			STOPWATCH_SAVE(stopwatch_fft_seed)
-		} else {
-			if (reuse_seed_amount > 0) {
-				 --reuse_seed_amount;
+			else {
+				if (reuse_seed_amount > 0) {
+					--reuse_seed_amount;
+				}
+				stopwatch_fft_seed = 0;
 			}
-			stopwatch_fft_seed = 0;
-		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(do1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(do2);
 		invOut = reinterpret_cast<Real*>(di2); //invOut and di2 share together the same memory region
 		#else
+		//cudaMemset(di1, 0x3f, sample_size * 4);
+
+		//cudaMemset(di1, 0x3f800000, pow(2, 27));
+		//cudaMemset(di2, 0x3f800000, pow(2, 27));
+
+		cudaMemcpy(testMemoryHost, di1, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+		for (int i = 0; i < 100; i += 2) {
+			std::cout << "[IN]" << i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1] << endl;
+		}
+
+
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		cudaStreamSynchronize(FFTStream);
+
+		cudaMemcpy(testMemoryHost, di1, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+		for (int i = 0; i < 100; i += 2) {
+			std::cout << "[OUT]" << i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1] << endl;
+		}
+
+		cudaMemcpy(testMemoryHost, di2, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+		for (int i = 0; i < 100; i += 2) {
+			std::cout << "[OUT]" << i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1] << endl;
+		}
+
 		STOPWATCH_SAVE(stopwatch_fft_key)
 		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
@@ -1825,12 +1848,12 @@ inline void mainloop(bool speedtest)
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, intermediate_key, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			for (int i = 0; i < 100; i += 2) {
-				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			for (int i = 0; i < sample_size; i += 2) {
+				std::cout << i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1] << endl;
 			}
-			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
-				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
-			}
+			//for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
+			//	println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
+			//}
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 235.36460560, 0.02, 1978260.47736773, 2000000.0));
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 293.48314198, 0.02, 2440237.09097198, 2000000.0));
