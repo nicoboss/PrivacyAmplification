@@ -19,7 +19,7 @@ jobs:
     displayName: 'Get ShortGitHash Script'
   
   - task: CmdLine@2
-    displayName: 'Execute cmake for glslang'
+    displayName: 'Create build folder for glslang'
     inputs:
       script: |
        mkdir "PrivacyAmplification/glslang-master/build"
@@ -37,6 +37,14 @@ jobs:
       solution: 'PrivacyAmplification/glslang-master/build/glslang.sln'
       platform: 'x64'
       configuration: 'Release'
+      
+  - task: CmdLine@2
+    displayName: 'Build glsl shaders'
+    inputs:
+      script: |
+       cd "PrivacyAmplification"
+       ./compileGLSL.cmd
+      failOnStderr: true
   
   - task: VSBuild@1
     displayName: 'Build PrivacyAmplification'
