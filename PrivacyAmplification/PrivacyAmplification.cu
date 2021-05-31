@@ -1749,7 +1749,9 @@ inline void mainloop(bool speedtest)
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
+			#if STOPWATCH == TRUE
 			stopwatch_binInt2float_seed = 0;
+			#endif
 		}
 		
 		#ifdef TEST
@@ -1803,7 +1805,9 @@ inline void mainloop(bool speedtest)
 			if (reuse_seed_amount > 0) {
 				 --reuse_seed_amount;
 			}
+			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
+			#endif
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(do1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(do2);
@@ -1824,7 +1828,9 @@ inline void mainloop(bool speedtest)
 			if (reuse_seed_amount > 0) {
 				--reuse_seed_amount;
 			}
+			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
+			#endif
 		}
 		Complex* intermediate_key = reinterpret_cast<Complex*>(di1);
 		Complex* intermediate_seed = reinterpret_cast<Complex*>(di2);
@@ -1977,6 +1983,16 @@ inline void mainloop(bool speedtest)
 
 
 		if (speedtest) {
+			#if defined(__NVCC__)
+			// Delete CUFFT Plans
+			cufftDestroy(plan_forward_R2C);
+			cufftDestroy(plan_inverse_C2R);
+			#else
+			// Delete CUFFT Plans
+			deleteVkFFT(&plan_forward_R2C_seed);
+			deleteVkFFT(&plan_forward_R2C_key);
+			deleteVkFFT(&plan_inverse_C2R);
+			#endif
 			return;
 		}
 		else
@@ -1994,6 +2010,7 @@ inline void mainloop(bool speedtest)
 	// Delete CUFFT Plans
 	deleteVkFFT(&plan_forward_R2C_seed);
 	deleteVkFFT(&plan_forward_R2C_key);
+	deleteVkFFT(&plan_inverse_C2R);
 	#endif
 
 }

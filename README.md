@@ -3,6 +3,8 @@
 ## Performance
 ![Privacy Ampification - RTX 3080 with dynamic Toeplitz seed](https://gist.githubusercontent.com/nicoboss/dfae7685e20cf3f418559f7960e33cfe/raw/PrivacyAmpification_RTX_3080_dynamic_seed.svg)
 ![Privacy Ampification - RTX 3080 with static Toeplitz seed](https://gist.githubusercontent.com/nicoboss/dfae7685e20cf3f418559f7960e33cfe/raw/PrivacyAmpification_RTX_3080_static_seed.svg)
+![Privacy Ampification - RTX 3080 with dynamic Toeplitz seed](https://gist.githubusercontent.com/nicoboss/dfae7685e20cf3f418559f7960e33cfe/raw/PrivacyAmpificationCuda_RTX_3080_dynamic_seed.svg)
+![Privacy Ampification - RTX 3080 with static Toeplitz seed](https://gist.githubusercontent.com/nicoboss/dfae7685e20cf3f418559f7960e33cfe/raw/PrivacyAmpificationCuda_RTX_3080_static_seed.svg)
 
 ## Installation without modification
 

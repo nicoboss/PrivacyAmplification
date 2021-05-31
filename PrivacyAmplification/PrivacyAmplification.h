@@ -20,7 +20,7 @@ typedef float2   Complex;
 #define TRUE 1
 #define FALSE 0
 #define VERSION "1.1.0"
-#define STOPWATCH TRUE
+//#define STOPWATCH TRUE
 #define NDEBUG
 
 //Return the minimum of two values

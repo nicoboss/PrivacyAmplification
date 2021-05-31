@@ -126,9 +126,16 @@ jobs:
       failOnStderr: true
     
   - task: PythonScript@0
-    displayName: 'Generate Stats'
+    displayName: 'Generate Vulkan Stats'
     inputs:
-      scriptSource: 'speedtest.py'
+      scriptSource: 'filePath'
+      scriptPath: 'speedtestVulkan.py'
+    
+  - task: PythonScript@0
+    displayName: 'Generate Cuda Stats'
+    inputs:
+      scriptSource: 'filePath'
+      scriptPath: 'speedtestCuda.py'
     
     #Requires gists.cli.py3 configured with GitHub Token
   - task: CmdLine@2
@@ -138,6 +145,8 @@ jobs:
        cd "PrivacyAmplification/bin/Release/"
        gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpification_RTX_3080_dynamic_seed.svg
        gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpification_RTX_3080_static_seed.svg
+       gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpificationCuda_RTX_3080_dynamic_seed.svg
+       gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpificationCuda_RTX_3080_static_seed.svg
       failOnStderr: true
     
   - task: PublishPipelineArtifact@1
@@ -145,4 +154,4 @@ jobs:
     inputs:
       targetPath: 'PrivacyAmplification/bin/Release'
       artifact: 'PrivacyAmplification_$(ShortGitHash)'
-      publishLocation: 'pipeline'  
+      publishLocation: 'pipeline'

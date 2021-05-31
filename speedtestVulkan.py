@@ -13,13 +13,13 @@ exec(output)
 fig, ax = plt.subplots()
 ax.plot(range(11, 28), d[0, 11:], 'o')
 ax.set(xlabel='log2(Blocksize[bit])', ylabel='Speed [Mbit/s]',
-       title='Privacy Ampification - RTX 3080 with dynamic Toeplitz seed')
+       title='Privacy Ampification Vulkan - RTX 3080 - dynamic Toeplitz seed')
 ax.grid()
 fig.savefig("PrivacyAmpification_RTX_3080_dynamic_seed.svg", format='svg', dpi=1200)
 
 fig, ax = plt.subplots()
 ax.plot(range(11, 28), d[1, 11:], 'o')
 ax.set(xlabel='log2(Blocksize[bit])', ylabel='Speed [Mbit/s]',
-       title='Privacy Ampification - RTX 3080 with static Toeplitz seed')
+       title='Privacy Ampification Vulkan - RTX 3080 - static Toeplitz seed')
 ax.grid()
 fig.savefig("PrivacyAmpification_RTX_3080_static_seed.svg", format='svg', dpi=1200)
