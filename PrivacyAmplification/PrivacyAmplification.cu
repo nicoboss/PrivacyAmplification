@@ -1144,6 +1144,7 @@ void verifyData(const uint8_t* dataToVerify) {
 	{
 		println("VERIFICATION FAILED!");
 		exit(101);
+		abort();
 	}
 }
 
@@ -1247,6 +1248,7 @@ void readConfig() {
 		cout << "Exception " << e.Type() << ": " << e.what() << endl;
 		cout << "Can't open file config.yaml => terminating!" << endl;
 		exit(102);
+		abort();
 	}
 
 	//45555 =>seed_in_alice, 46666 => seed_in_bob
@@ -1323,7 +1325,8 @@ cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUF
 if (result_forward_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
-	exit(0); \
+	exit(result_forward_FFT); \
+	abort(); \
 } \
 \
 /* Plan of the inverse complex to real fast fourier transformation */ \
@@ -1331,7 +1334,8 @@ cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUF
 if (result_inverse_FFT != CUFFT_SUCCESS) \
 { \
 	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
-	exit(0); \
+	exit(result_inverse_FFT); \
+	abort(); \
 } \
 cuFFT_planned = true;
 
@@ -1382,7 +1386,8 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
 	{
 		println("Failed to plan FFT key! Error Code: " << result_forward_FFT_key);
-		exit(0);
+		exit(result_forward_FFT_key);
+		abort();
 	}
 
 	/*Plan of the forward real to complex fast fourier transformation*/
@@ -1393,7 +1398,8 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	if (result_forward_FFT_seed != VKFFT_SUCCESS)
 	{
 		println("Failed to plan FFT seed! Error Code: " << result_forward_FFT_seed);
-		exit(0);
+		exit(result_forward_FFT_seed);
+		abort();
 	}
 
 	/*Plan of the forward real to complex fast fourier transformation*/
@@ -1408,7 +1414,8 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	if (result_plan_inverse_C2R != VKFFT_SUCCESS)
 	{
 		println("Failed to plan IFFT! Error Code: " << result_plan_inverse_C2R);
-		exit(0);
+		exit(result_plan_inverse_C2R);
+		abort();
 	}
 
 	cuFFT_planned = true;
@@ -1594,16 +1601,16 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
-			exit(0);
+			return 0;
 		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;
-		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) exit(unitTestCalculateCorrectionFloat());
+		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) return unitTestCalculateCorrectionFloat();
 #if defined(__NVCC__)
-		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) exit(unitTestSetFirstElementToZero());
+		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) return unitTestSetFirstElementToZero();
 #endif
-		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) exit(unitTestElementWiseProduct());
-		if (strcmp(*arg, "unitTestBinInt2float") == 0) exit(unitTestBinInt2float());
-		if (strcmp(*arg, "unitTestToBinaryArray") == 0) exit(unitTestToBinaryArray());
+		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) return unitTestElementWiseProduct();
+		if (strcmp(*arg, "unitTestBinInt2float") == 0) return unitTestBinInt2float();
+		if (strcmp(*arg, "unitTestToBinaryArray") == 0) return unitTestToBinaryArray();
 	}
 
 	mainloop(false);
@@ -1926,6 +1933,7 @@ inline void mainloop(bool speedtest)
 			}
 			fclose(pFile);
 			exit(0);
+			abort();
 			#endif
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos_key), vertical_len / 8, key_rest_hash));
