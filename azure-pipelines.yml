@@ -19,20 +19,24 @@ jobs:
     displayName: 'Get ShortGitHash Script'
   
   - task: CmdLine@2
-  displayName: 'Execute cmake for glslang'
-  inputs:
-    script: |
-     mkdir "PrivacyAmplification/glslang-master/build"
-     cd "PrivacyAmplification/glslang-master/build"
-     cmake ..
-    failOnStderr: true
+    displayName: 'Execute cmake for glslang'
+    inputs:
+      script: |
+       mkdir "PrivacyAmplification/glslang-master/build"
+      failOnStderr: true
+    
+  - task: CMake@1
+    displayName: 'Execute cmake for glslang'
+    inputs:
+      workingDirectory: 'PrivacyAmplification/glslang-master/build'
+      cmakeArgs: ..
   
   - task: VSBuild@1
-  displayName: 'Build glslang'
-  inputs:
-    solution: 'PrivacyAmplification/glslang-master/build/glslang.sln'
-    platform: 'x64'
-    configuration: 'Release'
+    displayName: 'Build glslang'
+    inputs:
+      solution: 'PrivacyAmplification/glslang-master/build/glslang.sln'
+      platform: 'x64'
+      configuration: 'Release'
   
   - task: VSBuild@1
     displayName: 'Build PrivacyAmplification'
