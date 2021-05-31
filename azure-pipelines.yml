@@ -26,10 +26,10 @@ jobs:
     failOnStderr: true
     
   - task: CMake@1
-    displayName: 'Execute cmake for glslang'
-    inputs:
-      workingDirectory: 'PrivacyAmplification/glslang-master/build'
-      cmakeArgs: ..
+  displayName: 'Execute cmake for glslang'
+  inputs:
+    workingDirectory: 'PrivacyAmplification/glslang-master/build'
+    cmakeArgs: ..
   
   - task: VSBuild@1
   displayName: 'Build glslang'
