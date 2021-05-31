@@ -1562,16 +1562,6 @@ int main(int argc, char* argv[])
 	cudaMemcpy(zero_dev, &zero_cpu, sizeof(uint32_t), cudaMemcpyHostToDevice);
 #endif
 
-	/*The reciveData function is parallelly executed on a separate thread which we start now*/
-	thread threadReciveSeedObj(reciveDataSeed);
-	threadReciveSeedObj.detach();
-	thread threadReciveKeyObj(reciveDataKey);
-	threadReciveKeyObj.detach();
-
-	/*The sendData function is parallelly executed on a separate thread which we start now*/
-	thread threadSendObj(sendData);
-	threadSendObj.detach();
-
 	//unitTestCalculateCorrectionFloat();
 	//#if defined(__NVCC__)
 	//unitTestSetFirstElementToZero();
@@ -1605,13 +1595,23 @@ int main(int argc, char* argv[])
 		}
 		if (strncmp(*arg, "unitTest", 8) != 0) continue;
 		if (strcmp(*arg, "unitTestCalculateCorrectionFloat") == 0) return unitTestCalculateCorrectionFloat();
-#if defined(__NVCC__)
+		#if defined(__NVCC__)
 		if (strcmp(*arg, "unitTestSetFirstElementToZero") == 0) return unitTestSetFirstElementToZero();
-#endif
+		#endif
 		if (strcmp(*arg, "unitTestElementWiseProduct") == 0) return unitTestElementWiseProduct();
 		if (strcmp(*arg, "unitTestBinInt2float") == 0) return unitTestBinInt2float();
 		if (strcmp(*arg, "unitTestToBinaryArray") == 0) return unitTestToBinaryArray();
 	}
+
+	/*The reciveData function is parallelly executed on a separate thread which we start now*/
+	thread threadReciveSeedObj(reciveDataSeed);
+	threadReciveSeedObj.detach();
+	thread threadReciveKeyObj(reciveDataKey);
+	threadReciveKeyObj.detach();
+
+	/*The sendData function is parallelly executed on a separate thread which we start now*/
+	thread threadSendObj(sendData);
+	threadSendObj.detach();
 
 	mainloop(false);
 
