@@ -536,7 +536,11 @@ int unitTestBinInt2float() {
 		binInTest[i] = i;
 	}
 	unitTestBinInt2floatVerifyResultThreadFailed = false;
+	#if defined(__NVCC__)
 	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent <= 27; ++sample_size_test_exponent)
+	#else
+	for (uint32_t sample_size_test_exponent = 10; sample_size_test_exponent <= 26; ++sample_size_test_exponent)
+	#endif
 	{
 		int elementsToCheck = pow(2, sample_size_test_exponent);
 		println("TestBinInt2float Unit Test with 2^" << sample_size_test_exponent << " samples...");
