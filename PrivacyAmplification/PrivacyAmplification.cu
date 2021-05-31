@@ -548,7 +548,7 @@ int unitTestBinInt2float() {
 		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
 		#else
 		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
-	#endif
+		#endif
 		cudaStreamSynchronize(BinInt2floatStreamTest);
 		assertEquals(*count_one_test, count_one_expected, -1);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
@@ -713,7 +713,7 @@ int unitTestToBinaryArray() {
 		ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(vertical_block_test) / 31) + 1, 1023, 0, ToBinaryArrayStreamTest) (invOutTest, binOutTestNoXOR, correction_float_dev_test);
 		#else
 		vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
-		vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, binOutTestNoXOR, binOutTest, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
+		vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStreamTest, (int)((int)(vertical_block_test) / 31) + 1, 1023, invOutTest, binOutTestNoXOR, key_rest_test, correction_float_dev_test, normalisation_float_test_dev);
 		#endif
 		cudaStreamSynchronize(ToBinaryArrayStreamTest);
 		int requiredTotalTasks = elementsToCheck % 1000000 == 0 ? elementsToCheck / 1000000 : (elementsToCheck / 1000000) + 1;
