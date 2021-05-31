@@ -18,6 +18,26 @@ jobs:
       echo ##vso[task.setvariable variable=ShortGitHash;]%shortHash%
     displayName: 'Get ShortGitHash Script'
   
+  - task: CmdLine@2
+  displayName: 'Create glslang build Directory'
+  inputs:
+    script: |
+     mkdir "PrivacyAmplification/glslang-master/build"
+    failOnStderr: true
+    
+  - task: CMake@1
+    displayName: 'Execute cmake for glslang'
+    inputs:
+      workingDirectory: 'PrivacyAmplification/glslang-master/build'
+      cmakeArgs: ..
+  
+  - task: VSBuild@1
+  displayName: 'Build glslang'
+  inputs:
+    solution: 'PrivacyAmplification/glslang-master/build/glslang.sln'
+    platform: 'x64'
+    configuration: 'Release'
+  
   - task: VSBuild@1
     displayName: 'Build PrivacyAmplification'
     inputs:
@@ -26,62 +46,63 @@ jobs:
       configuration: 'Release'
       
   - task: CmdLine@2
+    displayName: 'CalculateCorrectionFloat Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestCalculateCorrectionFloat
       failOnStderr: true
-    displayName: 'CalculateCorrectionFloat Unit Test'
     
   - task: CmdLine@2
+    displayName: 'SetFirstElementToZero Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestSetFirstElementToZero
       failOnStderr: true
-    displayName: 'SetFirstElementToZero Unit Test'
     
   - task: CmdLine@2
+    displayName: 'ElementWiseProduct Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestElementWiseProduct
       failOnStderr: true
-    displayName: 'ElementWiseProduct Unit Test'
     
   - task: CmdLine@2
+    displayName: 'BinInt2float Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestBinInt2float
       failOnStderr: true
-    displayName: 'BinInt2float Unit Test'
     
   - task: CmdLine@2
+    displayName: 'ToBinaryArray Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestToBinaryArray
       failOnStderr: true
-    displayName: 'ToBinaryArray Unit Test'
     
   - task: PythonScript@0
+    displayName: 'Generate Stats'
     inputs:
       scriptSource: 'speedtest.py'
-    displayName: 'Generate Stats'
     
+    #Requires gists.cli.py3 configured with GitHub Token
   - task: CmdLine@2
+    displayName: 'Upload Stats'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpification_RTX_3080_dynamic_seed.svg
        gists update dfae7685e20cf3f418559f7960e33cfe ? PrivacyAmpification_RTX_3080_static_seed.svg
       failOnStderr: true
-    displayName: 'Upload Stats'
     
   - task: PublishPipelineArtifact@1
+    displayName: 'Publish Pipeline Artifact'
     inputs:
       targetPath: 'PrivacyAmplification/bin/Release'
       artifact: 'PrivacyAmplification_$(ShortGitHash)'
-      publishLocation: 'pipeline'
-    displayName: 'Publish Pipeline Artifact'
+      publishLocation: 'pipeline'  
