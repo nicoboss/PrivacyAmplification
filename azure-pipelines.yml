@@ -26,7 +26,7 @@ jobs:
       failOnStderr: true
     
   - task: CMake@1
-    displayName: 'Execute cmake for glslang'
+    displayName: 'Execute CMake for glslang'
     inputs:
       workingDirectory: 'PrivacyAmplification/glslang-master/build'
       cmakeArgs: ..
@@ -39,7 +39,7 @@ jobs:
       configuration: 'Release'
       
   - task: CmdLine@2
-    displayName: 'Build glsl shaders'
+    displayName: 'Build GLSL Shaders'
     inputs:
       script: |
        cd "PrivacyAmplification"
@@ -54,7 +54,7 @@ jobs:
       configuration: 'Release'
       
   - task: CmdLine@2
-    displayName: 'CalculateCorrectionFloat Unit Test'
+    displayName: '[Vulkan] CalculateCorrectionFloat Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
@@ -62,15 +62,7 @@ jobs:
       failOnStderr: true
     
   - task: CmdLine@2
-    displayName: 'SetFirstElementToZero Unit Test'
-    inputs:
-      script: |
-       cd "PrivacyAmplification/bin/Release/"
-       PrivacyAmplification.exe unitTestSetFirstElementToZero
-      failOnStderr: true
-    
-  - task: CmdLine@2
-    displayName: 'ElementWiseProduct Unit Test'
+    displayName: '[Vulkan] ElementWiseProduct Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
@@ -78,7 +70,7 @@ jobs:
       failOnStderr: true
     
   - task: CmdLine@2
-    displayName: 'BinInt2float Unit Test'
+    displayName: '[Vulkan] BinInt2float Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
@@ -86,11 +78,51 @@ jobs:
       failOnStderr: true
     
   - task: CmdLine@2
-    displayName: 'ToBinaryArray Unit Test'
+    displayName: '[Vulkan] ToBinaryArray Unit Test'
     inputs:
       script: |
        cd "PrivacyAmplification/bin/Release/"
        PrivacyAmplification.exe unitTestToBinaryArray
+      failOnStderr: true
+      
+  - task: CmdLine@2
+    displayName: '[Cuda] CalculateCorrectionFloat Unit Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplificationCuda.exe unitTestCalculateCorrectionFloat
+      failOnStderr: true
+    
+  - task: CmdLine@2
+    displayName: '[Cuda] SetFirstElementToZero Unit Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplificationCuda.exe unitTestSetFirstElementToZero
+      failOnStderr: true
+    
+  - task: CmdLine@2
+    displayName: '[Cuda] ElementWiseProduct Unit Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplificationCuda.exe unitTestElementWiseProduct
+      failOnStderr: true
+    
+  - task: CmdLine@2
+    displayName: '[Cuda] BinInt2float Unit Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplificationCuda.exe unitTestBinInt2float
+      failOnStderr: true
+    
+  - task: CmdLine@2
+    displayName: '[Cuda] ToBinaryArray Unit Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification/bin/Release/"
+       PrivacyAmplificationCuda.exe unitTestToBinaryArray
       failOnStderr: true
     
   - task: PythonScript@0
