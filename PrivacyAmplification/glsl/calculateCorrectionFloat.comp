@@ -10,7 +10,8 @@ layout(set = 0, binding = 3) readonly buffer D { uint32_t sample_size_dev; };
 
 void main(void)
 {
-	uint64_t count_multiplied = count_one_of_global_seed * count_one_of_global_key;
-	float64_t count_multiplied_normalized = float64_t(count_multiplied) / float64_t(sample_size_dev);
-	correction_float_dev = float32_t(mod(count_multiplied_normalized, two)); //count_multiplied_normalized_modulo
+	//uint64_t count_multiplied = count_one_of_global_seed * count_one_of_global_key;
+	//float64_t count_multiplied_normalized = float64_t(count_multiplied) / float64_t(sample_size_dev);
+	//correction_float_dev = float32_t(mod(count_multiplied_normalized, two)); //count_multiplied_normalized_modulo
+	correction_float_dev = float32_t(777); //float32_t(1);
 }

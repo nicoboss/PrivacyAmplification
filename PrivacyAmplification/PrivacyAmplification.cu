@@ -323,6 +323,9 @@ int unitTestCalculateCorrectionFloat() {
 		for (uint32_t j = 0; j < *sample_size_test; ++j) {
 			*count_one_of_global_seed_test = i;
 			*count_one_of_global_key_test = j;
+			println(*count_one_of_global_seed_test);
+			println(*count_one_of_global_key_test);
+			println((double)*sample_size_test);
 			#if defined(__NVCC__)
 			calculateCorrectionFloat KERNEL_ARG4(1, 1, 0, CalculateCorrectionFloatTestStream)(count_one_of_global_seed_test, count_one_of_global_key_test, correction_float_dev_test);
 			#else
@@ -332,6 +335,13 @@ int unitTestCalculateCorrectionFloat() {
 			uint64_t cpu_count_multiplied = *count_one_of_global_seed_test * *count_one_of_global_key_test;
 			double cpu_count_multiplied_normalized = cpu_count_multiplied / (double)*sample_size_test;
 			double count_multiplied_normalized_modulo = fmod(cpu_count_multiplied_normalized, 2.0);
+			println(cpu_count_multiplied);
+			println(*count_one_of_global_seed_test);
+			println(*count_one_of_global_key_test);
+			println(cpu_count_multiplied_normalized);
+			println((double)*sample_size_test);
+			println(count_multiplied_normalized_modulo);
+			println(*correction_float_dev_test << " != " << count_multiplied_normalized_modulo);
 			assertZeroThreshold(*correction_float_dev_test - count_multiplied_normalized_modulo, 0.0001, i * *sample_size_test + j);
 		}
 	}
@@ -1562,7 +1572,7 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
-	//unitTestCalculateCorrectionFloat();
+	unitTestCalculateCorrectionFloat();
 	//unitTestSetFirstElementToZero();
 	//unitTestElementWiseProduct();
 	//unitTestBinInt2float();
