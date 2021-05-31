@@ -404,7 +404,6 @@ int main(int argc, char* argv[]);
 void mainloop(bool speedtest);
 
 
-uint32_t* count_one_arr;
 uint32_t* count_one_of_global_seed;
 uint32_t* count_one_of_global_key;
 float* correction_float_dev;

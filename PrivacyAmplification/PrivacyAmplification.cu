@@ -1506,9 +1506,8 @@ int main(int argc, char* argv[])
 
 	// Allocate memory on GPU
 	cudaMalloc((void**)&correction_float_dev, sizeof(float));
-	cudaMalloc((void**)&count_one_arr, 2 * sizeof(uint32_t));
-	count_one_of_global_key = count_one_arr;
-	count_one_of_global_seed = count_one_arr + 1;
+	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
+	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 
 	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 
@@ -1563,7 +1562,9 @@ int main(int argc, char* argv[])
 	threadSendObj.detach();
 
 	//unitTestCalculateCorrectionFloat();
+	//#if defined(__NVCC__)
 	//unitTestSetFirstElementToZero();
+	//#endif
 	//unitTestElementWiseProduct();
 	//unitTestBinInt2float();
 	//unitTestToBinaryArray();
@@ -1710,7 +1711,8 @@ inline void mainloop(bool speedtest)
 
 		
 		if (reuse_seed_amount == 0 || reuse_seed_amount ==  -1) {
-			cudaMemset(count_one_arr, 0b00000000, 2 * sizeof(uint32_t));
+			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
+			cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 			#ifdef TEST
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);
