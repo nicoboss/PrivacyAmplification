@@ -1572,12 +1572,12 @@ int main(int argc, char* argv[])
 
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
-			for (uint32_t i = 0; i < 2; ++i) {
+			for (int32_t i = 0; i < 2; ++i) {
 				switch (i) {
 				case 0: reuse_seed_amount = 0; break;
 				case 1: reuse_seed_amount = -1; break;
 				}
-				for (uint32_t j = 10; j < 28; ++j) {
+				for (int32_t j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
 					mainloop(true, i, j);
 				}
@@ -1625,7 +1625,7 @@ int main(int argc, char* argv[])
 //##########################
 // Mainloop of main thread #
 //##########################
-void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
+void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 {
 
 	#if STOPWATCH == TRUE
@@ -1681,7 +1681,7 @@ void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
 	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
 	#endif
 
-	uint32_t speedtest_nr = -3;
+	int32_t speedtest_nr = -3;
 	chrono::high_resolution_clock::time_point speedtest_start;
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
