@@ -401,7 +401,7 @@ void setConsoleDesign();
 /// It also contains the whole memory management on both RAM and GPU.
 int main(int argc, char* argv[]);
 
-void mainloop(bool speedtest);
+void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j);
 
 
 uint32_t* count_one_of_global_seed;

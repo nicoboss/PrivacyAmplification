@@ -1572,23 +1572,14 @@ int main(int argc, char* argv[])
 
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
-			auto start = chrono::high_resolution_clock::now();
-			auto stop = chrono::high_resolution_clock::now();
-
-			for (int i = 0; i < 2; ++i) {
+			for (uint32_t i = 0; i < 2; ++i) {
 				switch (i) {
 				case 0: reuse_seed_amount = 0; break;
 				case 1: reuse_seed_amount = -1; break;
 				}
-				for (int j = 10; j < 28; ++j) {
+				for (uint32_t j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
-					for (int k = 0; k < 10; ++k) {
-						mainloop(true);
-						stop = chrono::high_resolution_clock::now();
-						auto duration = chrono::duration_cast<chrono::microseconds>(stop - start).count();
-						start = chrono::high_resolution_clock::now();
-						println("d[" << i << "," << j << "," << k << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
-					}
+					mainloop(true, i, j);
 				}
 			}
 			return 0;
@@ -1613,7 +1604,7 @@ int main(int argc, char* argv[])
 	thread threadSendObj(sendData);
 	threadSendObj.detach();
 
-	mainloop(false);
+	mainloop(false, 0, 0);
 
 	// Deallocate memoriey on GPU and RAM
 	cudaFree(di1);
@@ -1634,7 +1625,7 @@ int main(int argc, char* argv[])
 //##########################
 // Mainloop of main thread #
 //##########################
-inline void mainloop(bool speedtest)
+void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
 {
 
 	#if STOPWATCH == TRUE
@@ -1690,23 +1681,34 @@ inline void mainloop(bool speedtest)
 	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
 	#endif
 
+	uint32_t speedtest_nr = 0;
+	chrono::high_resolution_clock::time_point speedtest_start;
+	chrono::high_resolution_clock::time_point speedtest_stop;
+
+
 	while(true)
-	{
-		STOPWATCH_START
+	{		
+
 		/*Spinlock waiting for data provider*/
-		chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
-		if (reuse_seed_amount == 0) {
-			while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
+		if (speedtest) {
+			++speedtest_nr;
+			speedtest_start = chrono::high_resolution_clock::now();
+		} else {
+			STOPWATCH_START
+				chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
+			if (reuse_seed_amount == 0) {
+				while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
+					this_thread::yield();
+				}
+				input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
+				reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
+			}
+			while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 				this_thread::yield();
 			}
-			input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
-			reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
+			input_cache_read_pos_key = (input_cache_read_pos_key + 1) % input_blocks_to_cache; //Switch read cache
+			STOPWATCH_SAVE(stopwatch_wait_for_input_buffer)
 		}
-		while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
-			this_thread::yield();
-		}
-		input_cache_read_pos_key = (input_cache_read_pos_key + 1) % input_blocks_to_cache; //Switch read cache
-		STOPWATCH_SAVE(stopwatch_wait_for_input_buffer)
 
 		#if defined(__NVCC__)
 		/*Detect dirty memory regions parts*/
@@ -1991,17 +1993,22 @@ inline void mainloop(bool speedtest)
 
 
 		if (speedtest) {
-			#if defined(__NVCC__)
-			// Delete CUFFT Plans
-			cufftDestroy(plan_forward_R2C);
-			cufftDestroy(plan_inverse_C2R);
-			#else
-			// Delete CUFFT Plans
-			deleteVkFFT(&plan_forward_R2C_seed);
-			deleteVkFFT(&plan_forward_R2C_key);
-			deleteVkFFT(&plan_inverse_C2R);
-			#endif
-			return;
+			speedtest_stop = chrono::high_resolution_clock::now();
+			uint32_t duration = chrono::duration_cast<chrono::microseconds>(speedtest_stop - speedtest_start).count();
+			println("d[" << speedtest_i << "," << speedtest_j << "," << speedtest_nr << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
+			if (speedtest_nr >= 10) {
+				#if defined(__NVCC__)
+				// Delete CUFFT Plans
+				cufftDestroy(plan_forward_R2C);
+				cufftDestroy(plan_inverse_C2R);
+				#else
+				// Delete CUFFT Plans
+				deleteVkFFT(&plan_forward_R2C_seed);
+				deleteVkFFT(&plan_forward_R2C_key);
+				deleteVkFFT(&plan_inverse_C2R);
+				#endif
+				return;
+			}
 		}
 		else
 		{
