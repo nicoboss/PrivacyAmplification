@@ -184,12 +184,12 @@ uint32_t key_blocks;
 uint32_t input_cache_block_size;
 uint32_t output_cache_block_size;
 uint32_t* recv_key;
-uint32_t* toeplitz_seed;
-uint32_t* key_start;
+uint32_t** toeplitz_seed;
+uint32_t** key_start;
 uint32_t* key_start_zero_pos;
-uint32_t* key_rest;
+uint32_t** key_rest;
 uint32_t* key_rest_zero_pos;
-uint8_t* Output;
+uint8_t** Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
 #ifdef TEST
@@ -861,8 +861,8 @@ bool isFletcherFloat(float* data, int count, const double expectedSum1, const do
 }
 
 inline void key2StartRest() {
-	uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
-	uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos_key;
+	uint32_t* key_start_block = key_start[input_cache_write_pos_key];
+	uint32_t* key_rest_block = key_rest[input_cache_write_pos_key];
 	uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
 	uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + input_cache_write_pos_key;
 
@@ -920,11 +920,10 @@ inline void readMatrixSeedFromFile() {
 		abort();
 	}
 
-	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed);
+	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed[input_cache_write_pos_seed]);
 	seedfile.read(toeplitz_seed_char, desired_bytes);
 	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * i;
-		memcpy(toeplitz_seed_block, toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+		memcpy(toeplitz_seed[i], toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
 	}
 }
 
@@ -958,12 +957,10 @@ inline void readKeyFromFile() {
 	keyfile.read(recv_key_char, key_blocks * sizeof(uint32_t));
 	key2StartRest();
 	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-		uint32_t* key_start_block = key_start + input_cache_block_size * i;
-		uint32_t* key_rest_block = key_rest + input_cache_block_size * i;
 		uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
 		uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
-		memcpy(key_start_block, key_start, input_cache_block_size * sizeof(uint32_t));
-		memcpy(key_rest_block, key_rest, input_cache_block_size * sizeof(uint32_t));
+		memcpy(key_start[i], key_start, input_cache_block_size * sizeof(uint32_t));
+		memcpy(key_rest[i], key_rest, input_cache_block_size * sizeof(uint32_t));
 		*key_start_zero_pos_block = *key_start_zero_pos;
 		*key_rest_zero_pos_block = *key_rest_zero_pos;
 	}
@@ -999,10 +996,9 @@ void reciveDataSeed() {
 		while (input_cache_write_pos_seed % input_blocks_to_cache == input_cache_read_pos_seed) {
 			this_thread::yield();
 		}
-		uint32_t* toeplitz_seed_block = toeplitz_seed + input_cache_block_size * input_cache_write_pos_seed;
 		if (recive_toeplitz_matrix_seed) {
 			ZMQ_RECIVE_DATA_SEED(reuse_seed_amount_array + input_cache_write_pos_seed, sizeof(int32_t), "reuse_seed_amount_array")
-			ZMQ_RECIVE_DATA_SEED(toeplitz_seed_block, desired_bytes, "data")
+			ZMQ_RECIVE_DATA_SEED(toeplitz_seed[input_cache_write_pos_seed], desired_bytes, "data")
 			if (show_zeromq_status) {
 				println("Seed Block recived");
 			}
@@ -1070,15 +1066,14 @@ void reciveDataKey() {
 			}
 			else
 			{
-				uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos_key;
 				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
-				ZMQ_RECIVE_DATA_KEY(key_start_block, key_blocks * sizeof(uint32_t), "data")
-				*(key_start_block + horizontal_block) &= 0b10000000000000000000000000000000;
+				ZMQ_RECIVE_DATA_KEY(key_start[input_cache_write_pos_key], key_blocks * sizeof(uint32_t), "data")
+				*(key_start[input_cache_write_pos_key] + horizontal_block) &= 0b10000000000000000000000000000000;
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
 				{
 					uint32_t key_start_fill_length = *key_start_zero_pos_block - new_key_start_zero_pos;
-					memset(key_start_block + new_key_start_zero_pos, 0b00000000, key_start_fill_length * sizeof(uint32_t));
+					memset(key_start[input_cache_write_pos_key] + new_key_start_zero_pos, 0b00000000, key_start_fill_length * sizeof(uint32_t));
 					*key_start_zero_pos_block = new_key_start_zero_pos;
 				}
 			}
@@ -1088,15 +1083,13 @@ void reciveDataKey() {
 		}
 
 		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
-		uint32_t* key_start_block = key_start + input_cache_block_size * input_cache_write_pos;
-		uint32_t* key_rest_block = key_rest + input_cache_block_size * input_cache_write_pos;
 		printlock.lock();
 		cout << "Key: ";
 		printBin(recv_key, recv_key + key_blocks);
 		cout << "Key Start: ";
-		printBin(key_start_block, key_start_block + desired_block + 1);
+		printBin(key_start[input_cache_write_pos], key_start[input_cache_write_pos] + desired_block + 1);
 		cout << "Key Rest: ";
-		printBin(key_rest_block, key_rest_block + vertical_block + 1);
+		printBin(key_rest[input_cache_write_pos], key_rest[input_cache_write_pos] + vertical_block + 1);
 		fflush(stdout);
 		printlock.unlock();
 		#endif
@@ -1183,18 +1176,16 @@ void sendData() {
 		}
 		output_cache_read_pos = (output_cache_read_pos + 1) % output_blocks_to_cache;
 
-		uint8_t* output_block = Output + output_cache_block_size * output_cache_read_pos;
-
 		if (verify_ampout)
 		{
-			verifyDataPool->enqueue(verifyData, output_block);
+			verifyDataPool->enqueue(verifyData, Output[output_cache_read_pos]);
 		}
 
 		if (ampOutsToStore != 0) {
 			if (ampOutsToStore > 0) {
 				--ampOutsToStore;
 			}
-			ampout_file.write((char*)&output_block[0], do_compress ? vertical_len / 8 : desired_bytes / 2);
+			ampout_file.write(const_cast<const char*>(reinterpret_cast<char*>(Output[output_cache_read_pos])), do_compress ? vertical_len / 8 : desired_bytes / 2);
 			ampout_file.flush();
 			if (ampOutsToStore == 0) {
 				ampout_file.close();
@@ -1205,7 +1196,7 @@ void sendData() {
 		{
 		retry_sending_amp_out:
 			println("zmq_send: " << (do_compress ? vertical_len / 8 : desired_bytes / 2));
-			if (zmq_send(amp_out_socket, output_block, do_compress ? vertical_len / 8 : desired_bytes / 2, 0) != (do_compress ? vertical_len / 8 : desired_bytes / 2)) {
+			if (zmq_send(amp_out_socket, Output[output_cache_read_pos], do_compress ? vertical_len / 8 : desired_bytes / 2, 0) != (do_compress ? vertical_len / 8 : desired_bytes / 2)) {
 				println("Error sending data to AMPOUT client! Retrying...");
 				goto retry_sending_amp_out;
 			}
@@ -1226,7 +1217,7 @@ void sendData() {
 			{
 				for (size_t i = 0; i < min_template((do_compress ? vertical_len / 8 : desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
 				{
-					printf("0x%02X: %s\n", output_block[i], bitset<8>(output_block[i]).to_string().c_str());
+					printf("0x%02X: %s\n", Output[output_cache_read_pos][i], bitset<8>(Output[output_cache_read_pos][i]).to_string().c_str());
 				}
 			}
 			fflush(stdout);
@@ -1497,10 +1488,22 @@ int main(int argc, char* argv[])
 	#endif
 
 	// Allocate host pinned memory on RAM
-	cudaMallocHost((void**)&toeplitz_seed, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
-	cudaMallocHost((void**)&key_start, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache);
-	cudaMallocHost((void**)&key_rest, input_cache_block_size * sizeof(uint32_t) * input_blocks_to_cache + 31 * sizeof(uint32_t));
-	cudaMallocHost((void**)&Output, output_cache_block_size * output_blocks_to_cache);
+	cudaMallocHost((void**)&toeplitz_seed, sizeof(uint32_t*) * input_blocks_to_cache);
+	for (int i = 0; i < input_blocks_to_cache; ++i) {
+		cudaMallocHost((void**)&toeplitz_seed[i], sizeof(uint32_t) * input_cache_block_size);
+	}
+	cudaMallocHost((void**)&key_start, sizeof(uint32_t*) * input_blocks_to_cache);
+	for (int i = 0; i < input_blocks_to_cache; ++i) {
+		cudaMallocHost((void**)&key_start[i], sizeof(uint32_t) * input_cache_block_size);
+	}
+	cudaMallocHost((void**)&key_rest, sizeof(uint32_t*) * input_blocks_to_cache);
+	for (int i = 0; i < input_blocks_to_cache; ++i) {
+		cudaMallocHost((void**)&key_rest[i], sizeof(uint32_t) * input_cache_block_size + 31 * sizeof(uint32_t));
+	}
+	cudaMallocHost((void**)&Output, sizeof(uint8_t*) * output_blocks_to_cache);
+	for (int i = 0; i < output_blocks_to_cache; ++i) {
+		cudaMallocHost((void**)&Output[i], sizeof(uint8_t) * output_cache_block_size);
+	}
 	cudaMallocHost((void**)&assertKernelValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&assertKernelReturnValue, sizeof(uint32_t));
 	cudaMallocHost((void**)&value_dev, sizeof(uint8_t));
@@ -1730,15 +1733,15 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			if (doTest) {
 				assertGPU(count_one_of_global_seed, 1, 0);
 				assertGPU(count_one_of_global_key, 1, 0);
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed), desired_bytes, binInt2float_seed_binIn_hash));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(toeplitz_seed[input_cache_read_pos_seed]), desired_bytes, binInt2float_seed_binIn_hash));
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
 			#if defined(__NVCC__)
 			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
-				BinInt2floatSeedStream) (toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed, di2, count_one_of_global_seed);
+				BinInt2floatSeedStream) (toeplitz_seed[input_cache_read_pos_seed], di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed + input_cache_block_size * input_cache_read_pos_seed, di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed[input_cache_read_pos_seed], di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 			#ifdef TEST
@@ -1765,14 +1768,14 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start + input_cache_block_size * input_cache_read_pos_key), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_start[input_cache_read_pos_key]), relevant_keyBlocks * sizeof(uint32_t), binInt2float_key_binIn_hash));
 		}
 		#endif
 		#if defined(__NVCC__)
 		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
-			BinInt2floatKeyStream) (key_start + input_cache_block_size * input_cache_read_pos_key, di1, count_one_of_global_key);
+			BinInt2floatKeyStream) (key_start[input_cache_read_pos_key], di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start + input_cache_block_size * input_cache_read_pos_key, di1, count_one_of_global_key, float1_reduced_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start[input_cache_read_pos_key], di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST
@@ -1911,7 +1914,6 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		}
 
 		/*Calculates where in the host pinned output memory the Privacy Amplification result will be stored*/
-		uint32_t* binOut = reinterpret_cast<uint32_t*>(Output + output_cache_block_size * output_cache_write_pos);
 		#ifdef TEST
 		if (doTest) {
 			cudaMemcpy(testMemoryHost, invOut, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
@@ -1938,32 +1940,32 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			abort();
 			#endif
 			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), sample_size, 8112419221.92300797, 20000.0, 542186359506315456.0, 2000000000000.0));
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest + input_cache_block_size * input_cache_read_pos_key), vertical_len / 8, key_rest_hash));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(key_rest[input_cache_read_pos_key]), vertical_len / 8, key_rest_hash));
 			assertGPU(reinterpret_cast<uint32_t*>(correction_float_dev), 1, 0x3F54D912); //0.83143723	
 		}		
 		#endif
 		if (do_xor_key_rest) {
 			#if defined(__NVCC__)
 			ToBinaryArray KERNEL_ARG4((int)((int)(vertical_block) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-				(invOut, reinterpret_cast<uint32_t*>(binOut), key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev);
+				(invOut, reinterpret_cast<uint32_t*>(Output[output_cache_write_pos]), key_rest[input_cache_read_pos_key], correction_float_dev);
 			#else
-			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, binOut, key_rest + input_cache_block_size * input_cache_read_pos_key, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArray.spv", "main", ToBinaryArrayStream, (int)((int)(vertical_block) / 31) + 1, 1023, invOut, Output[output_cache_write_pos], key_rest[input_cache_read_pos_key], correction_float_dev, normalisation_float_dev);
 			#endif
 		} else {
 			#if defined(__NVCC__)
 				ToBinaryArrayNoXOR KERNEL_ARG4((int)((int)(do_compress ? vertical_block : desired_block / 2) / 31) + 1, 1023, 0, ToBinaryArrayStream)
-					(invOut, reinterpret_cast<uint32_t*>(binOut), correction_float_dev);
+					(invOut, reinterpret_cast<uint32_t*>(Output[output_cache_write_pos]), correction_float_dev);
 			#else
-			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(do_compress ? vertical_block : desired_block / 2) / 31) + 1, 1023, invOut, binOut, correction_float_dev, normalisation_float_dev);
+			vuda::launchKernel("SPIRV/toBinaryArrayNoXOR.spv", "main", ToBinaryArrayStream, (int)((int)(do_compress ? vertical_block : desired_block / 2) / 31) + 1, 1023, invOut, Output[output_cache_write_pos], correction_float_dev, normalisation_float_dev);
 			#endif
 		}
 		cudaStreamSynchronize(ToBinaryArrayStream);
 		#ifdef TEST
 		if (doTest) {
-			assertTrue(isSha3(reinterpret_cast<uint8_t*>(binOut), vertical_len / 8, ampout_sha3));
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(Output[output_cache_write_pos]), vertical_len / 8, ampout_sha3));
 		}
 		#endif
-		//printBin(reinterpret_cast<uint8_t*>(binOut), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
+		//printBin(reinterpret_cast<uint8_t*>(Output[output_cache_write_pos]), reinterpret_cast<uint8_t*>(Output + output_cache_block_size * output_cache_write_pos) + 200);
 		STOPWATCH_SAVE(stopwatch_toBinaryArray)
 		STOPWATCH_TOTAL(stopwatch_total)
 
