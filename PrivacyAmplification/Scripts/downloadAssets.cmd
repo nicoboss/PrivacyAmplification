@@ -9,7 +9,7 @@ call az artifacts universal download ^
   --scope project ^
   --feed "Libs" ^
   --name "cufft64_10.dll" ^
-  --version "1.1.0" ^
+  --version "2.0.0" ^
   --path .
 
 call az artifacts universal download ^
@@ -17,8 +17,8 @@ call az artifacts universal download ^
   --project "d47efac3-15b4-4aae-9e4d-6a4c0a44a420" ^
   --scope project ^
   --feed "Libs" ^
-  --name "libzmq-v142-mt-4_3_3.dll" ^
-  --version "1.1.0" ^
+  --name "libzmq-v142-mt-4_3_5.dll" ^
+  --version "2.0.0" ^
   --path .
 
 call az artifacts universal download ^
@@ -27,7 +27,7 @@ call az artifacts universal download ^
   --scope project ^
   --feed "Testdata" ^
   --name "keyfile.bin" ^
-  --version "1.0.0" ^
+  --version "2.0.0" ^
   --path .
 
 call az artifacts universal download ^
@@ -36,5 +36,5 @@ call az artifacts universal download ^
   --scope project ^
   --feed "Testdata" ^
   --name "toeplitz_seed.bin" ^
-  --version "1.0.0" ^
+  --version "2.0.0" ^
   --path .

@@ -1,7 +1,6 @@
 **/*
 !PrivacyAmplification.exe
-!PrivacyAmplification.exp
-!PrivacyAmplification.lib
-!PrivacyAmplification.pdb
+!PrivacyAmplificationCuda.exe
 !config.yaml
 !downloadAssets.cmd
+!SPIRV/*
