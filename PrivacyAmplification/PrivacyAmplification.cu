@@ -1996,7 +1996,7 @@ void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
 			speedtest_stop = chrono::high_resolution_clock::now();
 			uint32_t duration = chrono::duration_cast<chrono::microseconds>(speedtest_stop - speedtest_start).count();
 			println("d[" << speedtest_i << "," << speedtest_j << "," << speedtest_nr << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
-			if (speedtest_nr >= 10) {
+			if (speedtest_nr >= 9) {
 				#if defined(__NVCC__)
 				// Delete CUFFT Plans
 				cufftDestroy(plan_forward_R2C);
