@@ -90,7 +90,9 @@ jobs:
        copy "examples/SendKeysExample/x64/Release/SendKeysExample.exe" "PrivacyAmplification/bin/Release/"
        copy "examples/ReceiveAmpOutExample/x64/Release/ReceiveAmpOutExample.exe" "PrivacyAmplification/bin/Release/"
        copy "examples/LargeBlocksizeExample/x64/Release/LargeBlocksizeExample.exe" "PrivacyAmplification/bin/Release/"
-       pause
+       :start
+       ping 127.0.0.1 -n 6 > nul
+       goto start
       failOnStderr: true
     
   - task: CmdLine@2
