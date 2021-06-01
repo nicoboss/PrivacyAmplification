@@ -52,7 +52,45 @@ jobs:
       solution: 'PrivacyAmplification/PrivacyAmplification.sln'
       platform: 'x64'
       configuration: 'Release'
-      
+    
+  - task: VSBuild@1
+    displayName: 'Build MatrixSeedServerExample'
+    inputs:
+      solution: 'examples/MatrixSeedServerExample/MatrixSeedServerExample.sln'
+      platform: 'x64'
+      configuration: 'Release'
+    
+  - task: VSBuild@1
+    displayName: 'Build SendKeysExample'
+    inputs:
+      solution: 'examples/SendKeysExample/SendKeysExample.sln'
+      platform: 'x64'
+      configuration: 'Release'
+    
+  - task: VSBuild@1
+    displayName: 'Build ReceiveAmpOutExample'
+    inputs:
+      solution: 'examples/ReceiveAmpOutExample/ReceiveAmpOutExample.sln'
+      platform: 'x64'
+      configuration: 'Release'
+    
+  - task: VSBuild@1
+    displayName: 'Build LargeBlocksizeExample'
+    inputs:
+      solution: 'examples/LargeBlocksizeExample/LargeBlocksizeExample.sln'
+      platform: 'x64'
+      configuration: 'Release'
+    
+  - task: CmdLine@2
+    displayName: 'Copy examples to Release'
+    inputs:
+      script: |
+       copy "examples/MatrixSeedServerExample/x64/Release/MatrixSeedServerExample.exe" "PrivacyAmplification/bin/Release/"
+       copy "examples/SendKeysExample/x64/Release/SendKeysExample.exe" "PrivacyAmplification/bin/Release/"
+       copy "examples/ReceiveAmpOutExample/x64/Release/ReceiveAmpOutExample.exe" "PrivacyAmplification/bin/Release/"
+       copy "examples/LargeBlocksizeExample/x64/Release/LargeBlocksizeExample.exe" "PrivacyAmplification/bin/Release/"
+      failOnStderr: true
+    
   - task: CmdLine@2
     displayName: '[Vulkan] CalculateCorrectionFloat Unit Test'
     inputs:

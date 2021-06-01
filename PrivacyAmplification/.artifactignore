@@ -1,6 +1,10 @@
 **/*
 !PrivacyAmplification.exe
 !PrivacyAmplificationCuda.exe
+!MatrixSeedServerExample.exe
+!SendKeysExample.exe
+!ReceiveAmpOutExample.exe
+!LargeBlocksizeExample.exe
 !config.yaml
 !downloadAssets.cmd
 !SPIRV/*
