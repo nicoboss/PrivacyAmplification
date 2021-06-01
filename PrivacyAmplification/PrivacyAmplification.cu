@@ -1681,7 +1681,7 @@ void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
 	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
 	#endif
 
-	uint32_t speedtest_nr = 0;
+	uint32_t speedtest_nr = -3;
 	chrono::high_resolution_clock::time_point speedtest_start;
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
@@ -1994,8 +1994,10 @@ void mainloop(bool speedtest, uint32_t speedtest_i, uint32_t speedtest_j)
 
 		if (speedtest) {
 			speedtest_stop = chrono::high_resolution_clock::now();
-			uint32_t duration = chrono::duration_cast<chrono::microseconds>(speedtest_stop - speedtest_start).count();
-			println("d[" << speedtest_i << "," << speedtest_j << "," << speedtest_nr << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
+			if (speedtest_nr >= 0) {
+				uint32_t duration = chrono::duration_cast<chrono::microseconds>(speedtest_stop - speedtest_start).count();
+				println("d[" << speedtest_i << "," << speedtest_j << "," << speedtest_nr << "]=" << (1000000.0 / duration) * (sample_size / 1000000.0));
+			}
 			if (speedtest_nr >= 9) {
 				#if defined(__NVCC__)
 				// Delete CUFFT Plans
