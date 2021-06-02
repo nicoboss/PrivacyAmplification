@@ -9,4 +9,4 @@ set pid=%~n1
 set exitcode=%errorlevel%
 echo LargeBlocksizeExample exited with %exitcode%
 echo PID of PrivacyAmplification is %pid%
-taskkill /PID %pid%
+taskkill /F /PID %pid%
