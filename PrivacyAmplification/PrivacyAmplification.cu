@@ -1417,8 +1417,16 @@ int main(int argc, char* argv[])
 			use_matrix_seed_server = false;
 			use_key_server = false;
 			host_ampout_server = false;
+		} else if (strcmp(*arg, "--factor_exp") == 0) {
+			int factor_exp_arg = atoi(*(arg + 1));
+			if (factor_exp_arg < 10) {
+				println("--factor_exp needs to be larger then 9")
+				return 400;
+			}
+			sample_size = pow(2, factor_exp_arg);
 		}
 	}
+
 	vertical_len = sample_size / 4 + sample_size / 8;
 	horizontal_len = sample_size / 2 + sample_size / 8;
 	vertical_block = vertical_len / 32;

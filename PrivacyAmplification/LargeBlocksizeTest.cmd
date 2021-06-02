@@ -1,5 +1,5 @@
 @echo OFF
-for /F "tokens=2 delims==; " %%I in ('wmic Process call create "%CD%\bin\Release\PrivacyAmplificationCuda.exe"^,"%~dp0." 2^> nul ^| find "ProcessId"') do call :execute %%I
+for /F "tokens=2 delims==; " %%I in ('wmic Process call create "%CD%\bin\Release\PrivacyAmplificationCuda.exe --factor_exp 11"^,"%~dp0." 2^> nul ^| find "ProcessId"') do call :execute %%I
 echo Exiting with %exitcode%
 EXIT /B %exitcode%
 
