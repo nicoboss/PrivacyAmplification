@@ -1249,7 +1249,7 @@ void readConfig() {
 	sample_size = static_cast<int>(round(pow(2, root["factor_exp"].As<uint32_t>(27))));
 	reduction = static_cast<int>(round(pow(2, root["reduction_exp"].As<uint32_t>(11))));
 	pre_mul_reduction = static_cast<int>(round(pow(2, root["pre_mul_reduction_exp"].As<uint32_t>(5))));
-	cuda_device_id_to_use = root["cuda_device_id_to_use"].As<uint32_t>(1);
+	gpu_device_id_to_use = root["gpu_device_id_to_use"].As<uint32_t>(0);
 	input_blocks_to_cache = root["input_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 	output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 
@@ -1437,7 +1437,7 @@ int main(int argc, char* argv[])
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
 
-	cudaSetDevice(cuda_device_id_to_use);
+	cudaSetDevice(gpu_device_id_to_use);
 
 	input_cache_read_pos_seed = input_blocks_to_cache - 1;
 	input_cache_read_pos_key = input_blocks_to_cache - 1;
@@ -1564,13 +1564,13 @@ int main(int argc, char* argv[])
 	cudaMemcpy(zero_dev, &zero_cpu, sizeof(uint32_t), cudaMemcpyHostToDevice);
 #endif
 
-	//unitTestCalculateCorrectionFloat();
+	//return unitTestCalculateCorrectionFloat();
 	//#if defined(__NVCC__)
-	//unitTestSetFirstElementToZero();
+	//return unitTestSetFirstElementToZero();
 	//#endif
-	//unitTestElementWiseProduct();
-	//unitTestBinInt2float();
-	//unitTestToBinaryArray();
+	//return unitTestElementWiseProduct();
+	//return unitTestBinInt2float();
+	//return unitTestToBinaryArray();
 
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {

@@ -65,7 +65,7 @@ uint32_t pre_mul_reduction;
 
 /*Specifies which GPU to use by setting this value to the CUDA device ID.
   Which ID matches to which GPU can be seen using nvidia-smi (on Linux and Windows)*/
-uint32_t cuda_device_id_to_use;
+uint32_t gpu_device_id_to_use;
 
 /*Specifies how large the input cache should be. If Privacy Amplification is slower
   then the data input cache will fill up. Cache requires RAM.
