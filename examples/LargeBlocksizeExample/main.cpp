@@ -60,7 +60,7 @@ uint32_t* toeplitz_seed = reinterpret_cast<uint32_t*>(malloc(desired_block * siz
 int32_t reuseSeedAmount = 0;
 uint32_t* key_data = new uint32_t[key_blocks];
 constexpr uint32_t vertical_bytes = vertical_len / 8;
-uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(vertical_bytes));
+uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(chunk_side / 8));
 uint32_t* ampOutInData_U32 = reinterpret_cast<uint32_t*>(ampOutInData);
 
 constexpr uint32_t chunk_size_blocks = chunk_size / 32;
@@ -448,7 +448,7 @@ void receiveAmpOut()
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				RecieveAmpOut;
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), vertical_bytes, ampOutInData_hash[ampOutInData_hash_index++]));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
@@ -464,7 +464,7 @@ void receiveAmpOut()
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), vertical_bytes, ampOutInData_hash[ampOutInData_hash_index++]));
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
