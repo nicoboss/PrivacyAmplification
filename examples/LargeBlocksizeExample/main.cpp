@@ -11,6 +11,7 @@
 #include <atomic>
 #include <zmq.h>
 #include "Matrix.h"
+#include "sha3/sha3.h"
 using namespace std;
 
 #define TRUE 1
@@ -83,6 +84,22 @@ atomic<int> seedServerReady = 1;
 atomic<int> keyServerReady = 1;
 mutex printlock;
 
+#ifdef DEBUG
+#ifdef _WIN32
+#define BREAK __debugbreak();
+#else
+#define BREAK __builtin_trap();
+#endif
+#else
+#define BREAK
+#endif
+
+#define assertTrue(actual) \
+if (!(actual)) { \
+	std::cerr << "AssertTrueError in function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << endl; \
+	BREAK \
+	exit(101); \
+}
 
 #define GetLocalSeed \
 memcpy(local_seed, toeplitz_seed + r + chunk_side_blocks, chunk_side / 8); \
@@ -101,7 +118,6 @@ local_key_padded[(chunk_side / 32)] = ((key_data_offset[(chunk_side / 32) - 1] &
 //printBin(local_key_padded, local_key_padded+2*chunk_side_blocks);
 
 #define XorWithRow \
-println(currentRowNr); \
 for (uint8_t i = 0; i < chunk_side / 8; ++i) \
 { \
     amp_out_arr[currentRowNr*(chunk_side / 8)+i] ^= ampOutInData[i]; \
@@ -116,13 +132,13 @@ if (rc != chunk_side / 8) { \
 	goto reconnect; \
 } \
  \
-time(&currentTime); \
-cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
- \
-for (size_t i = 0; i < min(chunk_vertical_len / 8, 4); ++i) \
-{  \
-	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str()); \
-}
+//time(&currentTime); \
+//cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
+// \
+//for (size_t i = 0; i < min(chunk_vertical_len / 8, 4); ++i) \
+//{  \
+//	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str()); \
+//}
 
 
 
@@ -166,6 +182,30 @@ void printBin(const uint32_t* position, const uint32_t* end) {
 		++position;
 	}
 	cout << endl;
+}
+
+string toHexString(const uint8_t* data, uint32_t data_length) {
+	std::stringstream ss;
+	ss << "{ ";
+	for (int i = 0; i < data_length; ++i) {
+		ss << std::uppercase << std::hex << "0x" << std::setw(2) << std::setfill('0') << (int)data[i];
+		(i % 8 == 7 && i + 1 < data_length)
+			? ss << "," << std::endl << "  "
+			: ss << ", ";
+	}
+	ss.seekp(-2, std::ios_base::end);
+	ss << " };";
+	return ss.str();
+}
+
+bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uint8_t expectedHash[]) {
+	sha3_ctx sha3;
+	rhash_sha3_256_init(&sha3);
+	rhash_sha3_update(&sha3, dataToVerify, dataToVerify_length);
+	uint8_t* calculatedHash = (uint8_t*)malloc(32);
+	rhash_sha3_final(&sha3, calculatedHash);
+	println(toHexString(calculatedHash, 32));
+	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
 
@@ -392,6 +432,9 @@ void receiveAmpOut()
 	println("Waiting for PrivacyAmplification Server...");
 	zmq_connect(ampOutIn_socket, privacyAmplificationServer_address);
 
+	uint32_t ampOutInData_hash_index = 0;
+	uint32_t amp_out_intermediate_hash_index = 0;
+
 	while (true)
 	{
 		uint32_t currentRowNr = 0;
@@ -401,16 +444,14 @@ void receiveAmpOut()
 		for (int32_t columnNr = horizontal_chunks - 1; columnNr > -1; --columnNr)
 		{
 			currentRowNr = 0;
+			assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				RecieveAmpOut;
-				println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-				printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
-				println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), vertical_bytes, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
-				println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
-				printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
-				println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
+				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -423,33 +464,39 @@ void receiveAmpOut()
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), vertical_bytes, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
+				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
 			++rNr;
 		}
-		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
-		printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
-		println("PREPREPREPREPREPREPREPREPREPREPREPREPREPREPREPRE");
+		println("Pre XOR:");
+		printBin(amp_out_arr, amp_out_arr + vertical_bytes);
+		assertTrue(isSha3(amp_out_arr, vertical_bytes, amp_out_pre_hash));
 		uint8_t* key_rest = reinterpret_cast<uint8_t*>(key_data) + horizontal_len / 8;
-		println("RESTRESTRESTRESTRESTRESTRESTRESTRESTRESTRESTREST");
-		printBin(key_rest, key_rest + vertical_len / 8);
-		println("RESTRESTRESTRESTRESTRESTRESTRESTRESTRESTRESTREST");
-		for (int32_t i = 0; i < vertical_len / 8; i+=4)
+		println("Key Rest:");
+		printBin(key_rest, key_rest + vertical_bytes);
+		assertTrue(isSha3(key_rest, vertical_bytes, key_rest_hash));
+		for (int32_t i = 0; i < vertical_bytes; i+=4)
 		{
 			amp_out_arr[i] ^= key_rest[i+3];
 			amp_out_arr[i+1] ^= key_rest[i+2];
 			amp_out_arr[i+2] ^= key_rest[i+1];
 			amp_out_arr[i+3] ^= key_rest[i];
 		}
-		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
-		printBin(amp_out_arr, amp_out_arr + vertical_len / 8);
-		println("RESULTRESULTRESULTRESULTRESULTRESULTRESULTRESULT");
+		println("Result:");
+		printBin(amp_out_arr, amp_out_arr + vertical_bytes);
+		assertTrue(isSha3(amp_out_arr, vertical_bytes, amp_out_reult));
 		memset(amp_out_arr, 0x00, vertical_chunks * (chunk_side_blocks) * sizeof(uint32_t));
+		break;
 	}
 	zmq_close(ampOutIn_socket);
 	zmq_ctx_destroy(ampOutIn_socket);
+	exit(0);
+	abort();
 }
 
 

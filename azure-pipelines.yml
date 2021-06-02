@@ -163,6 +163,14 @@ jobs:
        PrivacyAmplificationCuda.exe unitTestToBinaryArray
       failOnStderr: true
     
+  - task: CmdLine@2
+    displayName: 'Large Blocksize Test'
+    inputs:
+      script: |
+       cd "PrivacyAmplification"
+       ./LargeBlocksizeTest.cmd
+      failOnStderr: true
+    
   - task: PythonScript@0
     displayName: 'Generate Vulkan Stats'
     inputs:

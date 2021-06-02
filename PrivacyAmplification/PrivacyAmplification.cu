@@ -1059,7 +1059,6 @@ void reciveDataKey() {
 			vertical_len = vertical_block * 32;
 			horizontal_len = sample_size - vertical_len;
 			horizontal_block = horizontal_len / 32;
-			println(key_blocks * sizeof(uint32_t));
 			if (do_xor_key_rest) {
 				ZMQ_RECIVE_DATA_KEY(recv_key, key_blocks * sizeof(uint32_t), "data")
 				key2StartRest();
@@ -1438,7 +1437,7 @@ int main(int argc, char* argv[])
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
 
-	cudaSetDevice(0); //cudaSetDevice(cuda_device_id_to_use);
+	cudaSetDevice(cuda_device_id_to_use);
 
 	input_cache_read_pos_seed = input_blocks_to_cache - 1;
 	input_cache_read_pos_key = input_blocks_to_cache - 1;
@@ -1523,11 +1522,11 @@ int main(int argc, char* argv[])
 	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 
-	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((pow(2, 27) + 992) / 2 + 1));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
+	cudaMalloc((void**)&di2, (pow(2, 27) + 992) * sizeof(Real));
 
 #if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
