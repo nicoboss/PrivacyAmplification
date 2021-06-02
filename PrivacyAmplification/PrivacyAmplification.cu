@@ -1266,21 +1266,6 @@ void readConfig() {
 
 	verify_ampout = root["verify_ampout"].As<bool>(true);
 	verify_ampout_threads = root["verify_ampout_threads"].As<uint32_t>(8);
-
-
-	vertical_len = sample_size / 4 + sample_size / 8;
-	horizontal_len = sample_size / 2 + sample_size / 8;
-	vertical_block = vertical_len / 32;
-	horizontal_block = horizontal_len / 32;
-	desired_block = sample_size / 32;
-	desired_bytes = sample_size / 8;
-	key_blocks = desired_block + 1;
-	input_cache_block_size = desired_block;
-	output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
-	reuse_seed_amount_array = (int32_t*)calloc(input_blocks_to_cache, sizeof(int32_t));
-	recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
-	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
-	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 }
 
 
@@ -1427,12 +1412,26 @@ int main(int argc, char* argv[])
 	readConfig();
 	for (char** arg = argv; *arg; ++arg) {
 		if (strcmp(*arg, "speedtest") == 0) {
+			sample_size = pow(2, 27);
 			verify_ampout = false;
 			use_matrix_seed_server = false;
 			use_key_server = false;
 			host_ampout_server = false;
 		}
 	}
+	vertical_len = sample_size / 4 + sample_size / 8;
+	horizontal_len = sample_size / 2 + sample_size / 8;
+	vertical_block = vertical_len / 32;
+	horizontal_block = horizontal_len / 32;
+	desired_block = sample_size / 32;
+	desired_bytes = sample_size / 8;
+	key_blocks = desired_block + 1;
+	input_cache_block_size = desired_block;
+	output_cache_block_size = (desired_block + 31) * sizeof(uint32_t);
+	reuse_seed_amount_array = (int32_t*)calloc(input_blocks_to_cache, sizeof(int32_t));
+	recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
+	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 
 	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
