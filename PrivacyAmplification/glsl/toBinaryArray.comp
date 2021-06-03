@@ -45,7 +45,7 @@ void main(void)
 	const float32_t normalisation_float_local = normalisation_float_dev;
 	
 	if (idx < 992) {
-		binOutRawBit[idx] = (uint32_t(round(abs(invOut[block * 992 + idx]) / normalisation_float_local + correction_float)) & 1) << ToBinaryBitShiftArray_dev[idx % 32];
+		binOutRawBit[idx] = (uint32_t(abs(roundEven(invOut[block * 992 + idx] / normalisation_float_local + correction_float))) & 1) << ToBinaryBitShiftArray_dev[idx % 32];
 	}
 	else if (idx < 1023)
 	{
