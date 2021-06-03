@@ -922,8 +922,8 @@ inline void readMatrixSeedFromFile() {
 
 	char* toeplitz_seed_char = reinterpret_cast<char*>(toeplitz_seed[input_cache_write_pos_seed]);
 	seedfile.read(toeplitz_seed_char, desired_bytes);
-	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
-		memcpy(toeplitz_seed[i], toeplitz_seed, input_cache_block_size * sizeof(uint32_t));
+	for (uint32_t i = 1; i < input_blocks_to_cache; ++i) {
+		memcpy(toeplitz_seed[i], toeplitz_seed[0], input_cache_block_size * sizeof(uint32_t));
 	}
 }
 
@@ -959,10 +959,12 @@ inline void readKeyFromFile() {
 	for (uint32_t i = 0; i < input_blocks_to_cache; ++i) {
 		uint32_t* key_start_zero_pos_block = key_start_zero_pos + i;
 		uint32_t* key_rest_zero_pos_block = key_rest_zero_pos + i;
-		memcpy(key_start[i], key_start, input_cache_block_size * sizeof(uint32_t));
-		memcpy(key_rest[i], key_rest, input_cache_block_size * sizeof(uint32_t));
 		*key_start_zero_pos_block = *key_start_zero_pos;
 		*key_rest_zero_pos_block = *key_rest_zero_pos;
+	}
+	for (uint32_t i = 1; i < input_blocks_to_cache; ++i) {
+		memcpy(key_start[i], key_start[0], input_cache_block_size * sizeof(uint32_t));
+		memcpy(key_rest[i], key_rest[0], input_cache_block_size * sizeof(uint32_t));
 	}
 }
 
