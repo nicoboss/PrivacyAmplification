@@ -55,8 +55,8 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
-bool doTest = true;
+//#define TEST
+//bool doTest = true;
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1357,7 +1357,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
 	plan_forward_R2C_key_configuration.makeForwardPlanOnly = true;
 	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
-	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16);
+	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = plan_forward_R2C_key_configuration.size[0]; //(plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16);
 	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
