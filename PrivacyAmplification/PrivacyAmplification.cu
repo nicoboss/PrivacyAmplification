@@ -55,8 +55,8 @@ using namespace std;
 
 
 //Little endian only!
-//#define TEST
-//bool doTest = true;
+#define TEST
+bool doTest = true;
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1865,9 +1865,9 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			for (int i = sample_size - 50; i < sample_size + 50; i += 2) {
 				println(i << ": " << reinterpret_cast<float*>(testMemoryHost)[i] << "|" << reinterpret_cast<float*>(testMemoryHost)[i + 1]);
 			}
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 235.36460560, 0.2, 1978260.47736773, 2000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 235.36460560, 0.02, 1978260.47736773, 2000000.0));
 			cudaMemcpy(testMemoryHost, intermediate_seed, 2 * (sample_size / 2 + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 293.48314198, 0.2, 2440237.09097198, 2000000.0));
+			assertTrue(isFletcherFloat(reinterpret_cast<float*>(testMemoryHost), 2 * (sample_size / 2 + 1), 293.48314198, 0.02, 2440237.09097198, 2000000.0));
 		}
 		#endif
 		#if defined(__NVCC__)
