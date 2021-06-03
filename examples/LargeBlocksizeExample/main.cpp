@@ -448,10 +448,11 @@ void receiveAmpOut()
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
 				RecieveAmpOut;
+				//printBin(ampOutInData, ampOutInData + chunk_side / 8);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
-				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
+				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -464,6 +465,7 @@ void receiveAmpOut()
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
 				RecieveAmpOut;
+				//printBin(ampOutInData, ampOutInData + chunk_side / 8);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
