@@ -1531,11 +1531,19 @@ int main(int argc, char* argv[])
 	cudaMalloc((void**)&count_one_of_global_seed, sizeof(uint32_t));
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 
-	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((pow(2, 27) + 992) / 2 + 1));
+	#if defined(__NVCC__)
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * (sample_size + 992) / 2 + 1));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	cudaMalloc((void**)&di2, (pow(2, 27) + 992) * sizeof(Real));
+	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
+	#else
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((min(sample_size, pow(2, 26)) + 992) / 2 + 1));
+
+	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
+	  if toeplitz matrix seed recalculation is disabled for the next block*/
+	cudaMalloc((void**)&di2, (min(sample_size, pow(2, 26)) + 992) * sizeof(Real));
+	#endif
 
 #if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
