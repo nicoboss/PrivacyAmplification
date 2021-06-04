@@ -166,10 +166,10 @@ println("Hallo " << name) which requires the following function-like macros*/
 /*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
 and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
 with a python reference implementation and is used for correctness testing*/
-const uint8_t ampout_sha3[] = { 0x56, 0xB6, 0x10, 0x40, 0x6F, 0x0D, 0x6F, 0x67,
-                                0x6C, 0xE4, 0x01, 0xBE, 0x3E, 0xEA, 0x1D, 0x29,
-                                0x5E, 0x16, 0xAF, 0x29, 0x29, 0xB2, 0x27, 0x95,
-                                0x47, 0x57, 0x7B, 0xB0, 0x90, 0xA7, 0x5D, 0xFA };
+const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
+                                0x2C, 0xC2, 0x6A, 0x14, 0x62, 0xB8, 0xA4, 0x56,
+                                0x6F, 0x91, 0x17, 0x50, 0xF3, 0x1B, 0x14, 0x75,
+                                0x69, 0x12, 0x69, 0xC1, 0xB7, 0xD4, 0xA7, 0x16 };
 
 const uint8_t binInt2float_key_binIn_hash[] = { 0xDD, 0xA6, 0xC6, 0x78, 0xC1, 0x12, 0xAC, 0x3D,
                                                 0x4B, 0x16, 0x61, 0x4B, 0x07, 0xD1, 0x19, 0xBD,
@@ -392,6 +392,11 @@ void readConfig();
 
 /// @brief Set the Windows consoles backgroud color and font color
 void setConsoleDesign();
+
+void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, float* vkBuffer, VkFFTConfiguration* configuration);
+void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, float* key_buffer);
+void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer);
+
 
 /// @brief Actual Privacy Amplification Algorithm
 /// @param [UNUSED] Ammount of arguments

@@ -55,8 +55,8 @@ using namespace std;
 
 
 //Little endian only!
-#define TEST
-bool doTest = true;
+//#define TEST
+//bool doTest = true;
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -1342,14 +1342,11 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 }
 
 
-inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
+inline void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, float* key_buffer)
 {
-	if (cuFFT_planned)
-	{
-		/*Delete CUFFT Plans*/
-		deleteVkFFT(plan_forward_R2C_seed);
+	
+	if (cuFFT_planned) {
 		deleteVkFFT(plan_forward_R2C_key);
-		deleteVkFFT(plan_inverse_C2R);
 	}
 	
 	/*Plan of the forward real to complex fast fourier transformation*/
@@ -1357,7 +1354,8 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
 	plan_forward_R2C_key_configuration.makeForwardPlanOnly = true;
 	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
-	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1;
+	println("fft_zeropad_left = " << horizontal_len + 1 << " but it should be " << (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1);
+	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = horizontal_len + 1; //(plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1; //Between 1024 and 1025; //(plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1;
 	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
@@ -1366,6 +1364,22 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 		exit(result_forward_FFT_key);
 		abort();
 	}
+
+	cuFFT_planned = true;
+}
+
+
+inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
+{
+	if (cuFFT_planned)
+	{
+		/*Delete CUFFT Plans*/
+		deleteVkFFT(plan_forward_R2C_key);
+		deleteVkFFT(plan_inverse_C2R);
+	}
+
+	planForwardKeyFFT(vkGPU, logical_device, plan_forward_R2C_key, key_buffer);
+
 
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_forward_R2C_seed_configuration = {};
@@ -1379,7 +1393,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 		abort();
 	}
 
-	/*Plan of the forward real to complex fast fourier transformation*/
+	/*Plan of the inverse real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_inverse_C2R_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_inverse_C2R_configuration);
 	plan_inverse_C2R_configuration.makeInversePlanOnly = true;
@@ -1731,8 +1745,15 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
 		}
 		STOPWATCH_SAVE(stopwatch_cleaned_memory)
+		#else
+		relevant_keyBlocks_old = relevant_keyBlocks;
+		relevant_keyBlocks = horizontal_block + 1;
+		if (relevant_keyBlocks_old != relevant_keyBlocks) {
+			planForwardKeyFFT(&vkGPU, logical_device, &plan_forward_R2C_key, di1);
+		}
 		#endif
-
+		//cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (uint64_t)sizeof(float) * 2 * ((pow(2, 27) + 992) / 2 + 1));
+		//cudaMemset(di2 + relevant_keyBlocks, 0b00000000, (pow(2, 27) + 992) * sizeof(Real));
 		
 		if (reuse_seed_amount == 0 || reuse_seed_amount ==  -1) {
 			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
