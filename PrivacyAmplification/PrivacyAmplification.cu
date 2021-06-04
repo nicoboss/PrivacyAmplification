@@ -1532,7 +1532,7 @@ int main(int argc, char* argv[])
 	cudaMalloc((void**)&count_one_of_global_key, sizeof(uint32_t));
 
 	#if defined(__NVCC__)
-	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * (sample_size + 992) / 2 + 1));
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1));
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
