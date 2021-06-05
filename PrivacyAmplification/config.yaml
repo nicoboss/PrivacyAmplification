@@ -60,7 +60,7 @@ show_zeromq_status: false
 #however this only makes sense if dynamic_toeplitz_matrix_seed is disabled
 #or for testcases as only one block worth of data will be ever read from that file and
 #copied input_blocks_to_cache times to fill the input cache.
-use_matrix_seed_server: true
+use_matrix_seed_server: false
 address_seed_in: 'tcp://127.0.0.1:45555'
 toeplitz_seed_path: 'toeplitz_seed.bin'
 
@@ -70,7 +70,7 @@ toeplitz_seed_path: 'toeplitz_seed.bin'
 #If disabled the key will be read from the path specified in keyfile_path however this
 #only makes sense for testcases as only one block worth of data will be ever read from
 #that file and copied input_blocks_to_cache to fill the input cache.
-use_key_server: true
+use_key_server: false
 address_key_in: 'tcp://127.0.0.1:47777'
 keyfile_path: 'keyfile.bin'
 
@@ -80,7 +80,7 @@ keyfile_path: 'keyfile.bin'
 #If disabled no output will be sent anywhere which only makes sense for debugging
 #if either verify_ampout, store_first_ampouts_in_file, show_ampout is enabled or
 #the preprocessor definition SHOW_DEBUG_OUTPUT is set.
-host_ampout_server: true
+host_ampout_server: false
 address_amp_out: 'tcp://127.0.0.1:48888'
 
 #Stors the first n Privace amplification outputs to ampout.bin
@@ -95,7 +95,7 @@ store_first_ampouts_in_file: 1
 #during debvelopment that corectness of this Privacy Amplification implementation.
 #Disable this if you are using anything else than the provided testdata with above
 #settings. A verificatiobn error will cause the programm to exit with error 101.
-verify_ampout: false
+verify_ampout: true
 
 #Specifies how meny threads for the ampout verification should be used. Around
 #1.3 Gbit/s input throughput per thread with a sample_size of 2^27 and a

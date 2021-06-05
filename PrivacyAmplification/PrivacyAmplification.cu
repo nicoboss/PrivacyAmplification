@@ -53,10 +53,9 @@
 
 using namespace std;
 
-
 //Little endian only!
 //#define TEST
-//bool doTest = true;
+
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -193,6 +192,7 @@ uint8_t** Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
 #ifdef TEST
+bool doTest = true;
 uint8_t* testMemoryHost;
 #endif
 bool do_xor_key_rest = true;
@@ -1784,8 +1784,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 			#ifdef TEST
 			if (doTest) {
+				println("binInt2float Seed test started...");
 				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
 				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+				println("binInt2float Seed test completed successfully");
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_binInt2float_seed)
@@ -1818,8 +1820,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST
 		if (doTest) {
+			println("binInt2float Key test started...");
 			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
 			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+			println("binInt2float Key test completed successfully");
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_binInt2float_key)
