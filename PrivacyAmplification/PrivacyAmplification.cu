@@ -1068,7 +1068,7 @@ void reciveDataKey() {
 			else
 			{
 				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
-				ZMQ_RECIVE_DATA_KEY(key_start[input_cache_write_pos_key], key_blocks * sizeof(uint32_t), "data")
+				ZMQ_RECIVE_DATA_KEY(key_start[input_cache_write_pos_key], (horizontal_block + 1) * sizeof(uint32_t), "data")
 				*(key_start[input_cache_write_pos_key] + horizontal_block) &= 0b10000000000000000000000000000000;
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
@@ -1354,8 +1354,11 @@ inline void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logica
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
 	plan_forward_R2C_key_configuration.makeForwardPlanOnly = true;
 	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
-	println("fft_zeropad_left = " << horizontal_len + 1 << " but it should be " << (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1);
-	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = horizontal_len + 1; //(plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1; //Between 1024 and 1025; //(plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1;
+	if (do_xor_key_rest) {
+		plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1;
+	} else {
+		plan_forward_R2C_key_configuration.fft_zeropad_left[0] = horizontal_len + 1;
+	}
 	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)

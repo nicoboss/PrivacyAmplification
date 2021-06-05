@@ -297,7 +297,7 @@ void sendKey() {
 			println("[Key ] Error sending vertical_blocks! Retrying...");
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_size_blocks + 1) * sizeof(uint32_t)) {
+		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_side_blocks + 1) * sizeof(uint32_t), 0) != (chunk_side_blocks + 1) * sizeof(uint32_t)) {
 			println("[Key ] Error sending Key! Retrying...");
 			continue;
 		}
