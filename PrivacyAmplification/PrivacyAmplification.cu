@@ -1714,6 +1714,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
 	bool recalculate_seed = true;
+	bool is_first_seed = true;
 
 	while(true)
 	{		
@@ -1725,19 +1726,17 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		} else {
 			STOPWATCH_START
 				chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
-			if (reuse_seed_amount == 0) {
+			if (reuse_seed_amount == 0 || is_first_seed) {
 				while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
 					this_thread::yield();
 				}
 				input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
 				reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
+				is_first_seed = false;
 				recalculate_seed = true;
-				println("input_cache_read_pos_seed: " << input_cache_read_pos_seed);
 			} else {
 				recalculate_seed = false;
 			}
-			println("reuse_seed_amount: " << reuse_seed_amount);
-			println("recalculate_seed: " << recalculate_seed);
 			while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 				this_thread::yield();
 			}
