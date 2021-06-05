@@ -132,13 +132,8 @@ if (rc != chunk_side / 8) { \
 	goto reconnect; \
 } \
  \
-//time(&currentTime); \
-//cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
-// \
-//for (size_t i = 0; i < min(chunk_vertical_len / 8, 4); ++i) \
-//{  \
-//	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str()); \
-//}
+time(&currentTime); \
+cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
 
 
 
@@ -257,7 +252,7 @@ void sendSeed() {
 			continue;
 		}
 		time(&currentTime);
-		//println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
+		println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
 
 		seedServerReady = 1;
 		while (seedServerReady != 0) {
@@ -302,7 +297,7 @@ void sendKey() {
 			continue;
 		}
 		time(&currentTime);
-		//println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
+		println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
 
 		keyServerReady = 1;
 		while (keyServerReady != 0) {
@@ -331,15 +326,18 @@ void seedProvider()
 			currentRowNr = 0;
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
-				while (seedServerReady == 0) {
-					this_thread::yield();
-				}
 				while (nextSeed == 0) {
 					this_thread::yield();
 				}
 				nextSeed = 0;
-				GetLocalSeed;
-				seedServerReady = 0;
+				if (keyNr == columnNr) {
+					while (seedServerReady == 0) {
+						this_thread::yield();
+					}
+					GetLocalSeed;
+					reuseSeedAmount = min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks);
+					seedServerReady = 0;
+				}
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -351,15 +349,18 @@ void seedProvider()
 			currentRowNr = rowNr;
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
-				while (seedServerReady == 0) {
-					this_thread::yield();
-				}
 				while (nextSeed == 0) {
 					this_thread::yield();
 				}
 				nextSeed = 0;
-				GetLocalSeed;
-				seedServerReady = 0;
+				if (keyNr == 0) {
+					while (seedServerReady == 0) {
+						this_thread::yield();
+					}
+					GetLocalSeed;
+					reuseSeedAmount = min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr));
+					seedServerReady = 0;
+				}
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;

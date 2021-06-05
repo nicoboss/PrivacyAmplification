@@ -1713,6 +1713,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	chrono::high_resolution_clock::time_point speedtest_start;
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
+	bool recalculate_seed = true;
 
 	while(true)
 	{		
@@ -1730,7 +1731,13 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 				}
 				input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
 				reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
+				recalculate_seed = true;
+				println("input_cache_read_pos_seed: " << input_cache_read_pos_seed);
+			} else {
+				recalculate_seed = false;
 			}
+			println("reuse_seed_amount: " << reuse_seed_amount);
+			println("recalculate_seed: " << recalculate_seed);
 			while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 				this_thread::yield();
 			}
@@ -1758,7 +1765,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		//cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (uint64_t)sizeof(float) * 2 * ((pow(2, 27) + 992) / 2 + 1));
 		//cudaMemset(di2 + relevant_keyBlocks, 0b00000000, (pow(2, 27) + 992) * sizeof(Real));
 		
-		if (reuse_seed_amount == 0 || reuse_seed_amount ==  -1) {
+		if (recalculate_seed) {
 			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
 			cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 			#ifdef TEST
@@ -1837,18 +1844,11 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		cudaDeviceSynchronize();
 		STOPWATCH_SAVE(stopwatch_fft_key)
 		
-		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
+		if (reuse_seed_amount) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
-			if (reuse_seed_amount == -1)
-			{
-				reuse_seed_amount = -2;
-			}
 			cudaDeviceSynchronize();
 			STOPWATCH_SAVE(stopwatch_fft_seed)
 		} else {
-			if (reuse_seed_amount > 0) {
-				 --reuse_seed_amount;
-			}
 			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
 			#endif
@@ -1860,18 +1860,11 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		cudaStreamSynchronize(FFTStream);
 		STOPWATCH_SAVE(stopwatch_fft_key)
-		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
+		if (recalculate_seed) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
-			if (reuse_seed_amount == -1)
-			{
-				reuse_seed_amount = -2;
-			}
 			cudaStreamSynchronize(FFTStream);
 			STOPWATCH_SAVE(stopwatch_fft_seed)
 		} else {
-			if (reuse_seed_amount > 0) {
-				--reuse_seed_amount;
-			}
 			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
 			#endif
@@ -2048,6 +2041,9 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		}
 		else
 		{
+			if (reuse_seed_amount > 0) {
+				--reuse_seed_amount;
+			}
 			output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
 		}
 
