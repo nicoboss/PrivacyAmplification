@@ -1843,7 +1843,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		cudaDeviceSynchronize();
 		STOPWATCH_SAVE(stopwatch_fft_key)
 		
-		if (reuse_seed_amount) {
+		if (recalculate_seed) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
 			cudaDeviceSynchronize();
 			STOPWATCH_SAVE(stopwatch_fft_seed)
