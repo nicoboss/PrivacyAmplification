@@ -53,10 +53,9 @@
 
 using namespace std;
 
-
 //Little endian only!
 //#define TEST
-//bool doTest = true;
+
 
 #ifdef __CUDACC__
 #define KERNEL_ARG2(grid, block) <<< grid, block >>>
@@ -193,6 +192,7 @@ uint8_t** Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
 #ifdef TEST
+bool doTest = true;
 uint8_t* testMemoryHost;
 #endif
 bool do_xor_key_rest = true;
@@ -1068,7 +1068,7 @@ void reciveDataKey() {
 			else
 			{
 				uint32_t* key_start_zero_pos_block = key_start_zero_pos + input_cache_write_pos_key;
-				ZMQ_RECIVE_DATA_KEY(key_start[input_cache_write_pos_key], key_blocks * sizeof(uint32_t), "data")
+				ZMQ_RECIVE_DATA_KEY(key_start[input_cache_write_pos_key], (horizontal_block + 1) * sizeof(uint32_t), "data")
 				*(key_start[input_cache_write_pos_key] + horizontal_block) &= 0b10000000000000000000000000000000;
 				uint32_t new_key_start_zero_pos = horizontal_block + 1;
 				if (new_key_start_zero_pos < *key_start_zero_pos_block)
@@ -1342,14 +1342,11 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 }
 
 
-inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
+inline void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, float* key_buffer)
 {
-	if (cuFFT_planned)
-	{
-		/*Delete CUFFT Plans*/
-		deleteVkFFT(plan_forward_R2C_seed);
+	
+	if (cuFFT_planned) {
 		deleteVkFFT(plan_forward_R2C_key);
-		deleteVkFFT(plan_inverse_C2R);
 	}
 	
 	/*Plan of the forward real to complex fast fourier transformation*/
@@ -1357,7 +1354,11 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_forward_R2C_key_configuration);
 	plan_forward_R2C_key_configuration.makeForwardPlanOnly = true;
 	plan_forward_R2C_key_configuration.performZeropadding[0] = true;
-	plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16);
+	if (do_xor_key_rest) {
+		plan_forward_R2C_key_configuration.fft_zeropad_left[0] = (plan_forward_R2C_key_configuration.size[0] / 4) + (plan_forward_R2C_key_configuration.size[0] / 16) + 1;
+	} else {
+		plan_forward_R2C_key_configuration.fft_zeropad_left[0] = horizontal_len + 1;
+	}
 	plan_forward_R2C_key_configuration.fft_zeropad_right[0] = plan_forward_R2C_key_configuration.size[0];
 	VkFFTResult result_forward_FFT_key = initializeVkFFT(plan_forward_R2C_key, plan_forward_R2C_key_configuration);
 	if (result_forward_FFT_key != VKFFT_SUCCESS)
@@ -1366,6 +1367,22 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 		exit(result_forward_FFT_key);
 		abort();
 	}
+
+	cuFFT_planned = true;
+}
+
+
+inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
+{
+	if (cuFFT_planned)
+	{
+		/*Delete CUFFT Plans*/
+		deleteVkFFT(plan_forward_R2C_key);
+		deleteVkFFT(plan_inverse_C2R);
+	}
+
+	planForwardKeyFFT(vkGPU, logical_device, plan_forward_R2C_key, key_buffer);
+
 
 	/*Plan of the forward real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_forward_R2C_seed_configuration = {};
@@ -1379,7 +1396,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 		abort();
 	}
 
-	/*Plan of the forward real to complex fast fourier transformation*/
+	/*Plan of the inverse real to complex fast fourier transformation*/
 	VkFFTConfiguration plan_inverse_C2R_configuration = {};
 	VkFFTCreateConfiguration(vkGPU, logical_device, key_buffer, &plan_inverse_C2R_configuration);
 	plan_inverse_C2R_configuration.makeInversePlanOnly = true;
@@ -1704,6 +1721,8 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	chrono::high_resolution_clock::time_point speedtest_start;
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
+	bool recalculate_seed = true;
+	bool is_first_seed = true;
 
 	while(true)
 	{		
@@ -1715,12 +1734,16 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		} else {
 			STOPWATCH_START
 				chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
-			if (reuse_seed_amount == 0) {
+			if (reuse_seed_amount == 0 || is_first_seed) {
 				while ((input_cache_read_pos_seed + 1) % input_blocks_to_cache == input_cache_write_pos_seed) {
 					this_thread::yield();
 				}
 				input_cache_read_pos_seed = (input_cache_read_pos_seed + 1) % input_blocks_to_cache; //Switch read cache
 				reuse_seed_amount = reuse_seed_amount_array[input_cache_read_pos_seed];
+				is_first_seed = false;
+				recalculate_seed = true;
+			} else {
+				recalculate_seed = false;
 			}
 			while ((input_cache_read_pos_key + 1) % input_blocks_to_cache == input_cache_write_pos_key) {
 				this_thread::yield();
@@ -1739,10 +1762,17 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (relevant_keyBlocks_old - relevant_keyBlocks) * sizeof(Real));
 		}
 		STOPWATCH_SAVE(stopwatch_cleaned_memory)
+		#else
+		relevant_keyBlocks_old = relevant_keyBlocks;
+		relevant_keyBlocks = horizontal_block + 1;
+		if (relevant_keyBlocks_old != relevant_keyBlocks) {
+			planForwardKeyFFT(&vkGPU, logical_device, &plan_forward_R2C_key, di1);
+		}
 		#endif
-
+		//cudaMemset(di1 + relevant_keyBlocks, 0b00000000, (uint64_t)sizeof(float) * 2 * ((pow(2, 27) + 992) / 2 + 1));
+		//cudaMemset(di2 + relevant_keyBlocks, 0b00000000, (pow(2, 27) + 992) * sizeof(Real));
 		
-		if (reuse_seed_amount == 0 || reuse_seed_amount ==  -1) {
+		if (recalculate_seed) {
 			cudaMemset(count_one_of_global_seed, 0b00000000, sizeof(uint32_t));
 			cudaMemset(count_one_of_global_key, 0b00000000, sizeof(uint32_t));
 			#ifdef TEST
@@ -1762,8 +1792,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 			#ifdef TEST
 			if (doTest) {
+				println("binInt2float Seed test started...");
 				cudaMemcpy(testMemoryHost, di2, sample_size * sizeof(Real), cudaMemcpyDeviceToHost);
 				assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), sample_size * sizeof(Real), binInt2float_seed_floatOut_hash));
+				println("binInt2float Seed test completed successfully");
 			}
 			#endif
 			STOPWATCH_SAVE(stopwatch_binInt2float_seed)
@@ -1796,8 +1828,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST
 		if (doTest) {
+			println("binInt2float Key test started...");
 			cudaMemcpy(testMemoryHost, di1, relevant_keyBlocks * 32 * sizeof(Real), cudaMemcpyDeviceToHost);
 			assertTrue(isSha3(const_cast<uint8_t*>(testMemoryHost), relevant_keyBlocks * 32 * sizeof(Real), binInt2float_key_floatOut_hash));
+			println("binInt2float Key test completed successfully");
 		}
 		#endif
 		STOPWATCH_SAVE(stopwatch_binInt2float_key)
@@ -1821,18 +1855,11 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		cudaDeviceSynchronize();
 		STOPWATCH_SAVE(stopwatch_fft_key)
 		
-		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
+		if (recalculate_seed) {
 			cufftExecR2C(plan_forward_R2C, di2, do2);
-			if (reuse_seed_amount == -1)
-			{
-				reuse_seed_amount = -2;
-			}
 			cudaDeviceSynchronize();
 			STOPWATCH_SAVE(stopwatch_fft_seed)
 		} else {
-			if (reuse_seed_amount > 0) {
-				 --reuse_seed_amount;
-			}
 			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
 			#endif
@@ -1844,18 +1871,11 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		vkfftExecR2C(&vkGPU, &plan_forward_R2C_key);
 		cudaStreamSynchronize(FFTStream);
 		STOPWATCH_SAVE(stopwatch_fft_key)
-		if (reuse_seed_amount == 0 || reuse_seed_amount == -1) {
+		if (recalculate_seed) {
 			vkfftExecR2C(&vkGPU, &plan_forward_R2C_seed);
-			if (reuse_seed_amount == -1)
-			{
-				reuse_seed_amount = -2;
-			}
 			cudaStreamSynchronize(FFTStream);
 			STOPWATCH_SAVE(stopwatch_fft_seed)
 		} else {
-			if (reuse_seed_amount > 0) {
-				--reuse_seed_amount;
-			}
 			#if STOPWATCH == TRUE
 			stopwatch_fft_seed = 0;
 			#endif
@@ -2032,6 +2052,9 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		}
 		else
 		{
+			if (reuse_seed_amount > 0) {
+				--reuse_seed_amount;
+			}
 			output_cache_write_pos = (output_cache_write_pos + 1) % output_blocks_to_cache;
 		}
 

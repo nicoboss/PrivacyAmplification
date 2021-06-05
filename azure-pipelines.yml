@@ -164,11 +164,19 @@ jobs:
       failOnStderr: true
     
   - task: CmdLine@2
-    displayName: 'Large Blocksize Test'
+    displayName: 'Large Blocksize Test Cuda'
     inputs:
       script: |
        cd "PrivacyAmplification"
-       ./LargeBlocksizeTest.cmd
+       ./LargeBlocksizeTestCuda.cmd
+      failOnStderr: true
+    
+  - task: CmdLine@2
+    displayName: 'Large Blocksize Test Vulkan'
+    inputs:
+      script: |
+       cd "PrivacyAmplification"
+       ./LargeBlocksizeTestVulkan.cmd
       failOnStderr: true
     
   - task: PythonScript@0

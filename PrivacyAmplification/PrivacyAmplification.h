@@ -393,6 +393,13 @@ void readConfig();
 /// @brief Set the Windows consoles backgroud color and font color
 void setConsoleDesign();
 
+#if !defined(__NVCC__)
+void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, float* vkBuffer, VkFFTConfiguration* configuration);
+void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, float* key_buffer);
+void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer);
+#endif
+
+
 /// @brief Actual Privacy Amplification Algorithm
 /// @param [UNUSED] Ammount of arguments
 /// @param [UNUSED] Array of arguments

@@ -65,10 +65,8 @@ uint32_t* ampOutInData_U32 = reinterpret_cast<uint32_t*>(ampOutInData);
 
 constexpr uint32_t chunk_size_blocks = chunk_size / 32;
 constexpr uint32_t chunk_side_blocks = chunk_side / 32;
-constexpr uint32_t chunk_vertical_len = chunk_side / 4 + chunk_side / 8;
-constexpr uint32_t chunk_horizontal_len = chunk_side / 2 + chunk_side / 8;
-constexpr uint32_t chunk_vertical_blocks = chunk_vertical_len / 32;
-constexpr uint32_t chunk_horizontal_blocks = chunk_horizontal_len / 32;
+constexpr uint32_t chunk_side_blocks_two = chunk_side_blocks * 2;
+constexpr uint32_t chunk_vertical_len = chunk_side / 2;
 constexpr uint32_t vertical_chunks = vertical_len / chunk_side;
 constexpr uint32_t horizontal_chunks = horizontal_len / chunk_side;
 
@@ -82,6 +80,8 @@ uint8_t* amp_out_arr = reinterpret_cast<uint8_t*>(calloc(vertical_chunks*(chunk_
 
 atomic<int> seedServerReady = 1;
 atomic<int> keyServerReady = 1;
+atomic<int> nextSeed = 1;
+atomic<int> nextKey = 1;
 mutex printlock;
 
 #ifdef DEBUG
@@ -132,13 +132,8 @@ if (rc != chunk_side / 8) { \
 	goto reconnect; \
 } \
  \
-//time(&currentTime); \
-//cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
-// \
-//for (size_t i = 0; i < min(chunk_vertical_len / 8, 4); ++i) \
-//{  \
-//	printf("0x%02X: %s\n", ampOutInData[i], bitset<8>(ampOutInData[i]).to_string().c_str()); \
-//}
+time(&currentTime); \
+cout << put_time(localtime(&currentTime), "%F %T") << " Key Block recived" << endl; \
 
 
 
@@ -257,7 +252,7 @@ void sendSeed() {
 			continue;
 		}
 		time(&currentTime);
-		//println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
+		println("[Seed] " << std::put_time(localtime(&currentTime), "%F %T") << " Sent Seed");
 
 		seedServerReady = 1;
 		while (seedServerReady != 0) {
@@ -293,16 +288,16 @@ void sendKey() {
 			cout << "[Key ] Error sending do_compress! Retrying..." << endl;
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, &chunk_vertical_blocks, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
+		if (zmq_send(SendKeys_socket, &chunk_side_blocks, sizeof(uint32_t), ZMQ_SNDMORE) != sizeof(uint32_t)) {
 			println("[Key ] Error sending vertical_blocks! Retrying...");
 			continue;
 		}
-		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_size_blocks + 1) * sizeof(uint32_t), 0) != (chunk_size_blocks + 1) * sizeof(uint32_t)) {
+		if (zmq_send(SendKeys_socket, local_key_padded, (chunk_side_blocks + 1) * sizeof(uint32_t), 0) != (chunk_side_blocks + 1) * sizeof(uint32_t)) {
 			println("[Key ] Error sending Key! Retrying...");
 			continue;
 		}
 		time(&currentTime);
-		//println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
+		println("[Key ] " << put_time(localtime(&currentTime), "%F %T") << " Sent Key");
 
 		keyServerReady = 1;
 		while (keyServerReady != 0) {
@@ -331,11 +326,18 @@ void seedProvider()
 			currentRowNr = 0;
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
-				while (seedServerReady == 0) {
+				while (nextSeed == 0) {
 					this_thread::yield();
 				}
-				GetLocalSeed;
-				seedServerReady = 0;
+				nextSeed = 0;
+				if (keyNr == columnNr) {
+					while (seedServerReady == 0) {
+						this_thread::yield();
+					}
+					GetLocalSeed;
+					reuseSeedAmount = min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks);
+					seedServerReady = 0;
+				}
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -347,11 +349,18 @@ void seedProvider()
 			currentRowNr = rowNr;
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
-				while (seedServerReady == 0) {
+				while (nextSeed == 0) {
 					this_thread::yield();
 				}
-				GetLocalSeed;
-				seedServerReady = 0;
+				nextSeed = 0;
+				if (keyNr == 0) {
+					while (seedServerReady == 0) {
+						this_thread::yield();
+					}
+					GetLocalSeed;
+					reuseSeedAmount = min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr));
+					seedServerReady = 0;
+				}
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -384,6 +393,10 @@ void keyProvider()
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
+				while (nextKey == 0) {
+					this_thread::yield();
+				}
+				nextKey = 0;
 				//println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
@@ -401,6 +414,10 @@ void keyProvider()
 				while (keyServerReady == 0) {
 					this_thread::yield();
 				}
+				while (nextKey == 0) {
+					this_thread::yield();
+				}
+				nextKey = 0;
 				//println("Key to generate: " << currentRowNr << ", " << keyNr);
 				GetLocalKey;
 				keyServerReady = 0;
@@ -447,12 +464,15 @@ void receiveAmpOut()
 			assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
 			for (int32_t keyNr = columnNr; keyNr < columnNr + min((horizontal_chunks - 1) - columnNr + 1, vertical_chunks); ++keyNr)
 			{
+				nextSeed = 1;
+				nextKey = 1;
 				RecieveAmpOut;
 				//printBin(ampOutInData, ampOutInData + chunk_side / 8);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
 				XorWithRow;
 				//printBin(amp_out_arr, amp_out_arr + vertical_bytes);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(amp_out_arr), vertical_bytes, amp_out_intermediate_hash[amp_out_intermediate_hash_index++]));
+				//system("pause");
 				++currentRowNr;
 			}
 			r += chunk_side_blocks;
@@ -464,6 +484,8 @@ void receiveAmpOut()
 			currentRowNr = rowNr;
 			for (int32_t keyNr = 0; keyNr < min(horizontal_len / chunk_side_blocks, (vertical_chunks - rowNr)); ++keyNr)
 			{
+				nextSeed = 1;
+				nextKey = 1;
 				RecieveAmpOut;
 				//printBin(ampOutInData, ampOutInData + chunk_side / 8);
 				assertTrue(isSha3(reinterpret_cast<uint8_t*>(ampOutInData), chunk_side / 8, ampOutInData_hash[ampOutInData_hash_index++]));
