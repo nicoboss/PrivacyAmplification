@@ -1230,7 +1230,7 @@ void sendData() {
 
 void readConfig() {
 	Yaml::Node root;
-	cout << "#Reading config.yaml..." << endl;
+	cout << "# Reading config.yaml..." << endl;
 	try
 	{
 		Yaml::Parse(root, "config.yaml");
@@ -1460,7 +1460,7 @@ int main(int argc, char* argv[])
 	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 
-	cout << "#PrivacyAmplification with " << sample_size << " bits" << endl << endl;
+	cout << "# PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
 
 	cudaSetDevice(gpu_device_id_to_use);
@@ -1471,9 +1471,9 @@ int main(int argc, char* argv[])
 
 	cudaDriverGetVersion(&driver_version);
 	cudaRuntimeGetVersion(&runtime_version);
-	println("CUDA version: " << CUDART_VERSION);
-	println("CUDA Runtime version: " << runtime_version);
-	println("Latest version of CUDA supported by the driver: " << driver_version);
+	println("# CUDA version: " << CUDART_VERSION);
+	println("# CUDA Runtime version: " << runtime_version);
+	println("# Latest version of CUDA supported by the driver: " << driver_version);
 
 	if (driver_version < runtime_version) {
 		println("Your CUDA Version is too new to be supported by your drivers");
@@ -1484,31 +1484,30 @@ int main(int argc, char* argv[])
 
 	size_t free_memory, total_memory;
 	cudaMemGetInfo(&free_memory, &total_memory);
-	println("Free Memory: " << free_memory / 1048576 << " MB of " << total_memory / 1048576 << " MB" << endl);
+	println("# Free Memory: " << free_memory / 1048576 << " MB of " << total_memory / 1048576 << " MB" << endl);
 
 	int devCount;
 	cudaGetDeviceCount(&devCount);
 
 	printlock.lock();
-	wcout << "CUDA Devices: " << endl << endl;
 	for (int i = 0; i < devCount; ++i)
 	{
 		cudaDeviceProp props;
 		cudaGetDeviceProperties(&props, i);
-		wcout << i << ": " << props.name << ": " << props.major << "." << props.minor << endl;
-		wcout << "  Global memory:   " << props.totalGlobalMem / 1048576 << " MB" << endl;
-		wcout << "  Shared memory:   " << props.sharedMemPerBlock / 1024 << " KB" << endl;
-		wcout << "  Constant memory: " << props.totalConstMem / 1024 << " KB" << endl;
-		wcout << "  Block registers: " << props.regsPerBlock << endl << endl;
+		wcout << "# "  << i << ": " << props.name << ": " << props.major << "." << props.minor << endl;
+		wcout << "#    Global memory:   " << props.totalGlobalMem / 1048576 << " MB" << endl;
+		wcout << "#    Shared memory:   " << props.sharedMemPerBlock / 1024 << " KB" << endl;
+		wcout << "#    Constant memory: " << props.totalConstMem / 1024 << " KB" << endl;
+		wcout << "#    Block registers: " << props.regsPerBlock << endl << endl;
 
-		wcout << "  Warp size:         " << props.warpSize << endl;
-		wcout << "  Threads per block: " << props.maxThreadsPerBlock << endl;
-		wcout << "  Max block dimensions: [ " << props.maxThreadsDim[0] << ", " << props.maxThreadsDim[1] << ", " << props.maxThreadsDim[2] << " ]" << endl;
-		wcout << "  Max grid dimensions:  [ " << props.maxGridSize[0] << ", " << props.maxGridSize[1] << ", " << props.maxGridSize[2] << " ]" << endl;
+		wcout << "#    Warp size:         " << props.warpSize << endl;
+		wcout << "#    Threads per block: " << props.maxThreadsPerBlock << endl;
+		wcout << "#    Max block dimensions: [ " << props.maxThreadsDim[0] << ", " << props.maxThreadsDim[1] << ", " << props.maxThreadsDim[2] << " ]" << endl;
+		wcout << "#    Max grid dimensions:  [ " << props.maxGridSize[0] << ", " << props.maxGridSize[1] << ", " << props.maxGridSize[2] << " ]" << endl;
 		wcout << endl;
 	} 
 	printlock.unlock();
-	println("Using GPU: " << gpu_device_id_to_use  << endl);
+	println("# Using GPU: " << gpu_device_id_to_use  << endl);
 	#endif
 
 	input_cache_read_pos_seed = input_blocks_to_cache - 1;
