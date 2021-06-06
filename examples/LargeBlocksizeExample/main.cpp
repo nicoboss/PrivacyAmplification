@@ -45,14 +45,14 @@ constexpr uint32_t chunk_size = pwrtwo(factor_chunk);
 constexpr uint32_t chunk_side = chunk_size / 2;
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
-constexpr uint32_t vertical_len = sample_size / 4 + sample_size / 8;
-constexpr uint32_t horizontal_len = sample_size / 2 + sample_size / 8;
-constexpr uint32_t key_len = sample_size + 1;
-constexpr uint32_t vertical_block = vertical_len / 32;
-constexpr uint32_t horizontal_block = horizontal_len / 32;
-constexpr uint32_t key_blocks = vertical_block + horizontal_block + 1;
-constexpr uint32_t desired_block = vertical_block + horizontal_block;
-constexpr uint32_t desired_len = vertical_len + horizontal_len;
+constexpr int32_t vertical_len = sample_size / 4 + sample_size / 8;
+constexpr int32_t horizontal_len = sample_size / 2 + sample_size / 8;
+constexpr int32_t key_len = sample_size + 1;
+constexpr int32_t vertical_block = vertical_len / 32;
+constexpr int32_t horizontal_block = horizontal_len / 32;
+constexpr int32_t key_blocks = vertical_block + horizontal_block + 1;
+constexpr int32_t desired_block = vertical_block + horizontal_block;
+constexpr int32_t desired_len = vertical_len + horizontal_len;
 constexpr bool pa_do_xor_key_rest = false;
 constexpr bool pa_do_compress = false;
 
@@ -63,12 +63,12 @@ constexpr uint32_t vertical_bytes = vertical_len / 8;
 uint8_t* ampOutInData = reinterpret_cast<uint8_t*>(malloc(chunk_side / 8));
 uint32_t* ampOutInData_U32 = reinterpret_cast<uint32_t*>(ampOutInData);
 
-constexpr uint32_t chunk_size_blocks = chunk_size / 32;
-constexpr uint32_t chunk_side_blocks = chunk_side / 32;
-constexpr uint32_t chunk_side_blocks_two = chunk_side_blocks * 2;
-constexpr uint32_t chunk_vertical_len = chunk_side / 2;
-constexpr uint32_t vertical_chunks = vertical_len / chunk_side;
-constexpr uint32_t horizontal_chunks = horizontal_len / chunk_side;
+constexpr int32_t chunk_size_blocks = chunk_size / 32;
+constexpr int32_t chunk_side_blocks = chunk_side / 32;
+constexpr int32_t chunk_side_blocks_two = chunk_side_blocks * 2;
+constexpr int32_t chunk_vertical_len = chunk_side / 2;
+constexpr int32_t vertical_chunks = vertical_len / chunk_side;
+constexpr int32_t horizontal_chunks = horizontal_len / chunk_side;
 
 uint32_t* local_seed = reinterpret_cast<uint32_t*>(calloc(2*chunk_side_blocks, sizeof(uint32_t)));
 
@@ -109,7 +109,7 @@ memcpy(local_seed + chunk_side_blocks, toeplitz_seed + r, chunk_side / 8); \
 //local_key_padded must use calloc!
 //ToDo: Komentar!
 #define GetLocalKey \
-uint32_t* key_data_offset = key_data+keyNr*(chunk_side / 32); \
+uint32_t* key_data_offset = key_data + static_cast<uint64_t>(keyNr) * static_cast<uint64_t>(chunk_side / 32); \
 local_key_padded[0] = key_data_offset[0] >> 1; \
 for (uint32_t i = 1; i < chunk_side / 32; ++i) { \
 	local_key_padded[i] = (((key_data_offset[i - 1] & 1) << 31) | (key_data_offset[i] >> 1)); \
@@ -200,6 +200,7 @@ bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uin
 	uint8_t* calculatedHash = (uint8_t*)malloc(32);
 	rhash_sha3_final(&sha3, calculatedHash);
 	println(toHexString(calculatedHash, 32));
+	if (calculatedHash == NULL) return false;
 	return memcmp(calculatedHash, expectedHash, 32) == 0;
 }
 
@@ -208,7 +209,7 @@ bool isSha3(const uint8_t* dataToVerify, uint32_t dataToVerify_length, const uin
 /// @param[in] Input file stream from which the size should get determinated
 /// @return size of provided input file stream
 size_t getFileSize(ifstream& file) {
-	int pos = file.tellg();
+	streampos pos = file.tellg();
 	file.seekg(0, ios::end);
 	size_t filelength = file.tellg();
 	file.seekg(pos, ios::beg);
@@ -238,7 +239,6 @@ void sendSeed() {
 	while (zmq_bind(MatrixSeedServer_socket, address_seed_server) != 0) {
 		println("Binding to \"" << address_seed_server << "\" failed! Retrying...");
 	}
-	int32_t rc;
 	time_t currentTime;
 
 	println("[Seed] Waiting for Client...");
@@ -274,9 +274,8 @@ void sendKey() {
 	while (zmq_bind(SendKeys_socket, address_key_server) != 0) {
 		println("[Key ] Binding to \"" << address_key_server << "\" failed! Retrying...");
 	}
-
-	int32_t rc;
 	time_t currentTime;
+
 	println("[Key ] Waiting for clients...");
 
 	while (true) {
@@ -377,9 +376,9 @@ void keyProvider()
 
 	while (true)
 	{
-		uint32_t currentRowNr = 0;
-		uint32_t rNr = 0;
-		uint32_t r = 0;
+		int32_t currentRowNr = 0;
+		int32_t rNr = 0;
+		int32_t r = 0;
 
 		if (horizontal_chunks <= 1) {
 			println("Fatal error: horizontal_chunks <= 1");
