@@ -5,6 +5,7 @@ all:
 	cd examples/SendKeysExample && $(MAKE) && cp -a SendKeysExample ../../build
 	cd examples/MatrixSeedServerExample && $(MAKE) && cp -a MatrixSeedServerExample ../../build
 	cd examples/ReceiveAmpOutExample && $(MAKE) && cp -a ReceiveAmpOutExample ../../build
+	cd examples/LargeBlocksizeExample && $(MAKE) && cp -a LargeBlocksizeExample ../../build
 	cp -a PrivacyAmplification/keyfile.bin ./build
 	cp -a PrivacyAmplification/toeplitz_seed.bin ./build
 	cp -a PrivacyAmplification/ampout.sh3 ./build
@@ -16,3 +17,4 @@ clean:
 	cd examples/SendKeysExample && $(MAKE) clean
 	cd examples/MatrixSeedServerExample && $(MAKE) clean
 	cd examples/ReceiveAmpOutExample && $(MAKE) clean
+	cd examples/LargeBlocksizeExample && $(MAKE) clean
