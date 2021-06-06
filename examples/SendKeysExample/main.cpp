@@ -94,9 +94,8 @@ int main(int argc, char* argv[])
 	while (zmq_bind(SendKeys_socket, address) != 0) {
 		cout << "Binding to \"" << address << "\" failed! Retrying..." << endl;
 	}
-
-	int32_t rc;
 	time_t currentTime;
+
 	cout << "Waiting for clients..." << endl;
 
 	//4 time 0x00 bytes at the end for conversion to unsigned int array

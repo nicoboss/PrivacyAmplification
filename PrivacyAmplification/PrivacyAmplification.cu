@@ -212,7 +212,7 @@ float normalisation_float;
 atomic<bool> unitTestsFailed(false);
 atomic<bool> unitTestBinInt2floatVerifyResultThreadFailed(false);
 atomic<bool> unitTestToBinaryArrayVerifyResultThreadFailed(false);
-atomic<bool> cuFFT_planned(false);
+atomic<bool> vkFFT_planned(false);
 
 #if defined(__NVCC__)
 __device__ __constant__ Complex c0_dev;
@@ -1289,34 +1289,6 @@ inline void setConsoleDesign() {
 }
 
 
-#define PLAN_CUFFT \
-if (cuFFT_planned) \
-{ \
-	/*Delete CUFFT Plans*/ \
-	cufftDestroy(plan_forward_R2C); \
-	cufftDestroy(plan_inverse_C2R); \
-} \
-\
-/*Plan of the forward real to complex fast fourier transformation*/ \
-cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1); \
-if (result_forward_FFT != CUFFT_SUCCESS) \
-{ \
-	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT); \
-	exit(result_forward_FFT); \
-	abort(); \
-} \
-\
-/* Plan of the inverse complex to real fast fourier transformation */ \
-cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1); \
-if (result_inverse_FFT != CUFFT_SUCCESS) \
-{ \
-	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT); \
-	exit(result_inverse_FFT); \
-	abort(); \
-} \
-cuFFT_planned = true;
-
-
 #if !defined(__NVCC__)
 inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, float* vkBuffer, VkFFTConfiguration* configuration)
 {
@@ -1345,7 +1317,7 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 inline void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, float* key_buffer)
 {
 	
-	if (cuFFT_planned) {
+	if (vkFFT_planned) {
 		deleteVkFFT(plan_forward_R2C_key);
 	}
 	
@@ -1368,13 +1340,13 @@ inline void planForwardKeyFFT(VkGPU* vkGPU, vuda::detail::logical_device* logica
 		abort();
 	}
 
-	cuFFT_planned = true;
+	vkFFT_planned = true;
 }
 
 
 inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device, VkFFTApplication* plan_forward_R2C_key, VkFFTApplication* plan_forward_R2C_seed, VkFFTApplication* plan_inverse_C2R, float* key_buffer, float* seed_buffer)
 {
-	if (cuFFT_planned)
+	if (vkFFT_planned)
 	{
 		/*Delete CUFFT Plans*/
 		deleteVkFFT(plan_forward_R2C_key);
@@ -1412,7 +1384,7 @@ inline void planVkFFT(VkGPU* vkGPU, vuda::detail::logical_device* logical_device
 		abort();
 	}
 
-	cuFFT_planned = true;
+	vkFFT_planned = true;
 }
 #endif
 
@@ -1755,7 +1727,24 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	#if defined(__NVCC__)
 	cudaMemcpyToSymbol(normalisation_float_dev, &normalisation_float, sizeof(float));
 	cudaMemcpyToSymbol(sample_size_dev, &sample_size, sizeof(uint32_t));
-	PLAN_CUFFT;
+
+	/*Plan of the forward real to complex fast fourier transformation*/
+	cufftResult result_forward_FFT = cufftPlan1d(&plan_forward_R2C, sample_size, CUFFT_R2C, 1);
+	if (result_forward_FFT != CUFFT_SUCCESS)
+	{
+	println("Failed to plan FFT 1! Error Code: " << result_forward_FFT);
+	exit(result_forward_FFT);
+	abort();
+	}
+	
+	/* Plan of the inverse complex to real fast fourier transformation */
+	cufftResult result_inverse_FFT = cufftPlan1d(&plan_inverse_C2R, sample_size, CUFFT_C2R, 1);
+	if (result_inverse_FFT != CUFFT_SUCCESS)
+	{
+	println("Failed to plan IFFT 1! Error Code: " << result_inverse_FFT);
+	exit(result_inverse_FFT);
+	abort();
+	}
 	#else
 	cudaMemcpy(normalisation_float_dev, &normalisation_float, sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(sample_size_dev, &sample_size, sizeof(uint32_t), cudaMemcpyHostToDevice);

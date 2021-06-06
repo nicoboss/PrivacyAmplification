@@ -128,7 +128,6 @@ void sendData(const char* address, atomic<int>* ready, const char* client_name) 
 	while (zmq_bind(MatrixSeedServer_socket, address) != 0) {
 		println("Binding to \"" << address << "\" failed! Retrying...");
 	}
-	int32_t rc;
 	time_t currentTime;
 
 	println("Waiting for Client " << client_name << " ...");
