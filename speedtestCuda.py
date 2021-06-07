@@ -1,11 +1,16 @@
 import os
-os.chdir("PrivacyAmplification/bin/Release/")
+import platform
 import matplotlib.pyplot as plt
 import numpy as np
 from subprocess import Popen, PIPE
 
+if platform.system() == "Windows":
+    os.chdir("PrivacyAmplification/bin/Release/")
+else:
+    os.chdir("PrivacyAmplification/")
+
 d = np.zeros(shape=(2,28,10))
-process = Popen(["PrivacyAmplificationCuda.exe", "speedtest"], stdout=PIPE, universal_newlines=True)
+process = Popen(["./PrivacyAmplificationCuda", "speedtest"], stdout=PIPE, universal_newlines=True)
 (output, err) = process.communicate()
 exit_code = process.wait()
 exec(output)
