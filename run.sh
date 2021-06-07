@@ -35,6 +35,6 @@ tmux send-keys -t PrivacyAmplification 'tmux send-keys -t 1 C-z ./SendKeysExampl
 tmux send-keys -t PrivacyAmplification 'tmux send-keys -t 2 C-z ./MatrixSeedServerExample Enter' Enter && sleep 0.1
 tmux send-keys -t PrivacyAmplification 'tmux send-keys -t 3 C-z ./ReceiveAmpOutExample Enter' Enter && sleep 0.1
 tmux send-keys -t PrivacyAmplification 'clear' Enter && sleep 0.1
-tmux send-keys -t PrivacyAmplification './PrivacyAmplification' Enter && sleep 0.1
+tmux send-keys -t PrivacyAmplification './PrivacyAmplificationCuda' Enter && sleep 0.1
 cd ..
 tmux attach -t PrivacyAmplification
