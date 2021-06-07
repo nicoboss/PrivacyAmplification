@@ -38,7 +38,7 @@
 #include "vulkan/vulkan.h"
 #include "glslang_c_interface.h"
 //#include "half_lib/half.hpp"
-#include <vuda/vuda_runtime.hpp>
+#include "vuda/vuda_runtime.hpp"
 #include "vkFFT/vkFFT.h"
 #include "vkFFT/vkFFT_helper.h"
 #endif
@@ -549,9 +549,9 @@ int unitTestBinInt2float() {
 		*count_one_test = 0;
 		memset(floatOutTest, 0xFF, pow(2, 27) * sizeof(float));
 		#if defined(__NVCC__)
-		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
+		binInt2float KERNEL_ARG4((int)(((int)(sample_size_test)+1023) / 1024), min(sample_size_test, 1024), 0, BinInt2floatStreamTest) (binInTest, floatOutTest, count_one_test);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min_template(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatStreamTest, (int)(((int)(sample_size_test)+1023) / 1024), min(sample_size_test, 1024), binInTest, floatOutTest, count_one_test, float1_reduced_test_dev);
 		#endif
 		cudaStreamSynchronize(BinInt2floatStreamTest);
 		assertEquals(*count_one_test, count_one_expected, -1);
@@ -1216,7 +1216,7 @@ void sendData() {
 			cout << "Blocktime: " << duration / 1000.0 << " ms => " << (1000000.0 / duration) * (sample_size / 1000000.0) << " Mbit/s" << endl;
 			if (show_ampout > 0)
 			{
-				for (size_t i = 0; i < min_template((do_compress ? vertical_len / 8 : desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
+				for (size_t i = 0; i < min((do_compress ? vertical_len / 8 : desired_bytes / 2) * sizeof(uint32_t), show_ampout); ++i)
 				{
 					printf("0x%02X: %s\n", Output[output_cache_read_pos][i], bitset<8>(Output[output_cache_read_pos][i]).to_string().c_str());
 				}
@@ -1818,10 +1818,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 			#endif
 			STOPWATCH_SAVE(stopwatch_set_count_one_to_zero)
 			#if defined(__NVCC__)
-			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), 0,
+			binInt2float KERNEL_ARG4((int)(((int)(sample_size)+1023) / 1024), min(sample_size, 1024), 0,
 				BinInt2floatSeedStream) (toeplitz_seed[input_cache_read_pos_seed], di2, count_one_of_global_seed);
 			#else
-			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min_template(sample_size, 1024), toeplitz_seed[input_cache_read_pos_seed], di2, count_one_of_global_seed, float1_reduced_dev);
+			vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatSeedStream, (int)(((int)(sample_size)+1023) / 1024), min(sample_size, 1024), toeplitz_seed[input_cache_read_pos_seed], di2, count_one_of_global_seed, float1_reduced_dev);
 			#endif
 			cudaStreamSynchronize(BinInt2floatSeedStream);
 			#ifdef TEST
@@ -1854,10 +1854,10 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		}
 		#endif
 		#if defined(__NVCC__)
-		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), 0,
+		binInt2float KERNEL_ARG4((int)((relevant_keyBlocks * 32 + 1023) / 1024), min(relevant_keyBlocks * 32, 1024), 0,
 			BinInt2floatKeyStream) (key_start[input_cache_read_pos_key], di1, count_one_of_global_key);
 		#else
-		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min_template(relevant_keyBlocks * 32, 1024), key_start[input_cache_read_pos_key], di1, count_one_of_global_key, float1_reduced_dev);
+		vuda::launchKernel("SPIRV/binInt2float.spv", "main", BinInt2floatKeyStream, (int)((relevant_keyBlocks * 32 + 1023) / 1024), min(relevant_keyBlocks * 32, 1024), key_start[input_cache_read_pos_key], di1, count_one_of_global_key, float1_reduced_dev);
 		#endif
 		cudaStreamSynchronize(BinInt2floatKeyStream);
 		#ifdef TEST

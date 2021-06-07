@@ -24,7 +24,8 @@ typedef float2   Complex;
 #define NDEBUG
 
 //Return the minimum of two values
-#define min_template(a,b) (((a) < (b)) ? (a) : (b))
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 
 /*In modified toeplitz hashing the result needs to be XORed with key_rest
   This can be disabled for debugging purposes but must be enabled for security!
