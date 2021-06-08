@@ -1751,7 +1751,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	planVkFFT(&vkGPU, logical_device, &plan_forward_R2C_key, &plan_forward_R2C_seed, &plan_inverse_C2R, di1, di2);
 	#endif
 
-	int32_t speedtest_nr = -3;
+	int32_t speedtest_nr = -4;
 	chrono::high_resolution_clock::time_point speedtest_start;
 	chrono::high_resolution_clock::time_point speedtest_stop;
 
@@ -1764,6 +1764,12 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 		/*Spinlock waiting for data provider*/
 		if (speedtest) {
 			++speedtest_nr;
+			if (reuse_seed_amount == 0 || is_first_seed) {
+				is_first_seed = false;
+				recalculate_seed = true;
+			} else {
+				recalculate_seed = false;
+			}
 			speedtest_start = chrono::high_resolution_clock::now();
 		} else {
 			STOPWATCH_START

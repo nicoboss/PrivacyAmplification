@@ -19,7 +19,7 @@ typedef float2   Complex;
 
 #define TRUE 1
 #define FALSE 0
-#define VERSION "1.1.0"
+#define VERSION "2.0.0"
 //#define STOPWATCH TRUE
 #define NDEBUG
 
@@ -164,7 +164,7 @@ println("Hallo " << name) which requires the following function-like macros*/
   Example: std::string greeting = streamToString("Hallo " << name);*/
 #define streamToString(TEXT) convertStreamToString(std::ostringstream().flush() << TEXT);
 
-/*SHA3-256 Hash of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
+/*SHA3-256 hashes of the provided keyfile.bin and toeplitz_seed.bin with a sample_size of 2^27
 and a compression factor of vertical = sample_size / 4 + sample_size / 8 which was verified
 with a python reference implementation and is used for correctness testing*/
 const uint8_t ampout_sha3[] = { 0xC4, 0x22, 0xB6, 0x86, 0x5C, 0x72, 0xCA, 0xD8,
