@@ -16,12 +16,12 @@ namespace vuda
         {
         public:
 
-            default_storage_node(const vudaMemoryTypes& memory_type, const size_t size, memory_allocator& allocator) :
+            default_storage_node(const vudaMemoryTypes& memory_type, const size_t size, memory_allocator& allocator, bool aligned) :
                 internal_node(size, allocator.IsHostVisible(memory_type), allocator.IsHostCoherent(memory_type))
             {
                 //
                 // get pointer into memory chunk
-                m_ptrMemBlock = allocator.allocate(memory_type, m_size);
+                m_ptrMemBlock = allocator.allocate(memory_type, m_size, aligned);
 
                 //
                 // the memory remains mapped until it is freed by the user calling free/destroy

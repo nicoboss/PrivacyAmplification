@@ -25,7 +25,7 @@ namespace vuda
 
     //Allocates page-locked memory on the host.
     /*__host__*/
-    inline error_t hostAlloc(void** pHost, size_t size, unsigned int flags=0)
+    inline error_t hostAlloc(void** pHost, size_t size, unsigned int flags, bool aligned)
     {
         //
         // get device assigned to thread
@@ -34,11 +34,11 @@ namespace vuda
         //
         // allocate mem on the device
         if(flags == hostAllocDefault)
-            tinfo->GetLogicalDevice()->mallocHost(pHost, size);
+            tinfo->GetLogicalDevice()->mallocHost(pHost, size, aligned);
         /*else if(flags == hostAllocPortable)
         else if(flags == hostAllocMapped)*/
         else if(flags == hostAllocWriteCombined)
-            tinfo->GetLogicalDevice()->hostAlloc(pHost, size);
+            tinfo->GetLogicalDevice()->hostAlloc(pHost, size, aligned);
         else
             assert(0);
 
@@ -46,7 +46,7 @@ namespace vuda
     }
 
     // __host__ ​ __device__
-    inline error_t malloc(void** devPtr, size_t size)
+    inline error_t malloc(void** devPtr, size_t size, bool aligned)
     {
         //
         // get device assigned to thread
@@ -54,14 +54,14 @@ namespace vuda
         
         //
         // allocate mem on the device
-        tinfo->GetLogicalDevice()->malloc(devPtr, size);
+        tinfo->GetLogicalDevice()->malloc(devPtr, size, aligned);
 
         return vudaSuccess;
     }
 
     // Allocates page - locked memory on the host.
     /*__host__*/
-    inline error_t mallocHost(void** ptr, size_t size)
+    inline error_t mallocHost(void** ptr, size_t size, bool aligned)
     {
         //
         // get device assigned to thread
@@ -69,7 +69,7 @@ namespace vuda
 
         //
         // allocate mem on the device
-        tinfo->GetLogicalDevice()->mallocHost(ptr, size);
+        tinfo->GetLogicalDevice()->mallocHost(ptr, size, aligned);
 
         return vudaSuccess;
     }

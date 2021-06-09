@@ -100,7 +100,7 @@ namespace vuda
     }
 
     // __host__
-    inline error_t setDevice(int device)
+    inline error_t setDevice(int device, uint32_t vudaChunkSize)
     {
         //
         // lookup physical device
@@ -110,7 +110,7 @@ namespace vuda
 
         //
         // get the logical device from the vuda instance        
-        detail::logical_device* logicalDevice = detail::interface_logical_devices::create(physDevice, device);
+        detail::logical_device* logicalDevice = detail::interface_logical_devices::create(physDevice, device, vudaChunkSize);
 
         //
         // assign this particular device to the thread

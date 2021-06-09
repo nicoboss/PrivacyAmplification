@@ -134,10 +134,11 @@ namespace vuda
             // tries to find a free block within the chunk of memory with the required size
             // returns true if this succeeds
             // returns false if this fails
-            memory_block* allocate(const vk::DeviceSize size)
+            memory_block* allocate(const vk::DeviceSize size, bool aligned)
             {
-                if(size > m_size)
+                if (size > m_size) {
                     return nullptr;
+                }
 
                 vk::DeviceSize alignment = m_memreq.alignment;
 
@@ -157,9 +158,13 @@ namespace vuda
                         vk::DeviceSize virtualSize = m_blocks[i]->get_size();
                         vk::DeviceSize rest = (vk::DeviceSize)m_blocks[i]->get_offset() % alignment;
                         vk::DeviceSize incr_offset = 0;
+                        //std::cout << size << std::endl;
 
                         if(rest != 0)
                         {
+                            if (aligned) {
+                                return nullptr;
+                            }
                             incr_offset = alignment - rest;
                             virtualSize -= incr_offset;
                         }   
@@ -233,7 +238,7 @@ namespace vuda
             /*
                 public synchronized interface
             */
-            memory_allocator(const vk::PhysicalDevice& physDevice, const vk::Device& device, const vk::DeviceSize default_alloc_size = (vk::DeviceSize)(1 << 28)) :
+            memory_allocator(const vk::PhysicalDevice& physDevice, const vk::Device& device, const vk::DeviceSize default_alloc_size) :
                 m_physDevice(physDevice),
                 m_device(device),
                 m_defaultChunkSize(default_alloc_size)
@@ -318,7 +323,7 @@ namespace vuda
             }
 
             //memory_block* allocate(const vk::MemoryPropertyFlags& memory_properties, const vk::DeviceSize size)
-            memory_block* allocate(const vudaMemoryTypes& memory_type, const vk::DeviceSize size)
+            memory_block* allocate(const vudaMemoryTypes& memory_type, const vk::DeviceSize size, bool aligned)
             {
                 memory_block* block;
 
@@ -338,9 +343,10 @@ namespace vuda
                         {
                             //
                             // attempt to retrieve block from chunk
-                            block = chunk.allocate(size);
-                            if(block != nullptr)
+                            block = chunk.allocate(size, aligned);
+                            if (block != nullptr) {
                                 return block;
+                            }
                         }
 
                         /*std::stringstream ostr;
@@ -368,6 +374,11 @@ namespace vuda
                         std::cout << ostr.str();*/
 
                         m_creation_locks[pureIndex]->store(false);
+
+                        block = m_type_chunks[pureIndex].back().allocate(size, aligned);
+                        if (block != nullptr) {
+                            return block;
+                        }
                     }
                     else
                     {

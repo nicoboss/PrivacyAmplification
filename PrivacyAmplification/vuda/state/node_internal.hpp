@@ -97,7 +97,7 @@ namespace vuda
                 m_mtx = std::make_unique<std::mutex>();
             }
 
-            BufferType* get_buffer(const size_t size, memory_allocator& allocator)
+            BufferType* get_buffer(const size_t size, memory_allocator& allocator, bool aligned)
             {
                 //
                 // lock
@@ -129,7 +129,7 @@ namespace vuda
                 if(hcb == nullptr)
                 {
                     //m_buffers.push_back(std::make_unique<BufferType>(physDevice, device, size, allocator));
-                    create_buffer(size, allocator);
+                    create_buffer(size, allocator, aligned);
                     //m_buffers.back()->test_and_set();
                     hcb = m_buffers.back().get();
                 }
@@ -139,12 +139,12 @@ namespace vuda
 
         private:
 
-            void create_buffer(const size_t size, memory_allocator& allocator)
+            void create_buffer(const size_t size, memory_allocator& allocator, bool aligned)
             {
                 //
                 // assumes that the lock m_mtx is taken                
 
-                m_buffers.push_back(std::make_unique<BufferType>(size, allocator));
+                m_buffers.push_back(std::make_unique<BufferType>(size, allocator, aligned));
                 //m_buffers.back().get()->set_free();
             }
 

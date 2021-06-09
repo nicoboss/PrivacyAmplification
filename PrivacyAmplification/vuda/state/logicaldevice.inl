@@ -4,7 +4,7 @@ namespace vuda
     namespace detail
     {
 
-        inline logical_device::logical_device(const vk::DeviceCreateInfo& deviceCreateInfo, const vk::PhysicalDevice& physDevice) :
+        inline logical_device::logical_device(const vk::DeviceCreateInfo& deviceCreateInfo, const vk::PhysicalDevice& physDevice, uint32_t vudaChunkSize) :
             /*
                 create (unique) logical device from the physical device specified
                 create a command pool on the queue family index (assuming that there is only one family!)
@@ -17,7 +17,7 @@ namespace vuda
             m_commandBuffers(m_device->allocateCommandBuffersUnique(vk::CommandBufferAllocateInfo(m_commandPool.get(), vk::CommandBufferLevel::ePrimary, m_queueComputeCount))),
             m_commandBufferState(m_queueComputeCount, cbReset)*/
             m_storageBST_root(nullptr),
-            m_allocator(physDevice, m_device.get()) // findDeviceLocalMemorySize(physDevice) / 16
+            m_allocator(physDevice, m_device.get(), static_cast<vk::DeviceSize>(vudaChunkSize)) // findDeviceLocalMemorySize(physDevice) / 16
         {
             // device allocator     : device local mem type
             // host allocator       : host local mem type
@@ -208,11 +208,11 @@ namespace vuda
         // memory management
         //
 
-        inline void logical_device::malloc(void** devPtr, size_t size)
+        inline void logical_device::malloc(void** devPtr, size_t size, bool aligned)
         {
             //
             // create new node in storage_bst
-            device_buffer_node* node = new device_buffer_node(size, m_allocator);
+            device_buffer_node* node = new device_buffer_node(size, m_allocator, aligned);
 
             /*std::stringstream ostr;
             ostr << "tid: " << std::this_thread::get_id() << ", buffer: " << node->GetBuffer() << ", offset: " << node->GetOffset() << std::endl;
@@ -230,17 +230,17 @@ namespace vuda
             // make sure we have a staging buffer of equal size
             // [ for now each device buffer is backed by equal sized buffers, this is not very economical to say the least ]
             // [ for concurrent transfers we want to have sufficient pre-allocation, but we dont want to overcommit as the current implementation ]            
-            host_pinned_node_internal* stage_ptr = m_pinnedBuffers.get_buffer(size, m_allocator);
+            host_pinned_node_internal* stage_ptr = m_pinnedBuffers.get_buffer(size, m_allocator, aligned);
             stage_ptr->set_free();
-            host_cached_node_internal* dstptr = m_cachedBuffers.get_buffer(size, m_allocator);
+            host_cached_node_internal* dstptr = m_cachedBuffers.get_buffer(size, m_allocator, aligned);
             dstptr->set_free();
         }
 
-        inline void logical_device::mallocHost(void** ptr, size_t size)
+        inline void logical_device::mallocHost(void** ptr, size_t size, bool aligned)
         {
             //
             // create new node in pinned host visible in storage_bst 
-            default_storage_node* node = new default_storage_node(vudaMemoryTypes::eCached, size, m_allocator);
+            default_storage_node* node = new default_storage_node(vudaMemoryTypes::eCached, size, m_allocator, aligned);
 
             //
             // return the memory pointer
@@ -251,11 +251,11 @@ namespace vuda
             push_mem_node(node);
         }
 
-        inline void logical_device::hostAlloc(void** ptr, size_t size)
+        inline void logical_device::hostAlloc(void** ptr, size_t size, bool aligned)
         {
             //
             // create new node in cached, pinned, host visible mem
-            default_storage_node* node = new default_storage_node(vudaMemoryTypes::ePinned, size, m_allocator);
+            default_storage_node* node = new default_storage_node(vudaMemoryTypes::ePinned, size, m_allocator, aligned);
 
             //
             // return the memory pointer
@@ -505,7 +505,7 @@ namespace vuda
                     // copy the memory to a pinned staging buffer which is allocated with host visible memory (this is the infamous double copy)
                     // copy from stage buffer to device
                     use_staged = true;
-                    src_ptr = m_pinnedBuffers.get_buffer(count, m_allocator);
+                    src_ptr = m_pinnedBuffers.get_buffer(count, m_allocator, false);
                     std::memcpy(src_ptr->get_memptr(), src, count);
 
                     /*std::ostringstream ostr;
@@ -643,7 +643,7 @@ namespace vuda
                     // the dst address is not known to vuda, assume that we are copying to pageable host memory
                     // use staged buffer (pinned host cached memory) to perform internal copy before we copy to pageable host memory
                     use_staged = true;
-                    dst_ptr = m_cachedBuffers.get_buffer(src_node->GetSize(), m_allocator);
+                    dst_ptr = m_cachedBuffers.get_buffer(src_node->GetSize(), m_allocator, false);
 
                     /*std::ostringstream ostr;
                     ostr << "tid: " << std::this_thread::get_id() << ", using staged mem: " << dst_ptr->get_memptr() << std::endl;

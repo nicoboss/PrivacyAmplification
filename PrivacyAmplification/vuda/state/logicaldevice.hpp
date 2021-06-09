@@ -9,7 +9,7 @@ namespace vuda
         {
         public:
 
-            logical_device(const vk::DeviceCreateInfo& deviceInfo, const vk::PhysicalDevice& physDevice);       
+            logical_device(const vk::DeviceCreateInfo& deviceInfo, const vk::PhysicalDevice& physDevice, uint32_t vudaChunkSize);
             //~logical_device();
 
             // external access to the device handle
@@ -33,9 +33,9 @@ namespace vuda
 
             //
             // memory
-            void malloc(void** devPtr, size_t size);
-            void mallocHost(void** ptr, size_t size);
-            void hostAlloc(void** ptr, size_t size);
+            void malloc(void** devPtr, size_t size, bool aligned);
+            void mallocHost(void** ptr, size_t size, bool aligned);
+            void hostAlloc(void** ptr, size_t size, bool aligned);
             void free(void* devPtr);
 
             //

@@ -13,12 +13,12 @@ namespace vuda
         {
         public:
 
-            host_pinned_node_internal(const size_t size, memory_allocator& allocator) :
+            host_pinned_node_internal(const size_t size, memory_allocator& allocator, bool aligned) :
                 internal_node(size, allocator.IsHostVisible(vudaMemoryTypes::ePinned_Internal), allocator.IsHostCoherent(vudaMemoryTypes::ePinned_Internal))
             {
                 //
                 // allocate
-                m_ptrMemBlock = allocator.allocate(vudaMemoryTypes::ePinned_Internal, size);
+                m_ptrMemBlock = allocator.allocate(vudaMemoryTypes::ePinned_Internal, size, aligned);
             }
         };
 

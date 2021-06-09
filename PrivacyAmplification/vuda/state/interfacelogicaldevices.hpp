@@ -11,7 +11,7 @@ namespace vuda
         {
         public:
 
-            static logical_device* create(const vk::PhysicalDevice& physDevice, const int device)
+            static logical_device* create(const vk::PhysicalDevice& physDevice, const int device, uint32_t vudaChunkSize)
             {
                 std::unordered_map<int, logical_device>::iterator iter;
                 
@@ -28,7 +28,7 @@ namespace vuda
                     
                 //
                 // create a logical device if it is not already in existence
-                return create_logical_device(physDevice, device);                
+                return create_logical_device(physDevice, device, vudaChunkSize);
             }
 
         private:
@@ -63,7 +63,7 @@ namespace vuda
                 return cv;
             }*/
 
-            static logical_device* create_logical_device(const vk::PhysicalDevice& physDevice, const int device)
+            static logical_device* create_logical_device(const vk::PhysicalDevice& physDevice, const int device, uint32_t vudaChunkSize)
             {
                 //
                 // get physical device
@@ -107,7 +107,7 @@ namespace vuda
                 //get().insert({ device, logical_device(info, physDevice) });
                 //auto pair = get().emplace(std::piecewise_construct, std::forward_as_tuple(device), std::forward_as_tuple(info, physDevice));
                 // c++17
-                auto pair = get().try_emplace(device, deviceCreateInfo, physDevice);
+                auto pair = get().try_emplace(device, deviceCreateInfo, physDevice, vudaChunkSize);
                 assert(pair.second);
                 return &pair.first->second;
             }

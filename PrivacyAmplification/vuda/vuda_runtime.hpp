@@ -76,9 +76,9 @@ cudaError_t cudaGetDeviceFlags(unsigned int* flags)
 }*/
 
 // Set device to be used for GPU executions.
-inline cudaError_t cudaSetDevice(int device)
+inline cudaError_t cudaSetDevice(int device, uint32_t vudaChunkSize)
 {
-    return vuda::setDevice(device);
+    return vuda::setDevice(device, vudaChunkSize);
 }
 
 
@@ -255,23 +255,23 @@ inline cudaError_t cudaFreeHost(void* ptr)
 
 //
 // Allocate memory on the device.
-inline cudaError_t cudaMalloc(void** devPtr, size_t size)
+inline cudaError_t cudaMalloc(void** devPtr, size_t size, bool aligned = false)
 {
-    return vuda::malloc(devPtr, size);
+    return vuda::malloc(devPtr, size, aligned);
 }
 
 //
 // Allocates page-locked memory on the host.
-inline cudaError_t cudaMallocHost(void** ptr, size_t size)
+inline cudaError_t cudaMallocHost(void** ptr, size_t size, bool aligned = false)
 {
-    return vuda::mallocHost(ptr, size);
+    return vuda::mallocHost(ptr, size, aligned);
 }
 
 //
 // Allocates page-locked memory on the host.
-inline cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
+inline cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags, bool aligned = false)
 {
-    return vuda::hostAlloc(pHost, size, flags);
+    return vuda::hostAlloc(pHost, size, flags, aligned);
 }
 
 //
@@ -300,4 +300,15 @@ inline cudaError_t cudaMemset(void* devPtr, int  value, size_t count)
 inline cudaError_t cudaMemsetAsync(void* devPtr, int  value, size_t count, cudaStream_t stream = 0)
 {
     return vuda::memsetAsync(devPtr, value, count, stream);
+}
+
+//
+// Allocate zeroed memory on the device.
+inline cudaError_t cudaCalloc(void** devPtr, size_t size, bool aligned = false)
+{
+    cudaError_t cudaMallocCall = cudaMalloc(devPtr, size, aligned);
+    if (cudaMallocCall == cudaSuccess) {
+        return cudaMemset(*devPtr, 0b00000000, size);
+    }
+    return cudaMallocCall;
 }

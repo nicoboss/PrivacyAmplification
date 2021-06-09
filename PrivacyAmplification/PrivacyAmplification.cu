@@ -131,11 +131,8 @@ assertTrue(*assertKernelReturnValue == 0);
 #endif
 
 #if defined(__NVCC__)
-/*Because cudaCalloc doesn't exist let's make our own one using cudaMalloc and cudaMemset*/
+/*Because cudaCalloc doesn't exist in Cuda let's make our own one using cudaMalloc and cudaMemset*/
 #define cudaCalloc(address, size) if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
-#else
-#define cudaCalloc(address, size) \
-if (cudaMalloc(address, size) == cudaSuccess) cudaMemset(*address, 0b00000000, size);
 #endif
 
 #define VULKAN_ASSERT_VALUE(data, data_len, value) \
@@ -191,6 +188,7 @@ uint32_t* key_rest_zero_pos;
 uint8_t** Output;
 uint32_t* assertKernelValue;
 uint32_t* assertKernelReturnValue;
+uint32_t vudaChunkSize;
 #ifdef TEST
 bool doTest = true;
 uint8_t* testMemoryHost;
@@ -1305,7 +1303,8 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->device = &vkGPU->device;
 	configuration->queue = &vkGPU->queue;
 	configuration->fence = &vkGPU->fence;
-	configuration->buffer = new VkBuffer{ logical_device->GetBuffer(vkBuffer) };
+	//println("offset: " << logical_device->GetBufferDescriptor(vkBuffer).offset);
+	configuration->buffer = new VkBuffer{ logical_device->GetBufferDescriptor(vkBuffer).buffer };
 	bufferSize = (uint64_t)sizeof(float) * 2 * (sample_size / 2 + 1);
 	configuration->bufferSize = &bufferSize;
 	configuration->commandPool = &vkGPU->commandPool;
@@ -1431,11 +1430,12 @@ int main(int argc, char* argv[])
 	recv_key = (uint32_t*)malloc(key_blocks * sizeof(uint32_t));
 	key_start_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
 	key_rest_zero_pos = (uint32_t*)malloc(input_blocks_to_cache * sizeof(uint32_t));
+	vudaChunkSize = min(sample_size * sizeof(float), pow(2, 27)); //Max 128 MB Chunks
 
 	cout << "# PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
 
-	cudaSetDevice(gpu_device_id_to_use);
+	cudaSetDevice(gpu_device_id_to_use, vudaChunkSize);
 
 	#if defined(__NVCC__)
 	int driver_version = 0;
@@ -1502,11 +1502,9 @@ int main(int argc, char* argv[])
 	cudaStreamCreate(&ElementWiseProductStream);
 	cudaStreamCreate(&ToBinaryArrayStream);
 	#else
-	vkGPU.device_id = 0;
-	cudaSetDevice(vkGPU.device_id);
 	vkGPU.instance = vuda::detail::Instance::GetVkInstance();
-	vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(vkGPU.device_id);
-	logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0);
+	vkGPU.physicalDevice = vuda::detail::Instance::GetPhysicalDevice(gpu_device_id_to_use);
+	logical_device = vuda::detail::interface_logical_devices::create(vkGPU.physicalDevice, 0, vudaChunkSize);
 	const vuda::detail::thrdcmdpool* thrdcmdpool = logical_device->GetPool(std::this_thread::get_id());
 	vkGPU.device = logical_device->GetDeviceHandle();
 	vkGPU.commandPool = thrdcmdpool->GetCommandPool();
@@ -1572,21 +1570,21 @@ int main(int argc, char* argv[])
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
 	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real));
 	#else
-	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((max(sample_size, pow(2, 26)) + 992) / 2 + 1));
+	cudaCalloc((void**)&di1, (uint64_t)sizeof(float) * 2 * ((sample_size + 992) / 2 + 1), true);
 
 	/*Toeplitz matrix seed FFT input but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is disabled for the next block*/
-	cudaMalloc((void**)&di2, (max(sample_size, pow(2, 26)) + 992) * sizeof(Real));
+	cudaMalloc((void**)&di2, (sample_size + 992) * sizeof(Real), true);
 	#endif
 
-#if defined(__NVCC__)
+	#if defined(__NVCC__)
 	/*Key FFT output but this memory region is shared with ElementWiseProduct output as they never conflict*/
 	cudaMalloc((void**)&do1, sample_size * sizeof(Complex));
 
 	/*Toeplitz Seed FFT output but this memory region is shared with invOut
 	  if toeplitz matrix seed recalculation is enabled for the next block (default)*/
 	cudaMalloc((void**)&do2, max(sample_size * sizeof(Complex), (sample_size + 992) * sizeof(Real)));
-#endif
+	#endif
 
 	
 	const Real float0 = 0.0f;

@@ -18,8 +18,8 @@ namespace vuda
         class device_buffer_node : public default_storage_node
         {
         public:
-            device_buffer_node(const size_t size, memory_allocator& allocator) :
-                default_storage_node(vudaMemoryTypes::eDeviceLocal, size, allocator)
+            device_buffer_node(const size_t size, memory_allocator& allocator, bool aligned) :
+                default_storage_node(vudaMemoryTypes::eDeviceLocal, size, allocator, aligned)
             {
                 //
                 // reserve address range in virtual memory (platform dependent)
