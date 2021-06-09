@@ -1435,7 +1435,11 @@ int main(int argc, char* argv[])
 	cout << "# PrivacyAmplification with " << sample_size << " bits" << endl << endl;
 	setConsoleDesign();
 
+	#if defined(__NVCC__)
+	cudaSetDevice(gpu_device_id_to_use);
+	#else
 	cudaSetDevice(gpu_device_id_to_use, vudaChunkSize);
+	#endif
 
 	#if defined(__NVCC__)
 	int driver_version = 0;
