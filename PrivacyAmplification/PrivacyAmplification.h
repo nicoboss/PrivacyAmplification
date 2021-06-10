@@ -347,15 +347,16 @@ void readKeyFromFile();
 /// Because this function runs in parallel it never returns
 /// 
 /// Comunnication matrix seed server:
-/// Action                    Size [bytes]                    endianness
-/// Send: SYN                 3                               big
-/// Receive: recv_key         ((sample_size / 32) * 4         4 byte little
+/// Action                            Size [bytes]                 Typ              Endianness
+/// Receive: reuse_seed_amount_array  4                            int32_t          little
+/// Receive: toeplitz_seed            sample_size / 8              uint32_t[]       little
 /// 
 /// Comunnication with key server:
-/// Action                    Size [bytes]                    endianness
-/// Send: SYN                 3                               big
-/// Receive: vertical_block   4                               4 byte little
-/// Receive: recv_key         ((sample_size / 32) + 1) * 4    4 byte little
+/// Action                            Size [bytes]                   Typ            Endianness
+/// Receive: do_xor_key_rest          4                              boolean        little
+/// Receive: do_compress              4                              boolean        little
+/// Receive: vertical_block           4                              uint32_t       little
+/// Receive: recv_key                 ((sample_size / 32) + 1) * 4   uint32_t[]     little
 void reciveData();
 
 std::string toHexString(const unsigned char* data, uint32_t data_length);
@@ -380,9 +381,9 @@ void verifyData(const unsigned char* dataToVerify);
 /// Because this function runs in parallel it never returns
 /// 
 /// Comunnication with ReceiveAmpOutExample client:
-/// Action                    Size [bytes]                    endianness
-/// Receive: SYN               3                               big
-/// Send: output_block        vertical_len / 8                4 byte little or big
+/// Action                                Size [bytes]             Typ         Endianness
+/// Send: output_block [do_compress]      vertical_len / 8         4 byte      little or big
+/// Send: output_block [!do_compress]     (sample_size / 8) / 2    4 byte      little or big
 /// If big endian is required, set AMPOUT_REVERSE_ENDIAN to true otherwise to false.
 void sendData();
 
