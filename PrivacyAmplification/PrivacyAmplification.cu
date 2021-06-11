@@ -1254,6 +1254,10 @@ void readConfig() {
 	output_blocks_to_cache = root["output_blocks_to_cache"].As<uint32_t>(16); //Has to be larger then 1
 
 	reuse_seed_amount = root["reuse_seed_amount"].As<int32_t>(0);
+	vertical_len = root["vertical_len"].As<int32_t>(50331648);
+	do_xor_key_rest = root["do_xor_key_rest"].As<bool>(true);
+	do_compress = root["do_compress"].As<bool>(true);
+
 	show_ampout = root["show_ampout"].As<int32_t>(0);
 	show_zeromq_status = root["show_zeromq_status"].As<bool>(true);
 	use_matrix_seed_server = root["use_matrix_seed_server"].As<bool>(true);
@@ -1417,8 +1421,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	vertical_len = sample_size / 4 + sample_size / 8;
-	horizontal_len = sample_size / 2 + sample_size / 8;
+	horizontal_len = sample_size - vertical_len;
 	vertical_block = vertical_len / 32;
 	horizontal_block = horizontal_len / 32;
 	desired_block = sample_size / 32;
@@ -1634,6 +1637,7 @@ int main(int argc, char* argv[])
 				}
 				for (int32_t j = 10; j < 28; ++j) {
 					sample_size = pow(2, j);
+					vertical_len = sample_size / 4 + sample_size / 8;
 					mainloop(true, i, j);
 				}
 			}
@@ -1717,8 +1721,7 @@ void mainloop(bool speedtest, int32_t speedtest_i, int32_t speedtest_j)
 	VkFFTApplication plan_inverse_C2R = {};
 	#endif
 
-	vertical_len = sample_size / 4 + sample_size / 8;
-	horizontal_len = sample_size / 2 + sample_size / 8;
+	horizontal_len = sample_size - vertical_len;
 	vertical_block = vertical_len / 32;
 	horizontal_block = horizontal_len / 32;
 	desired_block = sample_size / 32;

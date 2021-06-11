@@ -5,6 +5,37 @@
 #Needs to match with the one specified in other components
 factor_exp: 27
 
+#Specifies if and how often the toeplitz matrix seed should be exchanged for every
+#Privacy Amplification. This has a huge performance and security impact. Not changing
+#it will make the algorithms security to be no longer proven to be secure while
+#changing it every time will reduce performance by around 33% (around 47% faster).
+#0 = Always recalculate toeplitz matrix seed
+#-1 = Never recalculate toeplitz matrix seed
+#Note: This value gets overwritten by the seed server and is heavily used during the
+#algorithm that splits large blocks into chunks small enough to fit in GPU memory.
+#I highly recommend to set this to 0 if security matters.
+reuse_seed_amount: 0
+
+#Vertical_len indicates how big vertical lenth of the toeplitz matrix is. The size
+#of Vertical_len in relation to the 2^factor_exp gives the compression factor.
+#Note: This value will gets overwritten by the key server if one is used.
+#Warning: This value needs to be devisable by 128.
+vertical_len: 50331648
+
+#Specifies whether a key rest is expected from the key server and whether the key rest
+#is to be used for XOR calculations. Actually, this is always the case, unless the
+#main algorithm is used to calculate the sub-blocks of the large block size algorithm,
+#since there XOR key rest is only carried out at the very end in the large block size.
+#Note: This value will gets overwritten by the key server if one is used.
+do_xor_key_rest: true
+
+#The same applies to do_compress. Usually this is always true, unless you use the
+#large block size algorithm, which requires the full amplified key.
+#reuse_seed_amount indicates whether and how often the sent seed is reused.
+#This information is used in the seed caching of the large block size algorithm.
+#Note: This value will gets overwritten by the key server if one is used.
+do_compress: true
+
 #FFT input maps binary 0, 1 to 0 and 1/(2^reduction_exp) which
 #will be corrected during normalisation after IFFT
 #This has an impact on the Privacy Amplification precision
@@ -30,17 +61,6 @@ input_blocks_to_cache: 16
 #Keep in mind that for verify_ampout_threads to work properly the output_blocks_to_cache
 #has to be around double of what specified in output_blocks_to_cache
 output_blocks_to_cache: 16
-
-#Specifies if and how often the toeplitz matrix seed should be exchanged for every
-#Privacy Amplification. This has a huge performance and security impact. Not changing  
-#it will make the algorithms security to be no longer proven to be secure while
-#changing it every time will reduce performance by around 33% (around 47% faster).
-#0 = Always recalculate toeplitz matrix seed
-#-1 = Never recalculate toeplitz matrix seed
-#Note: This value gets overwritten by the key server and is heavily used during the
-#algorithm that splits large blocks into chunks small enough to fit in GPU memory.
-#I highly recommend to set this to 0 if security matters.
-reuse_seed_amount: 0
 
 #Displays the first n bytes of the final Privacy Amplification result
 #to the console. n > 0 has a little performance impact.
