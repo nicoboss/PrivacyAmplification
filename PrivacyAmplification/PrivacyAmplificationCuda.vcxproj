@@ -36,13 +36,13 @@
     <ProjectGuid>{97B461C5-16C4-4CFF-9D2F-BFB23DA50AAC}</ProjectGuid>
     <RootNamespace>PrivacyAmplificationCuda</RootNamespace>
     <ProjectName>PrivacyAmplificationCuda</ProjectName>
-    <CudaToolkitCustomDir>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3</CudaToolkitCustomDir>
+    <CudaToolkitCustomDir>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2</CudaToolkitCustomDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup>
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
@@ -53,7 +53,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.3.props" />
+    <Import Project="$(CUDAPropsPath)\CUDA 12.2.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
     <Import Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" />
@@ -108,7 +108,7 @@
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2\bin\cufft64_11.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
@@ -138,7 +138,7 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
     </CudaCompile>
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">xcopy /y /d "..\libzmq\dll\libzmq-v142-mt-4_3_5.dll" "$(ProjectDir)$(OutDir)*"
-xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\cufft64_10.dll" "$(ProjectDir)$(OutDir)*"
+xcopy /y /d  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2\bin\cufft64_11.dll" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)toeplitz_seed.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d  "$(ProjectDir)keyfile.bin" "$(ProjectDir)$(OutDir)*"
 xcopy /y /d "$(ProjectDir)config.yaml" "$(ProjectDir)$(OutDir)*"
@@ -148,6 +148,6 @@ xcopy /y /d "$(ProjectDir)scripts\downloadAssets.cmd" "$(ProjectDir)$(OutDir)*"<
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(CUDAPropsPath)\CUDA 11.3.targets" />
+    <Import Project="$(CUDAPropsPath)\CUDA 12.2.targets" />
   </ImportGroup>
 </Project>
