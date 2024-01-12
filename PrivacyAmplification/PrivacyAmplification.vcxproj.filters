@@ -26,12 +26,6 @@
     <ClInclude Include="vuda\vuda_runtime.hpp">
       <Filter>vuda</Filter>
     </ClInclude>
-    <ClInclude Include="vkFFT\vkFFT.h">
-      <Filter>vkFFT</Filter>
-    </ClInclude>
-    <ClInclude Include="vkFFT\vkFFT_helper.h">
-      <Filter>vkFFT</Filter>
-    </ClInclude>
     <ClInclude Include="half_lib\half.hpp">
       <Filter>half_lib</Filter>
     </ClInclude>
@@ -122,6 +116,8 @@
     <ClInclude Include="vuda\setup\types.hpp">
       <Filter>vuda\setup</Filter>
     </ClInclude>
+    <ClInclude Include="vkFFT.h" />
+    <ClInclude Include="utils_VkFFT.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sha3">
@@ -154,6 +150,7 @@
       <Filter>yaml</Filter>
     </ClCompile>
     <ClCompile Include="PrivacyAmplification.cu" />
+    <ClCompile Include="utils_VkFFT.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="vuda\state\kernelprogram.inl">

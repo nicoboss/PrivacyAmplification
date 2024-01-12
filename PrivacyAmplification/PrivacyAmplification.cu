@@ -39,8 +39,8 @@
 #include "glslang_c_interface.h"
 //#include "half_lib/half.hpp"
 #include "vuda/vuda_runtime.hpp"
-#include "vkFFT/vkFFT.h"
-#include "vkFFT/vkFFT_helper.h"
+#include "vkFFT.h"
+#include "utils_VkFFT.h"
 #endif
 
 #if !defined(NDEBUG)
@@ -283,6 +283,17 @@ void printlnStream(ostream& os) {
 	printlock.unlock();
 }
 
+#if !defined(__NVCC__)
+VkFFTResult vkfftExecR2C(VkGPU* vkGPU, VkFFTApplication* app) {
+	VkFFTLaunchParams launchParams = {};
+	return performVulkanFFT(vkGPU, app, &launchParams, -1, 1);
+}
+
+VkFFTResult vkfftExecC2R(VkGPU* vkGPU, VkFFTApplication* app) {
+	VkFFTLaunchParams launchParams = {};
+	return performVulkanFFT(vkGPU, app, &launchParams, 1, 1);
+}
+#endif
 
 string convertStreamToString(ostream& os) {
 	ostringstream& ss = dynamic_cast<ostringstream&>(os);
@@ -1301,7 +1312,7 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->performR2C = true;
 	configuration->aimThreads = 1024;
 	configuration->registerBoost = true;
-	configuration->performHalfBandwidthBoost = true;
+	configuration->performBandwidthBoost = true;
 	configuration->useLUT = false;
 	configuration->normalize = false;
 	configuration->device = &vkGPU->device;

@@ -23,8 +23,8 @@
     <ClInclude Include="sha3\sha3.h" />
     <ClInclude Include="sha3\ustd.h" />
     <ClInclude Include="ThreadPool.h" />
-    <ClInclude Include="vkFFT\vkFFT.h" />
-    <ClInclude Include="vkFFT\vkFFT_helper.h" />
+    <ClInclude Include="utils_VkFFT.h" />
+    <ClInclude Include="vkFFT.h" />
     <ClInclude Include="vuda\api\devicemgr.hpp" />
     <ClInclude Include="vuda\api\eventmgr.hpp" />
     <ClInclude Include="vuda\api\memmgr.hpp" />
@@ -64,6 +64,7 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="utils_VkFFT.cpp" />
     <ClCompile Include="yaml\Yaml.cpp" />
   </ItemGroup>
   <ItemGroup>
