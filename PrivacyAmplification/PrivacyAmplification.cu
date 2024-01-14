@@ -1301,7 +1301,7 @@ inline void VkFFTCreateConfiguration(VkGPU* vkGPU, vuda::detail::logical_device*
 	configuration->performR2C = true;
 	configuration->aimThreads = 1024;
 	configuration->registerBoost = true;
-	configuration->performHalfBandwidthBoost = true;
+	configuration->performBandwidthBoost = true;
 	configuration->useLUT = false;
 	configuration->normalize = false;
 	configuration->device = &vkGPU->device;
