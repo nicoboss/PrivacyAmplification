@@ -69,9 +69,9 @@ static inline VkFFTResult shaderGen_FFT(VkFFTSpecializationConstantsLayout* sc, 
 	appendPushConstants(sc);
 	
 	int id = 0;
-	appendInputLayoutVkFFT(sc, id);
+	appendInputLayoutVkFFT(sc, id, type);
 	id++;
-	appendOutputLayoutVkFFT(sc, id);
+	appendOutputLayoutVkFFT(sc, id, type);
 	id++;
 	if (sc->convolutionStep) {
 		appendKernelLayoutVkFFT(sc, id);
@@ -92,9 +92,9 @@ static inline VkFFTResult shaderGen_FFT(VkFFTSpecializationConstantsLayout* sc, 
 		if (sc->BluesteinPreMultiplication || sc->BluesteinPostMultiplication)
 			id++;
 	}
-	int locType = (((type%10)==0) && (sc->axisSwapped)) ? 1 : (type%10);
+	int locType = (((type == 0) || (type == 5) || (type == 6) || (type == 110) || (type == 120) || (type == 130) || (type == 140) || (type == 142) || (type == 144)) && (sc->axisSwapped)) ? 1 : type;
 	
-	appendKernelStart(sc, locType);
+	appendKernelStart(sc, type);
 	
 	setReadToRegisters(sc, type);
 	setWriteFromRegisters(sc, type);
@@ -118,25 +118,26 @@ static inline VkFFTResult shaderGen_FFT(VkFFTSpecializationConstantsLayout* sc, 
 
 		//pre-processing
 		//r2c, r2r
-		if (type == 600) {
+		if (type == 6) {
 			appendC2R_read(sc, type, 0);
 		}
-		if (sc->numAxisUploads == 1) {
-			if ((type/10) == 110) {
+		if ((type == 110) || (type == 111)) {
+			if(sc->performDST==1)
+				appendDSTI_read(sc, type, 0);
+			else
 				appendDCTI_read(sc, type, 0);
-			}
-			if ((type/10) == 120) {
-				appendDCTII_read_III_write(sc, type, 0);
-			}
-			if ((type/10) == 130) {
-				appendDCTII_write_III_read(sc, type, 0);
-			}
-			if ((type/10) == 140) {
-				appendDCTIV_even_read(sc, type, 0);
-			}
-			if ((type/10) == 142) {
-				appendDCTIV_odd_read(sc, type, 0);
-			}
+		}
+		if ((type == 120) || (type == 121)) {
+			appendDCTII_read_III_write(sc, type, 0);
+		}
+		if ((type == 130) || (type == 131)) {
+			appendDCTII_write_III_read(sc, type, 0);
+		}
+		if ((type == 142) || (type == 143)) {
+			appendDCTIV_even_read(sc, type, 0);
+		}
+		if ((type == 144) || (type == 145)) {
+			appendDCTIV_odd_read(sc, type, 0);
 		}
 		if (sc->useBluesteinFFT && sc->BluesteinPreMultiplication) {
 			appendBluesteinMultiplication(sc, locType, 0);
@@ -360,22 +361,20 @@ static inline VkFFTResult shaderGen_FFT(VkFFTSpecializationConstantsLayout* sc, 
 			if (sc->useBluesteinFFT && sc->BluesteinPostMultiplication) {
 				appendBluesteinMultiplication(sc, locType, 1);
 			}
-			if (sc->numAxisUploads == 1) {
-				if ((type == 500) && (sc->mergeSequencesR2C)) {
-					appendR2C_write(sc, type, 1);
-				}
-				if ((type / 10) == 120) {
-					appendDCTII_write_III_read(sc, type, 1);
-				}
-				if ((type / 10) == 130) {
-					appendDCTII_read_III_write(sc, type, 1);
-				}
-				if ((type / 10) == 140) {
-					appendDCTIV_even_write(sc, type, 1);
-				}
-				if ((type / 10) == 142) {
-					appendDCTIV_odd_write(sc, type, 1);
-				}
+			if ((type == 5) && (sc->mergeSequencesR2C)) {
+				appendR2C_write(sc, type, 1);
+			}
+			if ((type == 120) || (type == 121)) {
+				appendDCTII_write_III_read(sc, type, 1);
+			}
+			if ((type == 130) || (type == 131)) {
+				appendDCTII_read_III_write(sc, type, 1);
+			}
+			if ((type == 142) || (type == 143)) {
+				appendDCTIV_even_write(sc, type, 1);
+			}
+			if ((type == 144) || (type == 145)) {
+				appendDCTIV_odd_write(sc, type, 1);
 			}
 			appendWriteDataVkFFT(sc, type);
 		}
