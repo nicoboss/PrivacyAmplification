@@ -1007,7 +1007,7 @@ void reciveDataSeed() {
 		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
 		printlock.lock();
 		cout << "Toeplitz Seed: ";
-		printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
+		printBin(toeplitz_seed[input_cache_write_pos_seed], toeplitz_seed[input_cache_write_pos_seed] + desired_bytes);
 		fflush(stdout);
 		printlock.unlock();
 		#endif
@@ -1086,9 +1086,9 @@ void reciveDataKey() {
 		cout << "Key: ";
 		printBin(recv_key, recv_key + key_blocks);
 		cout << "Key Start: ";
-		printBin(key_start[input_cache_write_pos], key_start[input_cache_write_pos] + desired_block + 1);
+		printBin(key_start[input_cache_write_pos_key], key_start[input_cache_write_pos_key] + desired_block + 1);
 		cout << "Key Rest: ";
-		printBin(key_rest[input_cache_write_pos], key_rest[input_cache_write_pos] + vertical_block + 1);
+		printBin(key_rest[input_cache_write_pos_key], key_rest[input_cache_write_pos_key] + desired_block + 1);
 		fflush(stdout);
 		printlock.unlock();
 		#endif
