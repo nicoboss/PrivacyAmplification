@@ -868,12 +868,11 @@ inline void key2StartRest() {
 	*(key_start_block + horizontal_block) = *(recv_key + horizontal_block) & 0b10000000000000000000000000000000;
 
 	uint32_t j = horizontal_block;
-	for (uint32_t i = 0; i < vertical_block - 1; ++i)
+	for (uint32_t i = 0; i < vertical_block; ++i)
 	{
 		key_rest_block[i] = ((recv_key[j] << 1) | (recv_key[j + 1] >> 31));
 		++j;
 	}
-	key_rest_block[vertical_block - 1] = ((recv_key[j] << 1));
 
 	uint32_t new_key_start_zero_pos = horizontal_block + 1;
 	if (new_key_start_zero_pos < *key_start_zero_pos_block)
@@ -1007,7 +1006,7 @@ void reciveDataSeed() {
 		#if SHOW_INPUT_DEBUG_OUTPUT == TRUE
 		printlock.lock();
 		cout << "Toeplitz Seed: ";
-		printBin(toeplitz_seed_block, toeplitz_seed_block + desired_block);
+		printBin(toeplitz_seed[input_cache_write_pos_seed], toeplitz_seed[input_cache_write_pos_seed] + desired_bytes);
 		fflush(stdout);
 		printlock.unlock();
 		#endif
@@ -1086,9 +1085,9 @@ void reciveDataKey() {
 		cout << "Key: ";
 		printBin(recv_key, recv_key + key_blocks);
 		cout << "Key Start: ";
-		printBin(key_start[input_cache_write_pos], key_start[input_cache_write_pos] + desired_block + 1);
+		printBin(key_start[input_cache_write_pos_key], key_start[input_cache_write_pos_key] + desired_block + 1);
 		cout << "Key Rest: ";
-		printBin(key_rest[input_cache_write_pos], key_rest[input_cache_write_pos] + vertical_block + 1);
+		printBin(key_rest[input_cache_write_pos_key], key_rest[input_cache_write_pos_key] + desired_block + 1);
 		fflush(stdout);
 		printlock.unlock();
 		#endif
